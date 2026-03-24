@@ -1,0 +1,22 @@
+# ============================================================
+# FISCO Console Dockerfile
+# 节点控制器 - 用于交互式/非交互式操作区块链
+# ============================================================
+FROM eclipse-temurin:11-jre-focal
+
+# 安装 bash 和 curl
+RUN apt-get update && apt-get install -y \
+    bash \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /data
+
+# 将控制台目录复制到镜像
+COPY ./console /data
+
+# 设置启动脚本执行权限
+RUN chmod +x start.sh
+
+# 保持运行状态（交互模式）
+ENTRYPOINT ["tail", "-f", "/dev/null"]

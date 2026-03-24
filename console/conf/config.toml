@@ -1,0 +1,25 @@
+[common]
+    cryptoType = 0
+
+[network]
+    messageTimeout = "10000"
+    peers = [
+        "fisco-node0:20000",
+        "fisco-node1:20001",
+        "fisco-node2:20002",
+        "fisco-node3:20003"
+    ]
+    defaultGroup="group0"
+
+[cryptoMaterial]
+    certPath = "conf"
+    disableSsl = "true"
+    useSMCrypto = "false"
+
+[threadPool]
+    maxBlockingQueueSize = 1000
+
+[account]
+    keyStoreDir = "account"
+    accountAddress = "0x6976c14175ddfae575ffab3845d89e155e09569d"
+    accountFileFormat = "pem"

@@ -1,0 +1,690 @@
+# ============================================================
+# FISCO BCOS 供应链金融平台 - Docker Compose 完整配置
+# 版本: v1.0
+# 使用: docker compose up -d
+# ============================================================
+
+services:
+  # ============================================================
+  # 1. Nginx API 网关
+  # ============================================================
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: fisco-nginx
+    restart: always
+    ports:
+      - "${NGINX_HTTP_PORT:-80}:80"
+      - "${NGINX_HTTPS_PORT:-443}:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./docker/nginx/ssl:/etc/nginx/ssl:ro
+      - nginx-logs:/var/log/nginx
+    depends_on:
+      auth-service:
+        condition: service_healthy
+      enterprise-service:
+        condition: service_healthy
+      warehouse-service:
+        condition: service_healthy
+      logistics-service:
+        condition: service_healthy
+      finance-service:
+        condition: service_healthy
+      credit-service:
+        condition: service_healthy
+      fisco-gateway-service:
+        condition: service_started
+    networks:
+      app-net:
+        ipv4_address: 172.26.0.2
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    dns:
+      - 172.26.0.1
+    profiles:
+      - api-gateway
+      - full
+
+  # ============================================================
+  # 2. Auth Service (认证服务)
+  # ============================================================
+  auth-service:
+    build:
+      context: .
+      dockerfile: services/auth-service/Dockerfile
+    image: fisco/auth-service:${IMAGE_TAG}
+    container_name: fisco-auth-service
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+    environment:
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-prod}
+      - SERVER_PORT=8081
+      # MySQL
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_NAME=${DB_NAME:-fisco_data}
+      - DB_USERNAME=${DB_USERNAME:-fisco_user}
+      - DB_PASSWORD=${DB_PASSWORD:-123456}
+      # JWT
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRATION=${JWT_EXPIRATION:-7200000}
+      - JWT_REFRESH_EXPIRATION=${JWT_REFRESH_EXPIRATION:-604800000}
+      # Java 调优
+      - JAVA_OPTS=${JAVA_OPTS_AUTH:-Xms512m -Xmx512m -XX:+UseG1GC}
+    ports:
+      - "8081:8081"
+    volumes:
+      - ./services/auth-service/logs:/app/logs
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      app-net:
+        ipv4_address: 172.26.0.10
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    dns:
+      - 172.26.0.1
+
+  # ============================================================
+  # 3. Enterprise Service (企业服务)
+  # ============================================================
+  enterprise-service:
+    build:
+      context: .
+      dockerfile: services/enterprise-service/Dockerfile
+    image: fisco/enterprise-service:${IMAGE_TAG}
+    container_name: fisco-enterprise-service
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+    environment:
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-prod}
+      - SERVER_PORT=8082
+      # MySQL
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_NAME=${DB_NAME:-fisco_data}
+      - DB_USERNAME=${DB_USERNAME:-fisco_user}
+      - DB_PASSWORD=${DB_PASSWORD:-123456}
+      # FISCO Gateway
+      - FISCO_GATEWAY_URL=http://fisco-gateway-service:8087
+      # FISCO SDK (禁用，直接使用 Gateway)
+      - FISCO_ENABLED=false
+      # JWT
+      - JWT_SECRET=${JWT_SECRET}
+      # 合约地址
+      - CONTRACT_ENTERPRISE=${CONTRACT_ENTERPRISE}
+      - CONTRACT_ENTERPRISE_AUTH=${CONTRACT_ENTERPRISE_AUTH}
+      # Java 调优
+      - JAVA_OPTS=${JAVA_OPTS_ENTERPRISE:-Xms512m -Xmx512m -XX:+UseG1GC}
+    ports:
+      - "8082:8082"
+    volumes:
+      - ./services/enterprise-service/logs:/app/logs
+    depends_on:
+      mysql:
+        condition: service_healthy
+      fisco-gateway-service:
+        condition: service_started
+    networks:
+      app-net:
+        ipv4_address: 172.26.0.11
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    dns:
+      - 172.26.0.1
+
+  # ============================================================
+  # 4. Warehouse Service (仓单服务)
+  # ============================================================
+  warehouse-service:
+    build:
+      context: .
+      dockerfile: services/warehouse-service/Dockerfile
+    image: fisco/warehouse-service:${IMAGE_TAG}
+    container_name: fisco-warehouse-service
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+    environment:
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-prod}
+      - SERVER_PORT=8083
+      # MySQL
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_NAME=${DB_NAME:-fisco_data}
+      - DB_USERNAME=${DB_USERNAME:-fisco_user}
+      - DB_PASSWORD=${DB_PASSWORD:-123456}
+      # FISCO Gateway
+      - FISCO_GATEWAY_URL=http://fisco-gateway-service:8087
+      # JWT
+      - JWT_SECRET=${JWT_SECRET}
+      # 合约地址
+      - CONTRACT_WAREHOUSE_CORE=${CONTRACT_WAREHOUSE_CORE}
+      - CONTRACT_WAREHOUSE_OPS=${CONTRACT_WAREHOUSE_OPS}
+      - CONTRACT_WAREHOUSE_CORE_EXT=${CONTRACT_WAREHOUSE_CORE_EXT}
+      # Java 调优
+      - JAVA_OPTS=${JAVA_OPTS_WAREHOUSE:-Xms512m -Xmx512m -XX:+UseG1GC}
+    ports:
+      - "8083:8083"
+    volumes:
+      - ./services/warehouse-service/logs:/app/logs
+    depends_on:
+      mysql:
+        condition: service_healthy
+      fisco-gateway-service:
+        condition: service_started
+    networks:
+      app-net:
+        ipv4_address: 172.26.0.12
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    dns:
+      - 172.26.0.1
+
+  # ============================================================
+  # 5. Logistics Service (物流服务)
+  # ============================================================
+  logistics-service:
+    build:
+      context: .
+      dockerfile: services/logistics-service/Dockerfile
+    image: fisco/logistics-service:${IMAGE_TAG}
+    container_name: fisco-logistics-service
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+    environment:
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-prod}
+      - SERVER_PORT=8084
+      # MySQL
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_NAME=${DB_NAME:-fisco_data}
+      - DB_USERNAME=${DB_USERNAME:-fisco_user}
+      - DB_PASSWORD=${DB_PASSWORD:-123456}
+      # FISCO Gateway
+      - FISCO_GATEWAY_URL=http://fisco-gateway-service:8087
+      # FISCO SDK (禁用，直接使用 Gateway)
+      - FISCO_ENABLED=false
+      # JWT
+      - JWT_SECRET=${JWT_SECRET}
+      # 合约地址
+      - CONTRACT_LOGISTICS_CORE=${CONTRACT_LOGISTICS_CORE}
+      - CONTRACT_LOGISTICS_OPS=${CONTRACT_LOGISTICS_OPS}
+      # Java 调优
+      - JAVA_OPTS=${JAVA_OPTS_LOGISTICS:-Xms512m -Xmx512m -XX:+UseG1GC}
+    ports:
+      - "8084:8084"
+    volumes:
+      - ./services/logistics-service/logs:/app/logs
+    depends_on:
+      mysql:
+        condition: service_healthy
+      fisco-gateway-service:
+        condition: service_started
+    networks:
+      app-net:
+        ipv4_address: 172.26.0.13
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8084/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    dns:
+      - 172.26.0.1
+
+  # ============================================================
+  # 6. Finance Service (金融服务)
+  # ============================================================
+  finance-service:
+    build:
+      context: .
+      dockerfile: services/finance-service/Dockerfile
+    image: fisco/finance-service:${IMAGE_TAG}
+    container_name: fisco-finance-service
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 1024M
+          cpus: '1.5'
+        reservations:
+          memory: 768M
+          cpus: '1.0'
+    environment:
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-prod}
+      - SERVER_PORT=8085
+      # MySQL
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_NAME=${DB_NAME:-fisco_data}
+      - DB_USERNAME=${DB_USERNAME:-fisco_user}
+      - DB_PASSWORD=${DB_PASSWORD:-123456}
+      # FISCO Gateway
+      - FISCO_GATEWAY_URL=http://fisco-gateway-service:8087
+      # FISCO SDK (禁用，直接使用 Gateway)
+      - FISCO_ENABLED=false
+      # JWT
+      - JWT_SECRET=${JWT_SECRET}
+      # 合约地址
+      - CONTRACT_RECEIVABLE_CORE=${CONTRACT_RECEIVABLE_CORE}
+      - CONTRACT_RECEIVABLE_REPAYMENT=${CONTRACT_RECEIVABLE_REPAYMENT}
+      - CONTRACT_LOAN_CORE=${CONTRACT_LOAN_CORE}
+      - CONTRACT_LOAN_REPAYMENT=${CONTRACT_LOAN_REPAYMENT}
+      - CONTRACT_BILL_CORE=${CONTRACT_BILL_CORE}
+      - CONTRACT_BILL_OPS=${CONTRACT_BILL_OPS}
+      # Java 调优
+      - JAVA_OPTS=${JAVA_OPTS_FINANCE:-Xms768m -Xmx768m -XX:+UseG1GC}
+    ports:
+      - "8085:8085"
+    volumes:
+      - ./services/finance-service/logs:/app/logs
+    depends_on:
+      mysql:
+        condition: service_healthy
+      fisco-gateway-service:
+        condition: service_started
+    networks:
+      app-net:
+        ipv4_address: 172.26.0.14
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8085/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    dns:
+      - 172.26.0.1
+
+  # ============================================================
+  # 7. Credit Service (信用服务)
+  # ============================================================
+  credit-service:
+    build:
+      context: .
+      dockerfile: services/credit-service/Dockerfile
+    image: fisco/credit-service:${IMAGE_TAG}
+    container_name: fisco-credit-service
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+    environment:
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-prod}
+      - SERVER_PORT=8086
+      # MySQL
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_NAME=${DB_NAME:-fisco_data}
+      - DB_USERNAME=${DB_USERNAME:-fisco_user}
+      - DB_PASSWORD=${DB_PASSWORD:-123456}
+      # FISCO Gateway
+      - FISCO_GATEWAY_URL=http://fisco-gateway-service:8087
+      # JWT
+      - JWT_SECRET=${JWT_SECRET}
+      # 合约地址
+      - CONTRACT_CREDIT_CORE=${CONTRACT_CREDIT_CORE}
+      - CONTRACT_CREDIT_SCORE=${CONTRACT_CREDIT_SCORE}
+      # FISCO SDK (禁用，使用 Gateway)
+      - FISCO_ENABLED=false
+      # Java 调优
+      - JAVA_OPTS=${JAVA_OPTS_CREDIT:-Xms512m -Xmx512m -XX:+UseG1GC}
+    ports:
+      - "8086:8086"
+    volumes:
+      - ./services/credit-service/logs:/app/logs
+    depends_on:
+      mysql:
+        condition: service_healthy
+      fisco-gateway-service:
+        condition: service_started
+    networks:
+      app-net:
+        ipv4_address: 172.26.0.15
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8086/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    dns:
+      - 172.26.0.1
+
+  # ============================================================
+  # 8. FISCO Gateway Service (区块链网关服务)
+  # ============================================================
+  fisco-gateway-service:
+    build:
+      context: .
+      dockerfile: services/fisco-gateway-service/Dockerfile
+    image: fisco/fisco-gateway-service:${IMAGE_TAG}
+    container_name: fisco-gateway-service
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 1536M
+          cpus: '2.0'
+        reservations:
+          memory: 1G
+          cpus: '1.0'
+    environment:
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-prod}
+      - SERVER_PORT=8087
+      # MySQL
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_NAME=${DB_NAME:-fisco_data}
+      - DB_USERNAME=${DB_USERNAME:-fisco_user}
+      - DB_PASSWORD=${DB_PASSWORD:-123456}
+      # FISCO
+      - FISCO_ENABLED=true
+      - FISCO_CONFIG_FILE=/app/sdk/config.toml
+      - FISCO_GROUP=${FISCO_GROUP:-group0}
+      # 合约地址 (来自 my-bcos-app application-dev.yml)
+      - CONTRACT_ENTERPRISE=0x7a9b6d564d5d191093a29b7c760dd6af931cae73
+      - CONTRACT_ENTERPRISE_AUTH=0xc860ab27901b3c2b810165a6096c64d88763617f
+      - CONTRACT_WAREHOUSE_CORE=0xeb000acf2e358cae769d308390145d9222b5577c
+      - CONTRACT_WAREHOUSE_OPS=0xc02dc5133c5e635c16adf4ffda4b7a2e8c5ada96
+      - CONTRACT_LOGISTICS_CORE=0x69ef4c5eca7bc099c2e8a8336c97af765d60dbf1
+      - CONTRACT_LOGISTICS_OPS=0x41a1281dba209614f2ada8ecc75fd957ad179d7b
+      - CONTRACT_RECEIVABLE_CORE=0xe46925ca51074d3b83ba993a4e88d0156eca6a06
+      - CONTRACT_RECEIVABLE_REPAYMENT=0x1d38f5d0c8c1ae7ed63a2d0ec905b9e9a17e70cf
+      - CONTRACT_LOAN_CORE=0xbeada4d89feb3440285de55c94ebc1a2e93639f9
+      - CONTRACT_LOAN_REPAYMENT=0x0
+      - CONTRACT_CREDIT_CORE=0xafcdafa5be0a0e2c34328adf10d893a591b5e774
+      - CONTRACT_CREDIT_SCORE=0x6ea6907f036ff456d2f0f0a858afa9807ff4b788
+      - CONTRACT_BILL_CORE=0x0
+      - CONTRACT_BILL_OPS=0x0
+      # Java 调优 (区块链服务需要更多内存)
+      - JAVA_OPTS=${JAVA_OPTS_FISCO_GATEWAY:--Xms1g -Xmx1g -XX:+UseG1GC -XX:MaxGCPauseMillis=200}
+    ports:
+      - "8087:8087"
+    volumes:
+      - ./services/fisco-gateway-service/logs:/app/logs
+      - /home/llm_rca/fisco/my-bcos-app/fisco/nodes/127.0.0.1/sdk:/app/sdk
+    depends_on:
+      mysql:
+        condition: service_healthy
+      fisco-node0:
+        condition: service_started
+      fisco-node1:
+        condition: service_started
+      fisco-node2:
+        condition: service_started
+      fisco-node3:
+        condition: service_started
+    networks:
+      app-net:
+        ipv4_address: 172.26.0.16
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8087/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    dns:
+      - 172.26.0.1
+
+  # ============================================================
+  # 9. MySQL 数据库
+  # ============================================================
+  mysql:
+    image: mysql:8.0.36
+    container_name: fisco-mysql
+    restart: always
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-root_pwd}
+      - MYSQL_DATABASE=${DB_NAME:-fisco_data}
+      - MYSQL_USER=${DB_USERNAME:-fisco_user}
+      - MYSQL_PASSWORD=${DB_PASSWORD:-123456}
+      - TZ=${TZ:-Asia/Shanghai}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./docker/mysql/init:/docker-entrypoint-initdb.d
+      - ./docker/mysql/conf:/etc/mysql/conf.d
+    command: >
+      --default-authentication-plugin=mysql_native_password
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --max_connections=500
+      --innodb_buffer_pool_size=512M
+    networks:
+      app-net:
+        ipv4_address: 172.26.0.100
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-root_pwd}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    dns:
+      - 172.26.0.1
+
+  # ============================================================
+  # 10. FISCO BCOS 节点 0
+  # ============================================================
+  fisco-node0:
+    image: fiscoorg/fiscobcos:v3.12.1
+    container_name: fisco-node0
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 2048M
+          cpus: '1.5'
+        reservations:
+          memory: 1024M
+          cpus: '0.5'
+    ports:
+      - "20000:20000"  # RPC
+      - "30300:30300"  # P2P
+      - "30400:30400"  # Channel (WebSocket)
+    volumes:
+      - /home/llm_rca/fisco/my-bcos-app/fisco/nodes/127.0.0.1/node0:/data/node
+      - fisco-node0-logs:/logs
+    working_dir: /data/node
+    command: ["-c", "config.ini", "-g", "config.genesis"]
+    networks:
+      app-net:
+        ipv4_address: 172.26.0.20
+    dns:
+      - 172.26.0.1
+
+  # ============================================================
+  # 11. FISCO BCOS 节点 1
+  # ============================================================
+  fisco-node1:
+    image: fiscoorg/fiscobcos:v3.12.1
+    container_name: fisco-node1
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 2048M
+          cpus: '1.5'
+        reservations:
+          memory: 1024M
+          cpus: '0.5'
+    ports:
+      - "20001:20001"
+      - "30301:30301"
+      - "30401:30401"
+    volumes:
+      - /home/llm_rca/fisco/my-bcos-app/fisco/nodes/127.0.0.1/node1:/data/node
+      - fisco-node1-logs:/logs
+    working_dir: /data/node
+    command: ["-c", "config.ini", "-g", "config.genesis"]
+    networks:
+      app-net:
+        ipv4_address: 172.26.0.21
+    dns:
+      - 172.26.0.1
+
+  # ============================================================
+  # 12. FISCO BCOS 节点 2
+  # ============================================================
+  fisco-node2:
+    image: fiscoorg/fiscobcos:v3.12.1
+    container_name: fisco-node2
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 2048M
+          cpus: '1.5'
+        reservations:
+          memory: 1024M
+          cpus: '0.5'
+    ports:
+      - "20002:20002"
+      - "30302:30302"
+      - "30402:30402"
+    volumes:
+      - /home/llm_rca/fisco/my-bcos-app/fisco/nodes/127.0.0.1/node2:/data/node
+      - fisco-node2-logs:/logs
+    working_dir: /data/node
+    command: ["-c", "config.ini", "-g", "config.genesis"]
+    networks:
+      app-net:
+        ipv4_address: 172.26.0.22
+    dns:
+      - 172.26.0.1
+
+  # ============================================================
+  # 13. FISCO BCOS 节点 3
+  # ============================================================
+  fisco-node3:
+    image: fiscoorg/fiscobcos:v3.12.1
+    container_name: fisco-node3
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 2048M
+          cpus: '1.5'
+        reservations:
+          memory: 1024M
+          cpus: '0.5'
+    ports:
+      - "20003:20003"
+      - "30303:30303"
+      - "30403:30403"
+    volumes:
+      - /home/llm_rca/fisco/my-bcos-app/fisco/nodes/127.0.0.1/node3:/data/node
+      - fisco-node3-logs:/logs
+    working_dir: /data/node
+    command: ["-c", "config.ini", "-g", "config.genesis"]
+    networks:
+      app-net:
+        ipv4_address: 172.26.0.23
+    dns:
+      - 172.26.0.1
+
+  # ============================================================
+  # 14. FISCO Console (节点控制器)
+  # ============================================================
+  fisco-console:
+    build:
+      context: .
+      dockerfile: Dockerfile.console
+    image: fisco/fisco-console:${IMAGE_TAG}
+    container_name: fisco-console
+    restart: always
+    tty: true
+    stdin_open: true
+    working_dir: /data
+    depends_on:
+      - fisco-node0
+      - fisco-node1
+      - fisco-node2
+      - fisco-node3
+    volumes:
+      - ./console:/data
+    networks:
+      app-net:
+        ipv4_address: 172.26.0.30
+    dns:
+      - 172.26.0.1
+
+# ============================================================
+# 网络定义
+# ============================================================
+networks:
+  app-net:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.26.0.0/16
+          gateway: 172.26.0.1
+    name: fisco-app-net
+
+# ============================================================
+# 持久化卷定义
+# ============================================================
+volumes:
+  mysql-data:
+    name: fisco-mysql-data
+  nginx-logs:
+    name: fisco-nginx-logs
+  fisco-node0-logs:
+    name: fisco-node0-logs
+  fisco-node1-logs:
+    name: fisco-node1-logs
+  fisco-node2-logs:
+    name: fisco-node2-logs
+  fisco-node3-logs:
+    name: fisco-node3-logs

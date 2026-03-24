@@ -1,0 +1,13 @@
+com/fisco/app/mapper/LogisticsDelegateMapper.class
+com/fisco/app/service/impl/LogisticsServiceImpl.class
+com/fisco/app/feign/WarehouseFeignClient.class
+com/fisco/app/config/OpenApiConfig.class
+com/fisco/app/LogisticsServiceApplication.class
+com/fisco/app/entity/LogisticsDelegate.class
+com/fisco/app/config/BlockchainConfig.class
+com/fisco/app/mapper/LogisticsTrackMapper.class
+com/fisco/app/feign/WarehouseFeignClientFallback.class
+com/fisco/app/service/LogisticsService.class
+com/fisco/app/controller/LogisticsController.class
+com/fisco/app/controller/HealthController.class
+com/fisco/app/entity/LogisticsTrack.class

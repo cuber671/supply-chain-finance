@@ -1,0 +1,83 @@
+server:
+  port: 8085
+
+spring:
+  application:
+    name: finance-service
+  datasource:
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:fisco_data}?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:123456}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      minimum-idle: 5
+      maximum-pool-size: 20
+      idle-timeout: 300000
+      max-lifetime: 1800000
+      connection-timeout: 30000
+      pool-name: FinanceHikariPool
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+mybatis-plus:
+  mapper-locations: classpath:mapper/**/*.xml
+  type-aliases-package: com.fisco.app.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+
+fisco:
+  enabled: ${FISCO_ENABLED:true}
+  group: ${FISCO_GROUP:group0}
+  crypto-type: ${FISCO_CRYPTO_TYPE:0}
+  config-file: ${FISCO_CONFIG_FILE:/app/sdk/config.toml}
+
+# JWT配置
+jwt:
+  secret: ${JWT_SECRET:default-secret-key-for-dev-only}
+  expiration: 7200000
+  refresh-expiration: 604800000
+
+# Feign配置
+feign:
+  client:
+    config:
+      default:
+        connectTimeout: 5000
+        readTimeout: 30000
+        loggerLevel: BASIC
+  circuitbreaker:
+    enabled: true
+
+# Resilience4j 熔断器配置
+resilience4j:
+  circuitbreaker:
+    instances:
+      default:
+        registerHealthInterval: 10s
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+        waitDurationInOpenState: 30s
+        failureRateThreshold: 50
+        eventConsumerBufferSize: 10
+  timelimiter:
+    instances:
+      default:
+        timeoutDuration: 10s
+        cancelRunningFuture: true
+
+# 合约配置
+contract:
+  receivable-core: ${CONTRACT_RECEIVABLE_CORE:0x0000000000000000000000000000000000000000}
+  receivable-repayment: ${CONTRACT_RECEIVABLE_REPAYMENT:0x0000000000000000000000000000000000000000}
+  loan-core: ${CONTRACT_LOAN_CORE:0x0000000000000000000000000000000000000000}
+
+# 日志配置
+logging:
+  level:
+    com.fisco.app: info
+    org.fisco.bcos: warn

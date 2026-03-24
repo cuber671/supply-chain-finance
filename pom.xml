@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.fisco</groupId>
+    <artifactId>supply-chain-finance</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+    <packaging>pom</packaging>
+
+    <name>Supply Chain Finance</name>
+    <description>FISCO BCOS 供应链金融平台 - 微服务架构</description>
+
+    <!-- 模块定义 -->
+    <modules>
+        <module>common-api</module>
+        <module>services/auth-service</module>
+        <module>services/enterprise-service</module>
+        <module>services/warehouse-service</module>
+        <module>services/logistics-service</module>
+        <module>services/finance-service</module>
+        <module>services/credit-service</module>
+        <module>services/fisco-gateway-service</module>
+    </modules>
+
+    <properties>
+        <java.version>11</java.version>
+        <maven.compiler.source>11</maven.compiler.source>
+        <maven.compiler.target>11</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <spring-boot.version>2.7.18</spring-boot.version>
+        <spring-cloud.version>2021.0.8</spring-cloud.version>
+        <mybatis-plus.version>3.5.7</mybatis-plus.version>
+        <jjwt.version>0.12.6</jjwt.version>
+        <lombok.version>1.18.30</lombok.version>
+        <springdoc.version>1.7.0</springdoc.version>
+        <fisco-bcos.version>3.8.0</fisco-bcos.version>
+        <mysql.version>8.4.0</mysql.version>
+    </properties>
+
+    <!-- 依赖版本管理 -->
+    <dependencyManagement>
+        <dependencies>
+            <!-- Spring Boot -->
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-dependencies</artifactId>
+                <version>${spring-boot.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- Spring Cloud -->
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>${spring-cloud.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- MySQL Connector -->
+            <dependency>
+                <groupId>com.mysql</groupId>
+                <artifactId>mysql-connector-j</artifactId>
+                <version>${mysql.version}</version>
+            </dependency>
+
+            <!-- MyBatis Plus -->
+            <dependency>
+                <groupId>com.baomidou</groupId>
+                <artifactId>mybatis-plus-boot-starter</artifactId>
+                <version>${mybatis-plus.version}</version>
+            </dependency>
+
+            <!-- JWT -->
+            <dependency>
+                <groupId>io.jsonwebtoken</groupId>
+                <artifactId>jjwt-api</artifactId>
+                <version>${jjwt.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.jsonwebtoken</groupId>
+                <artifactId>jjwt-impl</artifactId>
+                <version>${jjwt.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.jsonwebtoken</groupId>
+                <artifactId>jjwt-jackson</artifactId>
+                <version>${jjwt.version}</version>
+            </dependency>
+
+            <!-- SpringDoc OpenAPI v1 for Spring Boot 2 -->
+            <dependency>
+                <groupId>org.springdoc</groupId>
+                <artifactId>springdoc-openapi-ui</artifactId>
+                <version>${springdoc.version}</version>
+            </dependency>
+
+            <!-- FISCO BCOS SDK -->
+            <dependency>
+                <groupId>org.fisco-bcos.java-sdk</groupId>
+                <artifactId>fisco-bcos-java-sdk</artifactId>
+                <version>${fisco-bcos.version}</version>
+            </dependency>
+
+            <!-- Resilience4j Circuit Breaker -->
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-starter-circuitbreaker-resilience4j</artifactId>
+            </dependency>
+            <dependency>
+                <groupId>io.github.resilience4j</groupId>
+                <artifactId>resilience4j-spring-boot2</artifactId>
+            </dependency>
+
+            <!-- common-api (本项目内部模块) -->
+            <dependency>
+                <groupId>com.fisco</groupId>
+                <artifactId>common-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.11.0</version>
+                <configuration>
+                    <source>11</source>
+                    <target>11</target>
+                    <encoding>UTF-8</encoding>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <version>${spring-boot.version}</version>
+            </plugin>
+        </plugins>
+    </build>
+</project>

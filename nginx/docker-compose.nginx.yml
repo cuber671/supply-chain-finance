@@ -1,0 +1,64 @@
+# ============================================================
+# Nginx API网关服务 - Docker Compose 配置片段
+# ============================================================
+# 使用方式: 将此文件内容合并到主 docker-compose.yml
+# 或使用: docker-compose -f docker-compose.yml -f nginx/docker-compose.nginx.yml up -d
+# ============================================================
+
+services:
+  # ============================================================
+  # Nginx API 网关
+  # ============================================================
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: ${PROJECT_NAME:-supply-chain}-nginx
+    hostname: nginx
+    ports:
+      - "${NGINX_HTTP_PORT:-80}:80"
+      - "${NGINX_HTTPS_PORT:-443}:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - nginx-ssl:/etc/nginx/ssl:ro
+      - nginx-logs:/var/log/nginx
+    depends_on:
+      auth-service:
+        condition: service_healthy
+      enterprise-service:
+        condition: service_healthy
+      warehouse-service:
+        condition: service_healthy
+      logistics-service:
+        condition: service_healthy
+      finance-service:
+        condition: service_healthy
+      credit-service:
+        condition: service_healthy
+      fisco-gateway-service:
+        condition: service_healthy
+    networks:
+      - app-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    profiles:
+      - api-gateway
+      - full
+
+volumes:
+  nginx-ssl:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/nginx/ssl
+  nginx-logs:
+    driver: local
+
+networks:
+  app-net:
+    driver: bridge

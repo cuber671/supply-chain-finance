@@ -1,0 +1,46 @@
+server:
+  port: 8087
+
+spring:
+  application:
+    name: fisco-gateway-service
+  datasource:
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:fisco_data}?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:123456}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      minimum-idle: 5
+      maximum-pool-size: 20
+      idle-timeout: 300000
+      max-lifetime: 1800000
+      connection-timeout: 30000
+      pool-name: FiscoGatewayHikariPool
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+fisco:
+  enabled: ${FISCO_ENABLED:true}
+  group: ${FISCO_GROUP:group0}
+  crypto-type: ${FISCO_CRYPTO_TYPE:0}
+  config-file: ${FISCO_CONFIG_FILE:/app/sdk/config.toml}
+
+# JWT配置
+jwt:
+  secret: ${JWT_SECRET:default-secret-key-for-dev-only}
+  expiration: 7200000
+
+# 合约地址配置
+contract:
+  addresses:
+    warehouse-core: ${CONTRACT_WAREHOUSE_CORE:0xeb000acf2e358cae769d308390145d9222b5577c}
+    warehouse-ops: ${CONTRACT_WAREHOUSE_OPS:0xc02dc5133c5e635c16adf4ffda4b7a2e8c5ada96}
+
+# Logging
+logging:
+  level:
+    root: INFO
+    com.fisco.app: DEBUG
+    org.fisco.bcos.sdk: INFO

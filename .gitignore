@@ -1,16 +1,10 @@
-# Compiled class file
+# ===================
+# Java Build
+# ===================
+*/target/
+target/
+**/target/
 *.class
-
-# Log file
-*.log
-
-# BlueJ files
-*.ctxt
-
-# Mobile Tools for Java (J2ME)
-.mtj.tmp/
-
-# Package Files #
 *.jar
 *.war
 *.nar
@@ -18,7 +12,61 @@
 *.zip
 *.tar.gz
 *.rar
-
-# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
 replay_pid*
+.mtj.tmp/
+*.ctxt
+
+# ===================
+# 日志文件
+# ===================
+*.log
+*/logs/
+logs/
+**/logs/
+
+# ===================
+# IDE / 编辑器
+# ===================
+.idea/
+*.iml
+.vscode/
+!.vscode/settings.json
+!.vscode/extensions.json
+*.swp
+*.swo
+*~
+.DS_Store
+
+# ===================
+# 环境变量与密钥 (绝不提交)
+# ===================
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.crt
+*.jks
+*.p12
+*.keystore
+*.truststore
+sdk.key
+config.toml
+
+# ===================
+# FISCO 区块链相关 (外部挂载)
+# ===================
+console/account/
+console/conf/
+
+# ===================
+# Docker
+# ===================
+docker-compose.override.yml
+
+# ===================
+# CI/CD 构建产物
+# ===================
+.github/java-upgrade/
+build.log
