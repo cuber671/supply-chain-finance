@@ -134,6 +134,24 @@ public class Receivable {
     private Integer isFinanced;
 
     /**
+     * 融资金额
+     */
+    @TableField("finance_amount")
+    private BigDecimal financeAmount;
+
+    /**
+     * 融资机构ID
+     */
+    @TableField("finance_ent_id")
+    private Long financeEntId;
+
+    /**
+     * 确认签名
+     */
+    @TableField("signature")
+    private String signature;
+
+    /**
      * 父级ID
      */
     @TableField("parent_id")

@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(docker system:*)",
+      "Bash(docker volume:*)",
+      "Bash(docker network:*)",
+      "Bash(docker context:*)",
+      "Bash(sudo systemctl:*)",
+      "Bash(docker info:*)",
+      "Bash(docker rmi:*)",
+      "Bash(timeout 3 docker events --filter 'type=container')",
+      "Bash(curl -s http://localhost:8082/health)"
+    ]
+  }
+}

@@ -37,6 +37,7 @@
         <springdoc.version>1.7.0</springdoc.version>
         <fisco-bcos.version>3.8.0</fisco-bcos.version>
         <mysql.version>8.4.0</mysql.version>
+        <caffeine.version>3.1.8</caffeine.version>
     </properties>
 
     <!-- 依赖版本管理 -->
@@ -105,6 +106,13 @@
                 <version>${fisco-bcos.version}</version>
             </dependency>
 
+            <!-- Caffeine 高性能缓存（供 Spring Cloud LoadBalancer 使用） -->
+            <dependency>
+                <groupId>com.github.ben-manes.caffeine</groupId>
+                <artifactId>caffeine</artifactId>
+                <version>${caffeine.version}</version>
+            </dependency>
+
             <!-- Resilience4j Circuit Breaker -->
             <dependency>
                 <groupId>org.springframework.cloud</groupId>
@@ -140,6 +148,11 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <version>${spring-boot.version}</version>
+                <configuration>
+                    <layers>
+                        <enabled>true</enabled>
+                    </layers>
+                </configuration>
             </plugin>
         </plugins>
     </build>

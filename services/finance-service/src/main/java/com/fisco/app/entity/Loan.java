@@ -191,6 +191,12 @@ public class Loan {
     @TableField("chain_tx_hash")
     private String chainTxHash;
 
+    /**
+     * 放款凭证
+     */
+    @TableField("disbursement_voucher")
+    private String disbursementVoucher;
+
     // ==================== 审计字段 ====================
 
     @TableField(value = "create_time", fill = FieldFill.INSERT)

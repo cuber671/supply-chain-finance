@@ -6,7 +6,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 FISCO BCOS 供应链金融平台 (Supply Chain Finance Platform) - A microservices architecture built on FISCO BCOS blockchain for supply chain finance operations.
 
-**Tech Stack:** Spring Boot 2.7.18, Java 11, Spring Cloud 2021.0.8, FISCO BCOS Java SDK 3.8.0, MySQL 8.0, Nginx
+**Tech Stack:** Spring Boot 2.7.18, Java 11, Spring Cloud 2021.0.8, FISCO BCOS Java SDK 3.8.0, MySQL 8.4.0, Nginx
+
+**Security:** Actuator endpoints removed (HIGH severity vulnerability remediation). All services use MySQL Connector 8.4.0 to address CVE-2024-21752.
 
 ## Build Commands
 
@@ -15,11 +17,17 @@ FISCO BCOS 供应链金融平台 (Supply Chain Finance Platform) - A microservic
 # Build all modules
 mvn clean package -DskipTests
 
-# Build specific service
+# Build specific service (with dependencies)
 mvn clean package -DskipTests -pl services/fisco-gateway-service -am
 
 # Build with Docker image tag
 IMAGE_TAG=latest mvn clean package -DskipTests
+
+# Run tests for a specific service
+mvn test -pl services/auth-service
+
+# Run tests for all modules
+mvn test
 ```
 
 ### Docker Commands
@@ -42,6 +50,9 @@ docker logs fisco-mysql --tail 20
 
 # Restart specific service
 docker compose restart fisco-gateway-service
+
+# Stop all services
+docker compose down
 ```
 
 ## Architecture
@@ -70,8 +81,8 @@ Client → Nginx (API Gateway) → Microservices → FISCO Gateway Service → F
 | nginx | 80/443 | API Gateway, rate limiting | N/A |
 
 ### Network Configuration
-- Custom bridge network: `fisco-app-net` (172.26.0.0/16)
-- MySQL: 172.26.0.100
+- Custom bridge network: `fisco-app-net` (172.26.0.0/16), defined in docker-compose.yml
+- MySQL: 172.26.0.100 (container name: `fisco-mysql`)
 - FISCO nodes: 172.26.0.20-23
 
 ## Key Configuration Files
@@ -109,9 +120,11 @@ ENTRYPOINT ["sh", "-c", "ln -sf /app/sdk/account /app/account 2>/dev/null || tru
 This creates `/app/account` → `/app/sdk/account` because the SDK looks for keys relative to working directory `/app`, not `/app/sdk/`.
 
 ### Health Check Endpoints
-Each service implements a `/health` endpoint via HealthController that returns `{"status":"UP"}`. This is required because:
+Each service implements a `/health` endpoint via `HealthController` that returns `{"status":"UP"}`. This is required because:
 - JwtAuthenticationFilter blocks unauthenticated requests to `/`
 - Docker healthchecks depend on these endpoints
+
+**Note:** Spring Boot Actuator was removed during security hardening, so `/health` is implemented as a custom controller endpoint rather than via Actuator's auto-configured endpoint.
 
 ### API Routing via Nginx
 ```
@@ -167,9 +180,20 @@ Admin console application for interacting with the platform.
 
 ## Ongoing Work
 
-See `REFACTORING_PLAN.md` for planned features and fixes including:
-- User cancellation workflow APIs
+See `REFACTORING_PLAN.md` in the project root for detailed planned features and fixes including:
+
+### High Priority
+- User cancellation/audit workflow APIs (registration approval, account cancellation)
 - Password change APIs
-- Enterprise user management APIs
-- Blockchain query APIs
-- Geofencing for logistics
+- Enterprise user management APIs (list users, disable users, audit)
+- Blockchain query APIs for enterprise verification (6 missing endpoints)
+- @RequireRole authorization on Credit service sensitive endpoints
+
+### Medium Priority
+- System administrator login for Enterprise service
+- Geofencing for logistics (500m warehouse radius validation)
+- Financial institution verification in Finance service
+- StockOrder Hash calculation for blockchain traceability
+
+### Known Issues
+- Logistics blockchain failures do not rollback local transactions (data consistency risk)

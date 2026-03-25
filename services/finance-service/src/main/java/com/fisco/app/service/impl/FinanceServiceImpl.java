@@ -16,6 +16,7 @@ import com.fisco.app.feign.BlockchainFeignClient;
 import com.fisco.app.feign.LogisticsFeignClient;
 import com.fisco.app.feign.WarehouseFeignClient;
 import com.fisco.app.util.Result;
+import com.fisco.app.enums.ResultCodeEnum;
 import com.fisco.app.entity.RepaymentRecord;
 import com.fisco.app.mapper.ReceivableMapper;
 import com.fisco.app.mapper.RepaymentRecordMapper;
@@ -102,6 +103,8 @@ public class FinanceServiceImpl implements FinanceService {
         receivable.setDueDate(LocalDateTime.now().plusDays(30));
         receivable.setStatus(Receivable.STATUS_PENDING);
         receivable.setIsFinanced(0);
+        // H9: 业务场景设置 - 默认入库生成场景,债务人待业务确认后修正
+        receivable.setBusinessScene(Receivable.SCENE_STOCK_IN);
 
         receivableMapper.insert(receivable);
 
@@ -115,9 +118,13 @@ public class FinanceServiceImpl implements FinanceService {
                 request.setReceivableId(receivableNo);
                 request.setInitialAmount(initialAmount.longValue());
                 request.setDueDate(receivable.getDueDate().toLocalDate().toEpochDay());
-                request.setBusinessScene(1);
-                blockchainFeignClient.createReceivable(request);
-                logger.info("应收账款上链成功: receivableNo={}", receivableNo);
+                request.setBusinessScene(receivable.getBusinessScene() != null ? receivable.getBusinessScene() : Receivable.SCENE_STOCK_IN);
+                Result<String> result = blockchainFeignClient.createReceivable(request);
+                if (result != null && ResultCodeEnum.SUCCESS.getCode().equals(result.getCode()) && result.getData() != null) {
+                    receivable.setChainTxHash(result.getData());
+                    receivableMapper.updateById(receivable);
+                }
+                logger.info("应收账款上链成功: receivableNo={}, chainTxHash={}", receivableNo, result != null ? result.getData() : "null");
             } catch (Exception e) {
                 logger.error("应收账款上链失败: receivableNo={}", receivableNo, e);
                 throw new RuntimeException("区块链操作失败，应收款创建已回滚", e);
@@ -172,6 +179,7 @@ public class FinanceServiceImpl implements FinanceService {
         }
 
         receivable.setStatus(Receivable.STATUS_ACTIVE);
+        receivable.setSignature(signature);
         receivableMapper.updateById(receivable);
 
         logger.info("确认应收款: receivableId={}, receivableNo={}", receivableId, receivable.getReceivableNo());
@@ -181,8 +189,12 @@ public class FinanceServiceImpl implements FinanceService {
             try {
                 BlockchainFeignClient.ReceivableConfirmRequest request = new BlockchainFeignClient.ReceivableConfirmRequest();
                 request.setReceivableId(receivable.getReceivableNo());
-                blockchainFeignClient.confirmReceivable(request);
-                logger.info("应收账款确认上链成功: receivableNo={}", receivable.getReceivableNo());
+                Result<String> result = blockchainFeignClient.confirmReceivable(request);
+                if (result != null && ResultCodeEnum.SUCCESS.getCode().equals(result.getCode()) && result.getData() != null) {
+                    receivable.setChainTxHash(result.getData());
+                    receivableMapper.updateById(receivable);
+                }
+                logger.info("应收账款确认上链成功: receivableNo={}, chainTxHash={}", receivable.getReceivableNo(), result != null ? result.getData() : "null");
             } catch (Exception e) {
                 logger.error("应收账款确认上链失败: receivableNo={}", receivable.getReceivableNo(), e);
                 throw new RuntimeException("区块链操作失败，应收款确认已回滚", e);
@@ -319,7 +331,7 @@ public class FinanceServiceImpl implements FinanceService {
         record.setRepaymentType(2);
         record.setAmount(offsetPrice);
         record.setReceiptId(receiptId);
-        record.setOffsetPrice(offsetPrice);
+        record.setOffsetPrice(offsetPrice != null ? offsetPrice : BigDecimal.ZERO);
         record.setSignatureHash(signatureHash);
         record.setRepaymentTime(LocalDateTime.now());
 
@@ -339,6 +351,25 @@ public class FinanceServiceImpl implements FinanceService {
         receivableMapper.updateById(receivable);
 
         logger.info("仓单抵债成功: receivableId={}, receiptId={}, offsetPrice={}", receivableId, receiptId, offsetPrice);
+
+        // 区块链上链 - 仓单抵债需要上链记录
+        if (blockchainFeignClient != null) {
+            try {
+                BlockchainFeignClient.OffsetDebtRequest request = new BlockchainFeignClient.OffsetDebtRequest();
+                request.setReceivableId(receivable.getReceivableNo());
+                request.setReceiptId(receiptId != null ? receiptId.toString() : null);
+                request.setOffsetAmount(offsetPrice != null ? offsetPrice.longValue() : 0L);
+                Result<String> result = blockchainFeignClient.offsetDebtWithCollateral(request);
+                if (result != null && ResultCodeEnum.SUCCESS.getCode().equals(result.getCode()) && result.getData() != null) {
+                    receivable.setChainTxHash(result.getData());
+                    receivableMapper.updateById(receivable);
+                }
+                logger.info("仓单抵债上链成功: receivableNo={}, chainTxHash={}", receivable.getReceivableNo(), result != null ? result.getData() : "null");
+            } catch (Exception e) {
+                logger.error("仓单抵债上链失败: receivableNo={}", receivable.getReceivableNo(), e);
+                throw new RuntimeException("区块链操作失败，仓单抵债已回滚", e);
+            }
+        }
 
         return record;
     }
@@ -365,6 +396,8 @@ public class FinanceServiceImpl implements FinanceService {
         }
 
         receivable.setIsFinanced(1);
+        receivable.setFinanceAmount(financeAmount);
+        receivable.setFinanceEntId(financeEntId);
         receivableMapper.updateById(receivable);
 
         logger.info("应收款融资: receivableId={}, financeAmount={}, financeEntId={}", receivableId, financeAmount, financeEntId);
@@ -382,6 +415,10 @@ public class FinanceServiceImpl implements FinanceService {
 
         receivable.setStatus(Receivable.STATUS_SETTLED);
         receivable.setBalanceUnpaid(BigDecimal.ZERO);
+        // 结算时同步 collectedAmount 与 adjustedAmount
+        if (receivable.getAdjustedAmount() != null) {
+            receivable.setCollectedAmount(receivable.getAdjustedAmount());
+        }
         receivableMapper.updateById(receivable);
 
         logger.info("应收款结算: receivableId={}", receivableId);
@@ -391,8 +428,12 @@ public class FinanceServiceImpl implements FinanceService {
             try {
                 BlockchainFeignClient.ReceivableSettleRequest request = new BlockchainFeignClient.ReceivableSettleRequest();
                 request.setReceivableId(receivable.getReceivableNo());
-                blockchainFeignClient.settleReceivable(request);
-                logger.info("应收账款结算上链成功: receivableNo={}", receivable.getReceivableNo());
+                Result<String> result = blockchainFeignClient.settleReceivable(request);
+                if (result != null && ResultCodeEnum.SUCCESS.getCode().equals(result.getCode()) && result.getData() != null) {
+                    receivable.setChainTxHash(result.getData());
+                    receivableMapper.updateById(receivable);
+                }
+                logger.info("应收账款结算上链成功: receivableNo={}, chainTxHash={}", receivable.getReceivableNo(), result != null ? result.getData() : "null");
             } catch (Exception e) {
                 logger.error("应收账款结算上链失败: receivableNo={}", receivable.getReceivableNo(), e);
                 throw new RuntimeException("区块链操作失败，应收款结算已回滚", e);

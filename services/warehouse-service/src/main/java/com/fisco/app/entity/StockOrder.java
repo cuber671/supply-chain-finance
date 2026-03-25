@@ -47,6 +47,15 @@ public class StockOrder {
     @TableField("attachment_url")
     private String attachmentUrl;
 
+    @TableField("stock_no")
+    private String stockNo;
+
+    @TableField("data_hash")
+    private String dataHash;
+
+    @TableField("chain_tx_hash")
+    private String chainTxHash;
+
     private Integer status;
 
     private String remark;

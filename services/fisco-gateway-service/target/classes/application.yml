@@ -17,7 +17,7 @@ spring:
       connection-timeout: 30000
       pool-name: FiscoGatewayHikariPool
   flyway:
-    enabled: true
+    enabled: false  # gateway 只读写记录，不建 schema；禁用以避免与 auth-service 的 Flyway 迁移冲突
     locations: classpath:db/migration
     baseline-on-migrate: true
 

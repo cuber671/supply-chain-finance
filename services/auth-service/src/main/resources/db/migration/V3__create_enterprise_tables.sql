@@ -1,5 +1,5 @@
 -- 企业管理模块数据库表
--- V1: 企业表和邀请码表
+-- V3: 企业表和邀请码表
 
 -- 企业表
 CREATE TABLE IF NOT EXISTS t_enterprise (

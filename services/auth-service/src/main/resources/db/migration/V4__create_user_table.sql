@@ -1,5 +1,5 @@
 -- 用户（员工）管理模块数据库表
--- V1: 用户表
+-- V4: 用户表
 
 -- 用户表
 CREATE TABLE IF NOT EXISTS t_user (

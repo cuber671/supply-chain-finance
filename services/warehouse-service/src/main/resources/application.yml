@@ -17,8 +17,7 @@ spring:
       connection-timeout: 30000
       pool-name: WarehouseHikariPool
   flyway:
-    enabled: true
-    locations: classpath:db/migration
+    enabled: false
 
 fisco:
   enabled: ${FISCO_ENABLED:true}

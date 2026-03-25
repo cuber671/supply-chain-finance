@@ -93,6 +93,12 @@
             <artifactId>spring-cloud-starter-loadbalancer</artifactId>
         </dependency>
 
+        <!-- Caffeine 高性能缓存（替代默认缓存，提升路由性能） -->
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+        </dependency>
+
         <!-- AOP (用于 @RequireRole 等注解拦截) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

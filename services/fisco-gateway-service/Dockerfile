@@ -35,7 +35,7 @@ EXPOSE 8087
 
 # 健康检查 (较长的 start-period 因为需要连接 FISCO 节点)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=3 \
-    CMD curl -f http://localhost:8087/ || exit 1
+    CMD curl -f http://localhost:8087/health || exit 1
 
 # 启动命令 - 创建符号链接解决 SDK 路径问题
 ENTRYPOINT ["sh", "-c", "ln -sf /app/sdk/account /app/account 2>/dev/null || true && java $JAVA_OPTS -Dfile.encoding=UTF-8 -jar app.jar"]
