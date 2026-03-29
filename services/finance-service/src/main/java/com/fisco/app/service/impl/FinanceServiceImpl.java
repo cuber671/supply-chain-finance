@@ -289,8 +289,13 @@ public class FinanceServiceImpl implements FinanceService {
             try {
                 BlockchainFeignClient.ReceivableSettleRequest request = new BlockchainFeignClient.ReceivableSettleRequest();
                 request.setReceivableId(receivable.getReceivableNo());
-                blockchainFeignClient.settleReceivable(request);
-                logger.info("现金还款上链成功: receivableNo={}, amount={}", receivable.getReceivableNo(), amount);
+                Result<String> result = blockchainFeignClient.settleReceivable(request);
+                if (result != null && result.getData() != null) {
+                    record.setChainTxHash(result.getData());
+                    repaymentRecordMapper.updateById(record);
+                    logger.info("现金还款上链成功: receivableNo={}, amount={}, chainTxHash={}",
+                        receivable.getReceivableNo(), amount, result.getData());
+                }
             } catch (Exception e) {
                 logger.error("现金还款上链失败: receivableNo={}", receivable.getReceivableNo(), e);
                 throw new RuntimeException("区块链操作失败，现金还款已回滚", e);

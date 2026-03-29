@@ -84,9 +84,13 @@ public class LogisticsServiceImpl implements LogisticsService {
             voucherNo, delegate.getOwnerEntId(), delegate.getBusinessSceneDesc());
 
         // 区块链上链（失败时需补偿：直接移库场景需解锁仓单）
-        if (blockchainFeignClient != null) {
-            try {
-                BlockchainFeignClient.LogisticsCreateRequest request = new BlockchainFeignClient.LogisticsCreateRequest();
+        // 【修复L1】blockchainFeignClient 为 null 时必须拒绝创建，而非静默跳过
+        if (blockchainFeignClient == null) {
+            throw new IllegalStateException(
+                "区块链网关服务不可用，无法创建物流委派单。请确保 fisco-gateway-service 已启动。");
+        }
+        try {
+            BlockchainFeignClient.LogisticsCreateRequest request = new BlockchainFeignClient.LogisticsCreateRequest();
                 request.setVoucherNo(voucherNo);
                 request.setBusinessScene(delegate.getBusinessScene());
                 request.setReceiptId(delegate.getReceiptId() != null ? delegate.getReceiptId().toString() : null);
@@ -115,7 +119,6 @@ public class LogisticsServiceImpl implements LogisticsService {
                 }
                 throw new RuntimeException("区块链操作失败，物流委派单创建已回滚", e);
             }
-        }
 
         return delegate;
     }

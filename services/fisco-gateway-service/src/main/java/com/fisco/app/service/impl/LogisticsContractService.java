@@ -96,21 +96,17 @@ public class LogisticsContractService extends BaseContractService {
 
         logger.info("链上创建物流委派单: voucherNo={}, businessScene={}", voucherNo, businessScene);
 
+        // 数组参数解决Stack too deep问题
+        String[] stringParams = new String[]{voucherNo, receiptId, unit};
+        BigInteger[] uintParams = new BigInteger[]{
+                BigInteger.valueOf(businessScene), transportQuantity, validUntil
+        };
+        byte[][] bytesParams = new byte[][]{ownerHash, carrierHash, sourceWhHash, targetWhHash};
+
         TransactionResponse response = sendTransactionWithAudit(
                 logisticsOps,
                 "createLogisticsDelegate",
-                new Object[]{
-                        voucherNo,
-                        BigInteger.valueOf(businessScene),
-                        receiptId,
-                        transportQuantity,
-                        unit,
-                        ownerHash,
-                        carrierHash,
-                        sourceWhHash,
-                        targetWhHash,
-                        validUntil
-                },
+                new Object[]{stringParams, uintParams, bytesParams},
                 "LOGISTICS_CREATE"
         );
 
@@ -232,15 +228,16 @@ public class LogisticsContractService extends BaseContractService {
     public TransactionReceipt confirmDelivery(String voucherNo, int action, String targetReceiptId) {
         checkCoreContract();
 
-        logger.info("链上确认交付: voucherNo={}, action={}", voucherNo, action);
+        logger.info("链上确认交付: voucherNo={}, action={}, targetReceiptId={}", voucherNo, action, targetReceiptId);
 
-        Function function = new Function(
+        TransactionResponse response = sendTransactionWithAudit(
+                logisticsCore,
                 "confirmDelivery",
-                Arrays.asList(new Utf8String(voucherNo)),
-                Collections.emptyList());
+                new Object[]{voucherNo, BigInteger.valueOf(action), targetReceiptId},
+                "LOGISTICS_CONFIRM_DELIVERY"
+        );
 
-        TransactionReceipt receipt = executeTransaction(logisticsCore, function);
-
+        TransactionReceipt receipt = response != null ? response.getTransactionReceipt() : null;
         if (!isTransactionSuccess(receipt)) {
             String errorMsg = getTransactionErrorMessage(receipt);
             logger.error("链上确认交付失败: {}", errorMsg);
@@ -304,13 +301,14 @@ public class LogisticsContractService extends BaseContractService {
 
         logger.info("链上使委派单失效: voucherNo={}", voucherNo);
 
-        Function function = new Function(
+        TransactionResponse response = sendTransactionWithAudit(
+                logisticsCore,
                 "invalidate",
-                Arrays.asList(new Utf8String(voucherNo)),
-                Collections.emptyList());
+                new Object[]{voucherNo},
+                "LOGISTICS_INVALIDATE"
+        );
 
-        TransactionReceipt receipt = executeTransaction(logisticsCore, function);
-
+        TransactionReceipt receipt = response != null ? response.getTransactionReceipt() : null;
         if (!isTransactionSuccess(receipt)) {
             String errorMsg = getTransactionErrorMessage(receipt);
             logger.error("链上使委派单失效失败: {}", errorMsg);

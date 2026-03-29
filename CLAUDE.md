@@ -107,12 +107,12 @@ All contract addresses are passed as environment variables to fisco-gateway-serv
 ```yaml
 - CONTRACT_ENTERPRISE=0x7a9b6d564d5d191093a29b7c760dd6af931cae73
 - CONTRACT_WAREHOUSE_CORE=0xeb000acf2e358cae769d308390145d9222b5577c
-- CONTRACT_WAREHOUSE_OPS=0xc02dc5133c5e635c16adf4ffda4b7a2e8c5ada96
+- CONTRACT_WAREHOUSE_OPS=0xa26565f61568353af17f8ce9beeb8e685140d6fe
 - CONTRACT_LOGISTICS_CORE=0x69ef4c5eca7bc099c2e8a8336c97af765d60dbf1
 - CONTRACT_LOGISTICS_OPS=0x41a1281dba209614f2ada8ecc75fd957ad179d7b
-- CONTRACT_RECEIVABLE_CORE=0xe46925ca51074d3b83ba993a4e88d0156eca6a06
+- CONTRACT_RECEIVABLE_CORE=0xb31661caf079ddd45d5ed8af7becc220199fab29
 - CONTRACT_RECEIVABLE_REPAYMENT=0x1d38f5d0c8c1ae7ed63a2d0ec905b9e9a17e70cf
-- CONTRACT_LOAN_CORE=0xbeada4d89feb3440285de55c94ebc1a2e93639f9
+- CONTRACT_LOAN_CORE=0x8331808d209e1675323bc3d25dd8348a57f9efc0
 ```
 
 ### FISCO SDK Configuration
@@ -152,8 +152,15 @@ Each service implements a `/health` endpoint via `HealthController` that returns
 /api/v1/blockchain/*  → fisco-gateway-service:8087
 ```
 
-### Database Migration
-Flyway manages database migrations at `classpath:db/migration`. Migrations run automatically on service startup.
+### Database Migration (Single Owner Principle)
+**auth-service is the ONLY service with Flyway enabled** and owns ALL schema changes to the shared `fisco_data` database. All other services (warehouse, logistics, finance, etc.) have Flyway disabled.
+
+Migration files live in `services/auth-service/src/main/resources/db/migration/` with version prefix `V{number}__`. When adding schema changes:
+1. Increment the version number (current max: V22)
+2. Create the migration file in auth-service's migration directory
+3. Restart auth-service to apply
+
+Example: `services/auth-service/src/main/resources/db/migration/V22__add_warehouse_receipt_remark.sql`
 
 ## Docker Profiles
 - `api-gateway`: Adds nginx container for production-like setup
@@ -195,20 +202,12 @@ Admin console application for interacting with the platform.
 
 ## Ongoing Work
 
-See `REFACTORING_PLAN.md` in the project root for detailed planned features and fixes including:
+See `REFACTORING_PLAN.md` for the full prioritized list of planned features and fixes.
 
-### High Priority
-- User cancellation/audit workflow APIs (registration approval, account cancellation)
-- Password change APIs
-- Enterprise user management APIs (list users, disable users, audit)
-- Blockchain query APIs for enterprise verification (6 missing endpoints)
-- @RequireRole authorization on Credit service sensitive endpoints
-
-### Medium Priority
-- System administrator login for Enterprise service
-- Geofencing for logistics (500m warehouse radius validation)
-- Financial institution verification in Finance service
-- StockOrder Hash calculation for blockchain traceability
+### Recently Completed (2026-03-29)
+- **A1-A6 (High)**: Loan repayment unlocking, blockchain rollback compensation, enterprise state machine, cancelLoan blockchain call, @RequireRole on credit-service, LoanOverdueCheckTask
+- **M1-M26 (Medium)**: Various service-level fixes including idempotency, invitation code generation, user status state machine
+- **L1-L3 (Low)**: Void receipt endpoint, split/merge cancellation, logistics deviation alerting
 
 ### Known Issues
-- Logistics blockchain failures do not rollback local transactions (data consistency risk)
+- **L4 (Deferred)**: GPS anti-counterfeiting - high complexity, existing geofence provides partial mitigation

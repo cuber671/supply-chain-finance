@@ -179,10 +179,23 @@ public class LoanContractService extends BaseContractService {
 
         logger.info("放款上链: loanNo={}, receiptId={}", loanNo, receiptId);
 
+        // 从链上获取贷款信息以计算完整参数
+        BigInteger approvedAmount;
+        BigInteger loanDays;
+        try {
+            approvedAmount = loanCoreContract.loanAmount(loanNo);
+            loanDays = loanCoreContract.loanDays(loanNo);
+        } catch (ContractException e) {
+            logger.error("获取贷款信息失败: loanNo={}", loanNo, e);
+            throw new RuntimeException("获取贷款信息失败: " + loanNo, e);
+        }
+        BigInteger startDate = BigInteger.valueOf(System.currentTimeMillis() / 1000);
+        BigInteger endDate = startDate.add(loanDays.multiply(BigInteger.valueOf(86400)));
+
         TransactionResponse response = sendTransactionWithAudit(
                 loanCoreContract,
                 "disburseLoan",
-                new Object[]{loanNo, receiptId},
+                new Object[]{loanNo, approvedAmount, startDate, endDate, receiptId},
                 "LOAN_DISBURSE"
         );
 
@@ -275,8 +288,20 @@ public class LoanContractService extends BaseContractService {
         logger.info("设置仓单-贷款关联: receiptId={}, loanNo={}, pledgeAmount={}",
                 receiptId, loanNo, pledgeAmount);
 
-        TransactionReceipt receipt = warehouseCoreExtContract.setReceiptLoanId(
-                receiptId, loanNo, pledgeAmount);
+        // 【修复G2】通过审计服务发送交易，确保关键操作可追溯
+        TransactionResponse response = sendTransactionWithAudit(
+                warehouseCoreExtContract,
+                "setReceiptLoanId",
+                new Object[]{receiptId, loanNo, pledgeAmount},
+                "RECEIPT_LOAN_SET"
+        );
+
+        TransactionReceipt receipt = response != null ? response.getTransactionReceipt() : null;
+        if (!isTransactionSuccess(receipt)) {
+            String errorMsg = getTransactionErrorMessage(receipt);
+            logger.error("设置仓单-贷款关联失败: {}", errorMsg);
+            throw new RuntimeException("操作失败: " + errorMsg);
+        }
 
         logger.info("设置仓单-贷款关联: receiptId={}, tx={}",
                 receiptId, receipt != null ? receipt.getTransactionHash() : "N/A");
@@ -288,7 +313,20 @@ public class LoanContractService extends BaseContractService {
 
         logger.info("更新仓单-贷款关联: receiptId={}, newLoanNo={}", receiptId, newLoanNo);
 
-        TransactionReceipt receipt = warehouseCoreExtContract.updateReceiptLoanId(receiptId, newLoanNo);
+        // 【修复G2】通过审计服务发送交易，确保关键操作可追溯
+        TransactionResponse response = sendTransactionWithAudit(
+                warehouseCoreExtContract,
+                "updateReceiptLoanId",
+                new Object[]{receiptId, newLoanNo},
+                "RECEIPT_LOAN_UPDATE"
+        );
+
+        TransactionReceipt receipt = response != null ? response.getTransactionReceipt() : null;
+        if (!isTransactionSuccess(receipt)) {
+            String errorMsg = getTransactionErrorMessage(receipt);
+            logger.error("更新仓单-贷款关联失败: {}", errorMsg);
+            throw new RuntimeException("操作失败: " + errorMsg);
+        }
 
         logger.info("更新仓单-贷款关联: receiptId={}, tx={}",
                 receiptId, receipt != null ? receipt.getTransactionHash() : "N/A");
@@ -297,10 +335,29 @@ public class LoanContractService extends BaseContractService {
 
     public String getLoanCore(String loanNo) {
         logger.debug("查询贷款核心信息: loanNo={}", loanNo);
-        // 返回贷款关键信息
-        StringBuilder info = new StringBuilder();
-        info.append("loanNo:").append(loanNo);
-        return info.toString();
+        // 【修复G1】返回真实的区块链贷款核心信息
+        checkCoreContract();
+        try {
+            StringBuilder info = new StringBuilder();
+            info.append("loanNo:").append(loanNo).append("|");
+
+            // 查询贷款状态
+            BigInteger status = loanCoreContract.getLoanStatus(loanNo);
+            info.append("status:").append(status).append("|");
+
+            // 查询未还本金
+            BigInteger outstandingPrincipal = loanCoreContract.getOutstandingPrincipal(loanNo);
+            info.append("outstandingPrincipal:").append(outstandingPrincipal).append("|");
+
+            // 查询是否存在
+            Boolean exists = loanCoreContract.exists(loanNo);
+            info.append("exists:").append(exists);
+
+            return info.toString();
+        } catch (ContractException e) {
+            logger.error("获取贷款核心信息失败: loanNo={}", loanNo, e);
+            throw new RuntimeException("获取贷款核心信息失败: " + e.getMessage());
+        }
     }
 
     public BigInteger getLoanStatus(String loanNo) {

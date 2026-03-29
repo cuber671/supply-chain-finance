@@ -403,6 +403,21 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
 
             endorsement.setTransfereeUserId(transfereeUserId);
             endorsement.setStatus(ReceiptEndorsement.STATUS_ACCEPTED);
+
+            // 【修复W2】确认背书时调用区块链完成链上过户
+            if (blockchainFeignClient != null && receipt.getOnChainId() != null) {
+                try {
+                    BlockchainFeignClient.EndorsementRequest request = new BlockchainFeignClient.EndorsementRequest();
+                    request.setReceiptId(receipt.getOnChainId());
+                    request.setFromHash(receipt.getOwnerEntId().toString());
+                    request.setToHash(endorsement.getTransfereeEntId().toString());
+                    blockchainFeignClient.confirmEndorsement(request);
+                    logger.info("仓单区块链背书确认成功: receiptId={}", receipt.getId());
+                } catch (Exception e) {
+                    logger.error("仓单区块链背书确认失败: receiptId={}, 链上过户未完成", receipt.getId(), e);
+                    // 注意：本地DB已更新，链上失败暂不阻止流程，后续需补偿同步
+                }
+            }
         } else {
             // 拒绝，恢复仓单状态
             receipt.setStatus(WarehouseReceipt.STATUS_IN_STOCK);

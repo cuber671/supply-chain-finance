@@ -304,6 +304,7 @@ public class CreditController {
         @ApiResponse(responseCode = "401", description = "未登录或Token无效"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
+    @RequireRole({"ADMIN"})
     @GetMapping("/events")
     public Result<List<CreditEventResponse>> listCreditEvents(
             @Parameter(description = "企业ID，不传则查询当前企业")
@@ -392,6 +393,7 @@ public class CreditController {
         @ApiResponse(responseCode = "401", description = "未登录或Token无效"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
+    @RequireRole({"ADMIN"})
     @PostMapping("/limit/check")
     public Result<LimitCheckResultResponse> checkCreditLimit(
             @Parameter(description = "额度校验信息", required = true) @RequestBody CreditLimitCheckRequest request,

@@ -41,8 +41,14 @@ public class JwtUtil {
         public static void init(String secret, long accessExpiration, long refreshExpiration) {
             SECRET = secret;
             if (SECRET == null || SECRET.length() < 32) {
-                SECRET = "FiscoBcos_Platform_Secret_Key_2026";
-                log.warn("JWT密钥长度不足64字节，使用默认密钥（生产环境请配置安全的密钥）");
+                throw new IllegalStateException(
+                    "JWT密钥配置无效：密钥长度必须至少32字节。请配置环境变量 JWT_SECRET 为安全的随机字符串。");
+            }
+            // 检测已知的弱密钥，禁止启动
+            if ("FiscoBcos_Platform_Secret_Key_2026".equals(SECRET)
+                    || "default-secret-key-for-dev-only".equals(SECRET)) {
+                throw new IllegalStateException(
+                    "JWT密钥使用了已知的不安全默认值！请立即配置环境变量 JWT_SECRET 为安全的随机字符串。");
             }
             KEY = Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8));
             ACCESS_TOKEN_EXPIRATION = accessExpiration;
