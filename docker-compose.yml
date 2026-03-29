@@ -497,11 +497,11 @@ services:
       - ./docker/mysql/init:/docker-entrypoint-initdb.d
       - ./docker/mysql/conf:/etc/mysql/conf.d
     command: >
-      --default-authentication-plugin=mysql_native_password
       --character-set-server=utf8mb4
       --collation-server=utf8mb4_unicode_ci
       --max_connections=500
       --innodb_buffer_pool_size=512M
+      --host_cache_size=0
     networks:
       app-net:
         ipv4_address: 172.26.0.100

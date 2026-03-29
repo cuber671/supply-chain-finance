@@ -8,8 +8,6 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import com.baomidou.mybatisplus.annotation.Version;
-
 import lombok.Data;
 
 /**
@@ -68,7 +66,6 @@ public class WarehouseReceipt {
     @TableField("on_chain_status")
     private Integer onChainStatus;
 
-    @Version
     private Long version;
 
     @TableField(fill = FieldFill.INSERT)
@@ -77,12 +74,15 @@ public class WarehouseReceipt {
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updateTime;
 
+    private String remark;
+
     // 状态常量
     public static final int STATUS_IN_STOCK = 1;
     public static final int STATUS_PENDING_TRANSFER = 2;
     public static final int STATUS_SPLIT_MERGED = 3;
     public static final int STATUS_BURNED = 4;
     public static final int STATUS_IN_TRANSIT = 5;
+    public static final int STATUS_VOID = 6;  // 已作废
 
     // 链上状态常量
     public static final int ON_CHAIN_STATUS_PENDING = 0;  // 待上链

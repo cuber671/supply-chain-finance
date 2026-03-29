@@ -169,6 +169,25 @@ public interface WarehouseReceiptService {
      */
     boolean unlockReceipt(Long receiptId);
 
+    /**
+     * 管理员强制解锁仓单（用于异常情况下的手动干预）
+     * 跳过部分校验，直接解锁仓单
+     */
+    boolean forceUnlockReceipt(Long receiptId, String reason);
+
+    /**
+     * 作废仓单（撤销签发）
+     * 仅在库、未锁定、状态为IN_STOCK的仓单可作废
+     * 作废后仓单不可再进行任何操作
+     */
+    boolean voidReceipt(Long receiptId, Long operatorUserId, String reason);
+
+    /**
+     * 撤销拆分合并申请（申请人主动撤销）
+     * 仅申请人可在状态为PENDING时撤销
+     */
+    boolean cancelSplitMerge(Long opLogId, Long applyUserId);
+
     // ==================== 核销出库 ====================
 
     /**

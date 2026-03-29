@@ -719,6 +719,47 @@ public class WarehouseReceiptController {
         }
     }
 
+    @Operation(summary = "撤销拆分合并申请", description = "申请人主动撤销待执行的拆分合并申请。仅申请人可撤销。")
+    @SecurityRequirement(name = "bearerAuth")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "撤销成功"),
+        @ApiResponse(responseCode = "400", description = "参数错误或申请状态不允许撤销"),
+        @ApiResponse(responseCode = "401", description = "未登录或Token无效"),
+        @ApiResponse(responseCode = "403", description = "无权限撤销：仅申请人可撤销自己的申请"),
+        @ApiResponse(responseCode = "404", description = "操作记录不存在"),
+        @ApiResponse(responseCode = "500", description = "服务端异常")
+    })
+    @PostMapping("/split-merge/{opLogId}/cancel")
+    public Result<Boolean> cancelSplitMerge(
+            @Parameter(description = "操作记录ID", required = true) @PathVariable String opLogId) {
+        try {
+            Long entId = CurrentUser.getEntId();
+            Long userId = CurrentUser.getUserId();
+            if (entId == null || userId == null) {
+                return Result.error(401, "无法获取当前企业或用户信息，请先登录");
+            }
+
+            Long id = parseId(opLogId, "操作记录ID");
+
+            // 仅申请人可撤销
+            ReceiptOperationLog opLog = warehouseReceiptService.getOperationLogById(id);
+            if (opLog == null) {
+                return Result.error(404, "操作记录不存在");
+            }
+            if (!opLog.getApplyUserId().equals(userId)) {
+                return Result.error(403, "无权限撤销：仅申请人可撤销自己的申请");
+            }
+
+            boolean success = warehouseReceiptService.cancelSplitMerge(id, userId);
+            return Result.success(success);
+        } catch (IllegalArgumentException e) {
+            return Result.error(400, e.getMessage());
+        } catch (Exception e) {
+            logger.error("撤销拆分合并申请失败", e);
+            return Result.error(500, "撤销拆分合并申请失败: " + e.getMessage());
+        }
+    }
+
     // ==================== 质押/解押 ====================
 
     @Operation(summary = "质押锁定仓单（金融机构操作）", description = "金融机构对仓单进行质押锁定，作为贷款担保。锁定后仓单无法进行转让、拆分、合并等操作。")
@@ -769,6 +810,76 @@ public class WarehouseReceiptController {
         } catch (Exception e) {
             logger.error("还款解押仓单失败", e);
             return Result.error(500, "还款解押仓单失败");
+        }
+    }
+
+    @Operation(summary = "管理员强制解锁仓单", description = "用于异常情况下的人工干预，强制解锁已锁定的仓单。需管理员权限。")
+    @SecurityRequirement(name = "bearerAuth")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "解锁成功"),
+        @ApiResponse(responseCode = "400", description = "参数错误或仓单不存在"),
+        @ApiResponse(responseCode = "401", description = "未登录或Token无效"),
+        @ApiResponse(responseCode = "403", description = "无权限：仅管理员可执行"),
+        @ApiResponse(responseCode = "500", description = "服务端异常")
+    })
+    @PostMapping("/receipt/{receiptId}/force-unlock")
+    public Result<Boolean> forceUnlockReceipt(
+            @Parameter(description = "仓单ID", required = true) @PathVariable String receiptId,
+            @Parameter(description = "强制解锁原因", required = true) @RequestParam String reason) {
+        try {
+            // 管理员权限校验
+            if (!CurrentUser.isAdmin()) {
+                return Result.error(403, "仅管理员可以执行强制解锁");
+            }
+            Long id = parseId(receiptId, "仓单ID");
+            boolean success = warehouseReceiptService.forceUnlockReceipt(id, reason);
+            return Result.success(success);
+        } catch (IllegalArgumentException e) {
+            return Result.error(400, e.getMessage());
+        } catch (Exception e) {
+            logger.error("管理员强制解锁仓单失败", e);
+            return Result.error(500, "强制解锁仓单失败: " + e.getMessage());
+        }
+    }
+
+    @Operation(summary = "作废仓单", description = "仓单所有者企业作废签发的仓单。仅在库、未锁定、无待处理背书或拆分合并申请的仓单可作废。")
+    @SecurityRequirement(name = "bearerAuth")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "作废成功"),
+        @ApiResponse(responseCode = "400", description = "参数错误或仓单状态不允许作废"),
+        @ApiResponse(responseCode = "401", description = "未登录或Token无效"),
+        @ApiResponse(responseCode = "403", description = "无权限操作该仓单"),
+        @ApiResponse(responseCode = "500", description = "服务端异常")
+    })
+    @PostMapping("/receipt/{receiptId}/void")
+    public Result<Boolean> voidReceipt(
+            @Parameter(description = "仓单ID", required = true) @PathVariable String receiptId,
+            @Parameter(description = "作废原因", required = true) @RequestParam String reason) {
+        try {
+            Long entId = CurrentUser.getEntId();
+            Long userId = CurrentUser.getUserId();
+            if (entId == null || userId == null) {
+                return Result.error(401, "无法获取当前企业或用户信息，请先登录");
+            }
+
+            Long id = parseId(receiptId, "仓单ID");
+
+            // 校验仓单归属
+            WarehouseReceipt receipt = warehouseReceiptService.getReceiptById(id);
+            if (receipt == null) {
+                return Result.error(404, "仓单不存在");
+            }
+            if (!receipt.getOwnerEntId().equals(entId)) {
+                return Result.error(403, "无权限操作该仓单");
+            }
+
+            boolean success = warehouseReceiptService.voidReceipt(id, userId, reason);
+            return Result.success(success);
+        } catch (IllegalArgumentException e) {
+            return Result.error(400, e.getMessage());
+        } catch (Exception e) {
+            logger.error("作废仓单失败", e);
+            return Result.error(500, "作废仓单失败: " + e.getMessage());
         }
     }
 

@@ -786,6 +786,107 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
         return true;
     }
 
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean forceUnlockReceipt(Long receiptId, String reason) {
+        WarehouseReceipt receipt = warehouseReceiptMapper.selectById(receiptId);
+        if (receipt == null) {
+            throw new IllegalArgumentException("仓单不存在");
+        }
+
+        if (!receipt.getIsLocked()) {
+            logger.warn("管理员强制解锁：仓单未锁定，跳过解锁操作: receiptId={}", receiptId);
+            return true; // 未锁定视为成功
+        }
+
+        String previousLoanId = receipt.getLoanId();
+        receipt.setIsLocked(false);
+        receipt.setLoanId(null);
+        warehouseReceiptMapper.updateById(receipt);
+        logger.warn("管理员强制解锁仓单: receiptId={}, reason={}, previousLoanId={}", receiptId, reason, previousLoanId);
+
+        // 区块链强制解锁
+        if (blockchainFeignClient != null && receipt.getOnChainId() != null) {
+            try {
+                BlockchainFeignClient.ReceiptOperationRequest request = new BlockchainFeignClient.ReceiptOperationRequest();
+                request.setReceiptId(receipt.getOnChainId());
+                blockchainFeignClient.unlockReceipt(request);
+                logger.info("仓单区块链强制解锁成功: receiptId={}", receiptId);
+            } catch (Exception e) {
+                logger.error("仓单区块链强制解锁失败: receiptId={}, DB已解锁但链上未解锁", receiptId, e);
+                throw new RuntimeException("仓单区块链解锁失败: " + e.getMessage());
+            }
+        }
+
+        return true;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean voidReceipt(Long receiptId, Long operatorUserId, String reason) {
+        WarehouseReceipt receipt = warehouseReceiptMapper.selectById(receiptId);
+        if (receipt == null) {
+            throw new IllegalArgumentException("仓单不存在");
+        }
+
+        // 仅在库、未锁定的仓单可作废
+        if (receipt.getStatus() != WarehouseReceipt.STATUS_IN_STOCK) {
+            throw new IllegalArgumentException("只有在库状态的仓单可作废");
+        }
+        if (Boolean.TRUE.equals(receipt.getIsLocked())) {
+            throw new IllegalArgumentException("已质押锁定的仓单不能作废");
+        }
+
+        // 检查是否有未完成的背书转让
+        LambdaQueryWrapper<ReceiptEndorsement> endorsementWrapper = new LambdaQueryWrapper<>();
+        endorsementWrapper.eq(ReceiptEndorsement::getReceiptId, receiptId);
+        endorsementWrapper.eq(ReceiptEndorsement::getStatus, ReceiptEndorsement.STATUS_PENDING);
+        long pendingEndorsements = endorsementMapper.selectCount(endorsementWrapper);
+        if (pendingEndorsements > 0) {
+            throw new IllegalArgumentException("仓单有待处理的背书转让，不能作废");
+        }
+
+        // 检查是否有未完成的拆分合并申请
+        LambdaQueryWrapper<ReceiptOperationLog> opLogWrapper = new LambdaQueryWrapper<>();
+        opLogWrapper.eq(ReceiptOperationLog::getSourceReceiptIds, receiptId.toString());
+        opLogWrapper.eq(ReceiptOperationLog::getStatus, ReceiptOperationLog.STATUS_PENDING);
+        long pendingOps = operationLogMapper.selectCount(opLogWrapper);
+        if (pendingOps > 0) {
+            throw new IllegalArgumentException("仓单有待处理的拆分合并申请，不能作废");
+        }
+
+        receipt.setStatus(WarehouseReceipt.STATUS_VOID);
+        receipt.setRemark("作废原因: " + reason);
+        warehouseReceiptMapper.updateById(receipt);
+
+        logger.info("仓单作废成功: receiptId={}, operatorUserId={}, reason={}", receiptId, operatorUserId, reason);
+        return true;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean cancelSplitMerge(Long opLogId, Long applyUserId) {
+        ReceiptOperationLog opLog = operationLogMapper.selectById(opLogId);
+        if (opLog == null) {
+            throw new IllegalArgumentException("操作记录不存在");
+        }
+        if (opLog.getStatus() != ReceiptOperationLog.STATUS_PENDING) {
+            throw new IllegalArgumentException("只有待执行的申请才能撤销");
+        }
+        // 仅申请人可撤销
+        if (!opLog.getApplyUserId().equals(applyUserId)) {
+            throw new IllegalArgumentException("无权限撤销：仅申请人可撤销自己的申请");
+        }
+
+        opLog.setStatus(ReceiptOperationLog.STATUS_CANCELLED);
+        opLog.setFinishTime(java.time.LocalDateTime.now());
+        opLog.setRemark(opLog.getRemark() + " | 申请人撤销");
+        operationLogMapper.updateById(opLog);
+
+        logger.info("拆分合并申请已撤销: opLogId={}, applyUserId={}", opLogId, applyUserId);
+        return true;
+    }
+
     // ==================== 核销出库 ====================
 
     @Override

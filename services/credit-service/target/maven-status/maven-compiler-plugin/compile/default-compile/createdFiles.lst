@@ -9,6 +9,7 @@ com/fisco/app/contract/credit/CreditLimitCore$21.class
 com/fisco/app/contract/credit/CreditLimitScore$10.class
 com/fisco/app/contract/credit/CreditLimitCore$31.class
 com/fisco/app/mapper/CreditEventMapper.class
+com/fisco/app/config/FeignConfig.class
 com/fisco/app/contract/credit/CreditLimitScore$40.class
 com/fisco/app/contract/credit/CreditLimitCore$51.class
 com/fisco/app/contract/credit/CreditLimitScore$30.class
@@ -25,6 +26,7 @@ com/fisco/app/contract/credit/CreditLimitScore$4.class
 com/fisco/app/contract/credit/CreditLimitScore$28.class
 com/fisco/app/contract/credit/CreditLimitScore$48.class
 com/fisco/app/contract/credit/CreditLimitCore$67.class
+com/fisco/app/config/FeignConfig$1.class
 com/fisco/app/contract/credit/CreditLimitCore$2.class
 com/fisco/app/contract/credit/CreditLimitScore$53.class
 com/fisco/app/contract/credit/CreditLimitCore$79.class
@@ -55,6 +57,7 @@ com/fisco/app/contract/credit/CreditLimitCore$13.class
 com/fisco/app/contract/credit/CreditLimitCore$20.class
 com/fisco/app/config/BlockchainConfig.class
 com/fisco/app/controller/CreditController$CreditEventReportRequest.class
+com/fisco/app/config/JwtConfig.class
 com/fisco/app/contract/credit/CreditLimitCore$66.class
 com/fisco/app/contract/credit/CreditLimitCore$26.class
 com/fisco/app/contract/credit/CreditLimitScore$15.class
@@ -65,6 +68,7 @@ com/fisco/app/contract/credit/CreditLimitCore$76.class
 com/fisco/app/contract/credit/CreditLimitScore$38.class
 com/fisco/app/contract/credit/CreditLimitCore$49.class
 com/fisco/app/contract/credit/CreditLimitCore.class
+com/fisco/app/config/MyBatisPlusConfig$CustomMetaObjectHandler.class
 com/fisco/app/contract/credit/CreditLimitCore$77.class
 com/fisco/app/contract/credit/CreditLimitScore$43.class
 com/fisco/app/contract/credit/CreditLimitCore$54.class
@@ -84,6 +88,7 @@ com/fisco/app/contract/credit/CreditLimitScore$49.class
 com/fisco/app/contract/credit/CreditLimitScore$31.class
 com/fisco/app/contract/credit/CreditLimitCore$42.class
 com/fisco/app/controller/CreditController$LimitCheckResultResponse.class
+com/fisco/app/config/JwtAuthenticationFilter.class
 com/fisco/app/contract/credit/CreditLimitCore$68.class
 com/fisco/app/contract/credit/CreditLimitCore$78.class
 com/fisco/app/contract/credit/CreditLimitCore$6.class
@@ -157,6 +162,7 @@ com/fisco/app/contract/credit/CreditLimitCore$74.class
 com/fisco/app/contract/credit/CreditLimitScore$23.class
 com/fisco/app/mapper/CreditProfileMapper.class
 com/fisco/app/CreditServiceApplication.class
+com/fisco/app/config/MyBatisPlusConfig.class
 com/fisco/app/contract/credit/CreditLimitCore$34.class
 com/fisco/app/contract/credit/CreditLimitCore$3.class
 com/fisco/app/contract/credit/CreditLimitCore$17.class

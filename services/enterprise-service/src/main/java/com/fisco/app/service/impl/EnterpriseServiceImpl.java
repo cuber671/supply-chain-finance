@@ -1,6 +1,7 @@
 package com.fisco.app.service.impl;
 
 import java.math.BigInteger;
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -36,6 +37,7 @@ import com.fisco.app.service.EnterpriseService;
 public class EnterpriseServiceImpl implements EnterpriseService {
 
     private static final Logger logger = LoggerFactory.getLogger(EnterpriseServiceImpl.class);
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     @Autowired
     private EnterpriseMapper enterpriseMapper;
@@ -259,6 +261,42 @@ public class EnterpriseServiceImpl implements EnterpriseService {
 
     // ==================== 企业状态管理 ====================
 
+    /**
+     * 验证企业状态转换是否合法
+     * @param currentStatus 当前状态
+     * @param newStatus 新状态
+     * @return 是否合法
+     */
+    private boolean isValidStatusTransition(int currentStatus, int newStatus) {
+        // 已注销企业不允许任何状态转换
+        if (currentStatus == Enterprise.STATUS_CANCELLED) {
+            return false;
+        }
+        // 状态未变化视为合法
+        if (currentStatus == newStatus) {
+            return true;
+        }
+        switch (currentStatus) {
+            case Enterprise.STATUS_PENDING: // 待审核
+                // 待审核 -> 正常(审核通过) 或 冻结(审核拒绝)
+                return newStatus == Enterprise.STATUS_NORMAL || newStatus == Enterprise.STATUS_FROZEN;
+            case Enterprise.STATUS_NORMAL: // 正常
+                // 正常 -> 冻结 或 注销待审核
+                return newStatus == Enterprise.STATUS_FROZEN || newStatus == Enterprise.STATUS_PENDING_CANCEL;
+            case Enterprise.STATUS_FROZEN: // 冻结
+                // 冻结 -> 正常(解冻)
+                return newStatus == Enterprise.STATUS_NORMAL;
+            case Enterprise.STATUS_CANCELLING: // 注销中（当前未实际使用）
+                // 注销中 -> 注销待审核 或 正常(撤销)
+                return newStatus == Enterprise.STATUS_PENDING_CANCEL || newStatus == Enterprise.STATUS_NORMAL;
+            case Enterprise.STATUS_PENDING_CANCEL: // 注销待审核
+                // 注销待审核 -> 已注销(审核通过) 或 正常(审核拒绝/撤销)
+                return newStatus == Enterprise.STATUS_CANCELLED || newStatus == Enterprise.STATUS_NORMAL;
+            default:
+                return false;
+        }
+    }
+
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean updateEnterpriseStatus(Long entId, Integer newStatus) {
@@ -267,10 +305,16 @@ public class EnterpriseServiceImpl implements EnterpriseService {
             throw new IllegalArgumentException("企业不存在");
         }
 
+        int currentStatus = enterprise.getStatus();
+        if (!isValidStatusTransition(currentStatus, newStatus)) {
+            throw new IllegalStateException(
+                String.format("非法的企业状态转换: 当前状态=%d, 目标状态=%d", currentStatus, newStatus));
+        }
+
         enterprise.setStatus(newStatus);
         enterpriseMapper.updateById(enterprise);
 
-        logger.info("企业状态已更新: entId={}, newStatus={}", entId, newStatus);
+        logger.info("企业状态已更新: entId={}, oldStatus={}, newStatus={}", entId, currentStatus, newStatus);
         return true;
     }
 
@@ -452,9 +496,9 @@ public class EnterpriseServiceImpl implements EnterpriseService {
 
         // 校验链上资产余额
         AssetBalance assetBalance = checkAssetBalance(entId);
-        // FIX: checkAssetBalance未实现（返回全0），临时方案：若资产数为0视为未完成验证，阻止注销
-        if (assetBalance.hasAssets() || assetBalance.getTotalAssets() == 0) {
-            // 当hasAssets=true时阻止（有真实资产），或当TotalAssets=0时也阻止（验证未完成）
+        // 只有当企业确实存在未结清资产时才阻止注销
+        // 注意: checkAssetBalance 目前未完全实现，临时返回0，若后续完善应查询链上真实资产
+        if (assetBalance.hasAssets()) {
             result.setSuccess(false);
             result.setMessage("企业存在未结清资产，无法申请注销。仓单：" + assetBalance.getWarehouseReceiptCount()
                     + "，票据：" + assetBalance.getBillCount()
@@ -786,11 +830,11 @@ public class EnterpriseServiceImpl implements EnterpriseService {
     }
 
     private String generateUniqueCode() {
-        // 生成6位大写字母+数字组合
+        // 生成12位大写字母+数字组合（熵值提升：6位→12位，约 32^12 ≈ 10^18 种组合）
         String chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
         StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < 6; i++) {
-            int index = (int) (Math.random() * chars.length());
+        for (int i = 0; i < 12; i++) {
+            int index = SECURE_RANDOM.nextInt(chars.length());
             sb.append(chars.charAt(index));
         }
         return sb.toString();

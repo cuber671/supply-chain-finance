@@ -106,6 +106,15 @@ public interface UserService {
      */
     boolean deleteUser(Long userId);
 
+    /**
+     * 更新用户状态（含状态机校验）
+     * @param userId 用户ID
+     * @param newStatus 新状态
+     * @return 是否更新成功
+     * @throws IllegalStateException 非法的状态转换时抛出
+     */
+    boolean updateUserStatus(Long userId, Integer newStatus);
+
     // ==================== 审核管理 ====================
 
     /**

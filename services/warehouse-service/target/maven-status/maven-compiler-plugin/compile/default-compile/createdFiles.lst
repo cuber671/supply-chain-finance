@@ -1,4 +1,5 @@
 com/fisco/app/WarehouseServiceApplication.class
+com/fisco/app/config/JwtAuthenticationFilter.class
 com/fisco/app/annotation/WarehouseStatusCheck.class
 com/fisco/app/entity/WarehouseReceipt.class
 com/fisco/app/config/OpenApiConfig.class
@@ -11,12 +12,15 @@ com/fisco/app/annotation/WarehousePermissionCheck.class
 com/fisco/app/entity/ReceiptOperationLog.class
 com/fisco/app/controller/WarehouseReceiptController$CreateWarehouseRequest.class
 com/fisco/app/service/WarehouseReceiptService$TraceInfo.class
+com/fisco/app/config/JwtConfig.class
 com/fisco/app/controller/WarehouseReceiptController$StockInApplyRequest.class
 com/fisco/app/annotation/WarehouseReceiptOwnership.class
 com/fisco/app/controller/WarehouseReceiptController.class
 com/fisco/app/mapper/WarehouseReceiptMapper.class
 com/fisco/app/entity/Warehouse.class
 com/fisco/app/controller/WarehouseReceiptController$ApplySplitRequest.class
+com/fisco/app/config/MyBatisPlusConfig$CustomMetaObjectHandler.class
+com/fisco/app/config/MyBatisPlusConfig.class
 com/fisco/app/service/impl/WarehouseReceiptServiceImpl.class
 com/fisco/app/controller/WarehouseReceiptController$ApplyMergeRequest.class
 com/fisco/app/controller/WarehouseReceiptController$LaunchEndorsementRequest.class

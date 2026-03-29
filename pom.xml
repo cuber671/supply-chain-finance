@@ -154,6 +154,36 @@
                     </layers>
                 </configuration>
             </plugin>
+            <!-- OpenAPI 规范 JSON 生成插件 -->
+            <plugin>
+                <groupId>org.springdoc</groupId>
+                <artifactId>springdoc-openapi-maven-plugin</artifactId>
+                <version>${springdoc.version}</version>
+                <configuration>
+                    <apiDocs>${project.basedir}/openapi.json</apiDocs>
+                    <outputDir>${project.basedir}/docs/api</outputDir>
+                </configuration>
+            </plugin>
+            <!-- OpenAPI Markdown 文档生成插件 -->
+            <plugin>
+                <groupId>io.github.swagger2markup</groupId>
+                <artifactId>swagger2markup-maven-plugin</artifactId>
+                <version>1.3.4</version>
+                <dependencies>
+                    <dependency>
+                        <groupId>ch.netzwerg</groupId>
+                        <artifactId>paleo-core</artifactId>
+                        <version>1.0.0</version>
+                    </dependency>
+                </dependencies>
+                <configuration>
+                    <apiInputFile>${project.basedir}/openapi.json</apiInputFile>
+                    <outputDir>${project.basedir}/docs/api</outputDir>
+                    <markupLanguage>asciidoc</markupLanguage>
+                    <globalPathsGrouped>true</globalPathsGrouped>
+                    <tagsGrouped>true</tagsGrouped>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
 </project>

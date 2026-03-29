@@ -18,6 +18,15 @@ spring:
       pool-name: CreditHikariPool
   flyway:
     enabled: false
+  cloud:
+    discovery:
+      client:
+        simple:
+          instances:
+            enterprise-service:
+              - uri: http://enterprise-service:8082
+            fisco-gateway-service:
+              - uri: http://fisco-gateway-service:8087
 
 fisco:
   enabled: ${FISCO_ENABLED:true}
@@ -43,6 +52,10 @@ feign:
         connectTimeout: 5000
         readTimeout: 30000
         loggerLevel: BASIC
+      enterprise-service:
+        url: http://enterprise-service:8082
+      fisco-gateway-service:
+        url: http://fisco-gateway-service:8087
   circuitbreaker:
     enabled: true
 

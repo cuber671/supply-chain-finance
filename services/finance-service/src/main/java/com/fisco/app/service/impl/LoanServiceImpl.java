@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fisco.app.feign.BlockchainFeignClient;
+import com.fisco.app.feign.CreditFeignClient;
 import com.fisco.app.feign.EnterpriseFeignClient;
 import com.fisco.app.feign.WarehouseFeignClient;
 import com.fisco.app.util.CurrentUser;
@@ -66,6 +67,9 @@ public class LoanServiceImpl implements LoanService {
 
     @Autowired(required = false)
     private EnterpriseFeignClient enterpriseFeignClient;
+
+    @Autowired(required = false)
+    private CreditFeignClient creditFeignClient;
 
     @Override
     @Transactional
@@ -222,6 +226,27 @@ public class LoanServiceImpl implements LoanService {
             }
         }
 
+        // 信用额度校验 - 检查借款企业是否有足够的信用额度
+        if (creditFeignClient != null && loan.getBorrowerEntId() != null) {
+            try {
+                Result<Object> availableLimitResult = creditFeignClient.getAvailableCreditLimit(loan.getBorrowerEntId());
+                if (availableLimitResult != null && ResultCodeEnum.SUCCESS.getCode().equals(availableLimitResult.getCode())
+                        && availableLimitResult.getData() != null) {
+                    BigDecimal availableLimit = new BigDecimal(availableLimitResult.getData().toString());
+                    if (request.getApprovedAmount().compareTo(availableLimit) > 0) {
+                        throw new IllegalStateException("贷款金额超过企业可用信用额度: 申请金额=" + request.getApprovedAmount()
+                                + ", 可用额度=" + availableLimit);
+                    }
+                }
+            } catch (IllegalStateException e) {
+                throw e; // 直接抛出业务异常
+            } catch (Exception e) {
+                logger.warn("信用额度查询失败，跳过额度校验: loanId={}, entId={}, error={}",
+                        id, loan.getBorrowerEntId(), e.getMessage());
+                // 额度查询失败时不影响审批流程，但记录警告
+            }
+        }
+
         loan.setApprovedAmount(request.getApprovedAmount());
         loan.setApprovedInterestRate(request.getInterestRate());
         loan.setLoanDays(request.getLoanDays());
@@ -297,7 +322,7 @@ public class LoanServiceImpl implements LoanService {
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public boolean cancelLoan(Long id, String reason) {
         Loan loan = loanMapper.selectById(id);
         if (loan == null) {
@@ -313,7 +338,8 @@ public class LoanServiceImpl implements LoanService {
         if (loan.getReceiptId() != null && loan.getStatus() == Loan.STATUS_DISBURSED) {
             if (warehouseFeignClient != null) {
                 Map<String, Object> unlockResult = warehouseFeignClient.unlockReceipt(loan.getReceiptId());
-                if (!Integer.valueOf(200).equals(unlockResult.get("code"))) {
+                // 修复: 仓单解锁成功码应为0（与lockReceipt一致），而非200
+                if (!Integer.valueOf(0).equals(unlockResult.get("code"))) {
                     throw new RuntimeException("仓单解锁失败: " + unlockResult.get("msg"));
                 }
             }
@@ -324,6 +350,24 @@ public class LoanServiceImpl implements LoanService {
         loan.setCancelTime(LocalDateTime.now());
 
         loanMapper.updateById(loan);
+
+        // 区块链上链: 取消贷款需要记录到区块链
+        if (blockchainFeignClient != null) {
+            try {
+                BlockchainFeignClient.LoanCancelRequest request = new BlockchainFeignClient.LoanCancelRequest();
+                request.setLoanNo(loan.getLoanNo());
+                request.setReason(reason);
+                Result<String> result = blockchainFeignClient.cancelLoan(request);
+                if (result != null && ResultCodeEnum.SUCCESS.getCode().equals(result.getCode()) && result.getData() != null) {
+                    loan.setChainTxHash(result.getData());
+                    loanMapper.updateById(loan);
+                }
+                logger.info("贷款取消上链成功: loanNo={}, chainTxHash={}", loan.getLoanNo(), result != null ? result.getData() : "null");
+            } catch (Exception e) {
+                logger.error("贷款取消上链失败: loanNo={}", loan.getLoanNo(), e);
+                throw new RuntimeException("区块链操作失败，贷款取消已回滚", e);
+            }
+        }
 
         logger.info("取消贷款: loanNo={}, reason={}", loan.getLoanNo(), reason);
 
@@ -357,11 +401,11 @@ public class LoanServiceImpl implements LoanService {
                 throw new IllegalStateException("仓单服务不可用，无法放款");
             }
             Map<String, String> lockParams = Map.of(
-                "loanNo", loan.getLoanNo(),
+                "loanId", loan.getLoanNo(),
                 "amount", loan.getLoanAmount() != null ? loan.getLoanAmount().toString() : "0"
             );
             Map<String, Object> lockResult = warehouseFeignClient.lockReceipt(loan.getReceiptId(), lockParams);
-            if (!Integer.valueOf(200).equals(lockResult.get("code"))) {
+            if (!Integer.valueOf(0).equals(lockResult.get("code"))) {
                 throw new RuntimeException("仓单锁定失败: " + lockResult.get("msg"));
             }
         }
@@ -463,6 +507,16 @@ public class LoanServiceImpl implements LoanService {
         if (newOutstandingPrincipal.compareTo(BigDecimal.ZERO) <= 0 &&
             newOutstandingInterest.compareTo(BigDecimal.ZERO) <= 0) {
             loan.setStatus(Loan.STATUS_SETTLED);
+            // 还款结清后解锁仓单
+            if (loan.getReceiptId() != null) {
+                try {
+                    warehouseFeignClient.unlockReceipt(loan.getReceiptId());
+                    logger.info("贷款结清已解锁仓单: loanNo={}, receiptId={}", loan.getLoanNo(), loan.getReceiptId());
+                } catch (Exception e) {
+                    logger.error("贷款结清解锁仓单失败: loanNo={}, receiptId={}", loan.getLoanNo(), loan.getReceiptId(), e);
+                    // 不阻止还款流程，但记录错误供后续补偿
+                }
+            }
         } else {
             loan.setStatus(Loan.STATUS_REPAYING);
         }
@@ -568,6 +622,24 @@ public class LoanServiceImpl implements LoanService {
         for (Loan loan : overdueLoans) {
             loan.setStatus(Loan.STATUS_OVERDUE);
             loanMapper.updateById(loan);
+
+            // 区块链上链: 逾期标记
+            if (blockchainFeignClient != null) {
+                try {
+                    BlockchainFeignClient.LoanMarkOverdueRequest request = new BlockchainFeignClient.LoanMarkOverdueRequest();
+                    request.setLoanNo(loan.getLoanNo());
+                    Result<String> result = blockchainFeignClient.markOverdue(request);
+                    if (result != null && ResultCodeEnum.SUCCESS.getCode().equals(result.getCode()) && result.getData() != null) {
+                        loan.setChainTxHash(result.getData());
+                        loanMapper.updateById(loan);
+                    }
+                    logger.info("贷款逾期上链成功: loanNo={}, chainTxHash={}", loan.getLoanNo(), result != null ? result.getData() : "null");
+                } catch (Exception e) {
+                    logger.error("贷款逾期上链失败: loanNo={}", loan.getLoanNo(), e);
+                    // 不阻止本地逾期处理，但记录错误
+                }
+            }
+
             logger.info("标记逾期: loanNo={}", loan.getLoanNo());
         }
         return overdueLoans.size();

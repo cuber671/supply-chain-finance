@@ -274,6 +274,50 @@ public class UserServiceImpl implements UserService {
         return result;
     }
 
+    @Override
+    public boolean updateUserStatus(Long userId, Integer newStatus) {
+        User user = getUserById(userId);
+        if (user == null) {
+            throw new IllegalArgumentException("用户不存在");
+        }
+
+        int currentStatus = user.getStatus();
+
+        // 状态机校验：定义合法的状态转换
+        boolean validTransition = false;
+        switch (newStatus) {
+            case User.STATUS_PENDING:
+                // 只有已注销可以重新变为待审核（极端情况）
+                validTransition = (currentStatus == UserStatusEnum.CANCELLED.getValue());
+                break;
+            case User.STATUS_NORMAL:
+                // PENDING -> NORMAL（审核通过）或 CANCELLING/PENDING_CANCEL -> NORMAL（注销拒绝/撤回）
+                validTransition = (currentStatus == User.STATUS_PENDING)
+                        || (currentStatus == UserStatusEnum.CANCELLING.getValue())
+                        || (currentStatus == UserStatusEnum.PENDING_CANCEL.getValue());
+                break;
+            case User.STATUS_FROZEN:
+                // NORMAL -> FROZEN（冻结）或 PENDING -> FROZEN（审核拒绝）
+                validTransition = (currentStatus == User.STATUS_NORMAL)
+                        || (currentStatus == User.STATUS_PENDING);
+                break;
+            default:
+                validTransition = false;
+        }
+
+        if (!validTransition) {
+            throw new IllegalStateException(
+                    String.format("非法的用户状态转换: 当前状态=%d, 目标状态=%d", currentStatus, newStatus));
+        }
+
+        user.setStatus(newStatus);
+        int updated = userMapper.updateById(user);
+        if (updated > 0) {
+            log.info("用户状态变更成功: userId={}, oldStatus={}, newStatus={}", userId, currentStatus, newStatus);
+        }
+        return updated > 0;
+    }
+
     // ==================== 审核管理 ====================
 
     @Override

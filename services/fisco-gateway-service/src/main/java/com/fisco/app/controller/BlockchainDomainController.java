@@ -1089,10 +1089,15 @@ public class BlockchainDomainController {
     // ==================== Request DTOs ====================
 
     // Enterprise requests
+    @io.swagger.v3.oas.annotations.media.Schema(description = "企业注册请求")
     public static class EnterpriseRegisterRequest {
+        @io.swagger.v3.oas.annotations.media.Schema(description = "企业区块链地址", example = "0x7a9b6d564d5d191093a29b7c760dd6af931cae73")
         private String enterpriseAddress;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "统一社会信用代码", example = "91110000MA00XXXX00")
         private String creditCode;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "企业角色 0-核心企业 1-供应商 2-经销商", example = "0")
         private Integer role;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "企业注册信息哈希", example = "0xabc123...")
         private String metadataHash;
 
         public String getEnterpriseAddress() { return enterpriseAddress; }
@@ -1105,8 +1110,11 @@ public class BlockchainDomainController {
         public void setMetadataHash(String v) { this.metadataHash = v; }
     }
 
+    @io.swagger.v3.oas.annotations.media.Schema(description = "企业状态变更请求")
     public static class EnterpriseStatusRequest {
+        @io.swagger.v3.oas.annotations.media.Schema(description = "企业区块链地址", example = "0x7a9b6d564d5d191093a29b7c760dd6af931cae73")
         private String enterpriseAddress;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "新状态 0-待审核 1-正常 2-冻结 3-注销", example = "1")
         private Integer newStatus;
 
         public String getEnterpriseAddress() { return enterpriseAddress; }
@@ -1115,8 +1123,11 @@ public class BlockchainDomainController {
         public void setNewStatus(Integer v) { this.newStatus = v; }
     }
 
+    @io.swagger.v3.oas.annotations.media.Schema(description = "企业信用评级变更请求")
     public static class EnterpriseCreditRatingRequest {
+        @io.swagger.v3.oas.annotations.media.Schema(description = "企业区块链地址", example = "0x7a9b6d564d5d191093a29b7c760dd6af931cae73")
         private String enterpriseAddress;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "新信用评级", example = "AAA")
         private Integer newRating;
 
         public String getEnterpriseAddress() { return enterpriseAddress; }
@@ -1125,8 +1136,11 @@ public class BlockchainDomainController {
         public void setNewRating(Integer v) { this.newRating = v; }
     }
 
+    @io.swagger.v3.oas.annotations.media.Schema(description = "企业信用额度变更请求")
     public static class EnterpriseCreditLimitRequest {
+        @io.swagger.v3.oas.annotations.media.Schema(description = "企业区块链地址", example = "0x7a9b6d564d5d191093a29b7c760dd6af931cae73")
         private String enterpriseAddress;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "新信用额度", example = "100000000")
         private Long newLimit;
 
         public String getEnterpriseAddress() { return enterpriseAddress; }
@@ -1136,17 +1150,29 @@ public class BlockchainDomainController {
     }
 
     // Warehouse receipt requests
+    @io.swagger.v3.oas.annotations.media.Schema(description = "仓单开立请求")
     public static class ReceiptIssueRequest {
+        @io.swagger.v3.oas.annotations.media.Schema(description = "仓单编号", example = "WH202603270001")
         private String receiptId;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "货主哈希", example = "0xabc123...")
         private String ownerHash;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "仓库哈希", example = "0xdef456...")
         private String warehouseHash;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "货物详情哈希", example = "0xghi789...")
         private String goodsDetailHash;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "现场照片哈希", example = "0xjkl012...")
         private String locationPhotoHash;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "合同哈希", example = "0xmno345...")
         private String contractHash;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "重量", example = "1000")
         private Long weight;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "重量单位", example = "kg")
         private String unit;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "数量", example = "100")
         private Long quantity;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "入库日期（时间戳）", example = "1711526400000")
         private Long storageDate;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "有效期（时间戳）", example = "1714118400000")
         private Long expiryDate;
 
         public String getReceiptId() { return receiptId; }
@@ -1173,9 +1199,13 @@ public class BlockchainDomainController {
         public void setExpiryDate(Long v) { this.expiryDate = v; }
     }
 
+    @io.swagger.v3.oas.annotations.media.Schema(description = "仓单背书请求")
     public static class EndorsementRequest {
+        @io.swagger.v3.oas.annotations.media.Schema(description = "仓单编号", example = "WH202603270001")
         private String receiptId;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "转让人哈希", example = "0xabc123...")
         private String fromHash;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "受让人哈希", example = "0xdef456...")
         private String toHash;
 
         public String getReceiptId() { return receiptId; }
@@ -1186,11 +1216,17 @@ public class BlockchainDomainController {
         public void setToHash(String v) { this.toHash = v; }
     }
 
+    @io.swagger.v3.oas.annotations.media.Schema(description = "仓单拆分请求")
     public static class SplitReceiptRequest {
+        @io.swagger.v3.oas.annotations.media.Schema(description = "原仓单编号", example = "WH202603270001")
         private String originalReceiptId;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "新仓单编号列表", example = "[\"WH202603270002\", \"WH202603270003\"]")
         private List<String> newReceiptIds;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "各新仓单重量列表", example = "[500, 500]")
         private List<Long> weights;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "各新仓单货主哈希列表", example = "[\"0xabc123\", \"0xdef456\"]")
         private List<String> ownerHashes;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "重量单位", example = "kg")
         private String unit;
 
         public String getOriginalReceiptId() { return originalReceiptId; }
@@ -1205,11 +1241,17 @@ public class BlockchainDomainController {
         public void setUnit(String v) { this.unit = v; }
     }
 
+    @io.swagger.v3.oas.annotations.media.Schema(description = "仓单合并请求")
     public static class MergeReceiptRequest {
+        @io.swagger.v3.oas.annotations.media.Schema(description = "源仓单编号列表", example = "[\"WH202603270002\", \"WH202603270003\"]")
         private List<String> sourceReceiptIds;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "目标仓单编号", example = "WH202603270001")
         private String targetReceiptId;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "目标货主哈希", example = "0xabc123...")
         private String targetOwnerHash;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "重量单位", example = "kg")
         private String unit;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "总重量", example = "1000")
         private Long totalWeight;
 
         public List<String> getSourceReceiptIds() { return sourceReceiptIds; }
@@ -1224,15 +1266,20 @@ public class BlockchainDomainController {
         public void setTotalWeight(Long v) { this.totalWeight = v; }
     }
 
+    @io.swagger.v3.oas.annotations.media.Schema(description = "仓单操作请求")
     public static class ReceiptOperationRequest {
+        @io.swagger.v3.oas.annotations.media.Schema(description = "仓单编号", example = "WH202603270001")
         private String receiptId;
 
         public String getReceiptId() { return receiptId; }
         public void setReceiptId(String v) { this.receiptId = v; }
     }
 
+    @io.swagger.v3.oas.annotations.media.Schema(description = "仓单注销请求")
     public static class BurnReceiptRequest {
+        @io.swagger.v3.oas.annotations.media.Schema(description = "仓单编号", example = "WH202603270001")
         private String receiptId;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "签名哈希", example = "0xabc123...")
         private String signatureHash;
 
         public String getReceiptId() { return receiptId; }
@@ -1242,16 +1289,27 @@ public class BlockchainDomainController {
     }
 
     // Logistics requests
+    @io.swagger.v3.oas.annotations.media.Schema(description = "物流委派单创建请求")
     public static class LogisticsCreateRequest {
+        @io.swagger.v3.oas.annotations.media.Schema(description = "委派单编号", example = "L202603270001")
         private String voucherNo;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "业务场景 0-采购 1-销售", example = "0")
         private Integer businessScene;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "仓单编号", example = "WH202603270001")
         private String receiptId;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "运输数量", example = "1000")
         private Long transportQuantity;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "单位", example = "kg")
         private String unit;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "货主哈希", example = "0xabc123...")
         private String ownerHash;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "承运方哈希", example = "0xdef456...")
         private String carrierHash;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "起仓库哈希", example = "0xghi789...")
         private String sourceWhHash;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "目标仓库哈希", example = "0xjkl012...")
         private String targetWhHash;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "有效期截止时间戳", example = "1714118400000")
         private Long validUntil;
 
         public String getVoucherNo() { return voucherNo; }
@@ -1276,8 +1334,11 @@ public class BlockchainDomainController {
         public void setValidUntil(Long v) { this.validUntil = v; }
     }
 
+    @io.swagger.v3.oas.annotations.media.Schema(description = "物流提货请求")
     public static class LogisticsPickupRequest {
+        @io.swagger.v3.oas.annotations.media.Schema(description = "委派单编号", example = "L202603270001")
         private String voucherNo;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "提货数量", example = "1000")
         private Long quantity;
 
         public String getVoucherNo() { return voucherNo; }
@@ -1286,9 +1347,13 @@ public class BlockchainDomainController {
         public void setQuantity(Long v) { this.quantity = v; }
     }
 
+    @io.swagger.v3.oas.annotations.media.Schema(description = "物流到达新增请求")
     public static class LogisticsArriveAddRequest {
+        @io.swagger.v3.oas.annotations.media.Schema(description = "委派单编号", example = "L202603270001")
         private String voucherNo;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "目标仓单编号", example = "WH202603270002")
         private String targetReceiptId;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "数量", example = "1000")
         private Long quantity;
 
         public String getVoucherNo() { return voucherNo; }
@@ -1299,8 +1364,11 @@ public class BlockchainDomainController {
         public void setQuantity(Long v) { this.quantity = v; }
     }
 
+    @io.swagger.v3.oas.annotations.media.Schema(description = "物流承运方指派请求")
     public static class LogisticsAssignCarrierRequest {
+        @io.swagger.v3.oas.annotations.media.Schema(description = "委派单编号", example = "L202603270001")
         private String voucherNo;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "承运方哈希", example = "0xdef456...")
         private String carrierHash;
 
         public String getVoucherNo() { return voucherNo; }
@@ -1309,9 +1377,13 @@ public class BlockchainDomainController {
         public void setCarrierHash(String v) { this.carrierHash = v; }
     }
 
+    @io.swagger.v3.oas.annotations.media.Schema(description = "物流交付确认请求")
     public static class LogisticsConfirmDeliveryRequest {
+        @io.swagger.v3.oas.annotations.media.Schema(description = "委派单编号", example = "L202603270001")
         private String voucherNo;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "操作 1-确认收货", example = "1")
         private Integer action;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "目标仓单编号", example = "WH202603270002")
         private String targetReceiptId;
 
         public String getVoucherNo() { return voucherNo; }
@@ -1322,8 +1394,11 @@ public class BlockchainDomainController {
         public void setTargetReceiptId(String v) { this.targetReceiptId = v; }
     }
 
+    @io.swagger.v3.oas.annotations.media.Schema(description = "物流状态更新请求")
     public static class LogisticsUpdateStatusRequest {
+        @io.swagger.v3.oas.annotations.media.Schema(description = "委派单编号", example = "L202603270001")
         private String voucherNo;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "新状态", example = "2")
         private Integer newStatus;
 
         public String getVoucherNo() { return voucherNo; }
@@ -1332,7 +1407,9 @@ public class BlockchainDomainController {
         public void setNewStatus(Integer v) { this.newStatus = v; }
     }
 
+    @io.swagger.v3.oas.annotations.media.Schema(description = "物流委派单作废请求")
     public static class LogisticsInvalidateRequest {
+        @io.swagger.v3.oas.annotations.media.Schema(description = "委派单编号", example = "L202603270001")
         private String voucherNo;
 
         public String getVoucherNo() { return voucherNo; }
@@ -1340,12 +1417,19 @@ public class BlockchainDomainController {
     }
 
     // Loan requests
+    @io.swagger.v3.oas.annotations.media.Schema(description = "贷款创建请求")
     public static class LoanCreateRequest {
+        @io.swagger.v3.oas.annotations.media.Schema(description = "贷款编号", example = "LN202603270001")
         private String loanNo;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "借款方哈希", example = "0xabc123...")
         private String borrowerHash;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "贷款金额", example = "1000000")
         private Long amount;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "贷款天数", example = "30")
         private Integer loanDays;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "仓单编号", example = "WH202603270001")
         private String receiptId;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "质押金额", example = "800000")
         private Long pledgeAmount;
 
         public String getLoanNo() { return loanNo; }
@@ -1362,10 +1446,15 @@ public class BlockchainDomainController {
         public void setPledgeAmount(Long v) { this.pledgeAmount = v; }
     }
 
+    @io.swagger.v3.oas.annotations.media.Schema(description = "贷款审批请求")
     public static class LoanApproveRequest {
+        @io.swagger.v3.oas.annotations.media.Schema(description = "贷款编号", example = "LN202603270001")
         private String loanNo;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "批准金额", example = "1000000")
         private Long approvedAmount;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "利率", example = "0.05")
         private Double interestRate;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "贷款天数", example = "30")
         private Integer loanDays;
 
         public String getLoanNo() { return loanNo; }
@@ -1378,8 +1467,11 @@ public class BlockchainDomainController {
         public void setLoanDays(Integer v) { this.loanDays = v; }
     }
 
+    @io.swagger.v3.oas.annotations.media.Schema(description = "贷款取消请求")
     public static class LoanCancelRequest {
+        @io.swagger.v3.oas.annotations.media.Schema(description = "贷款编号", example = "LN202603270001")
         private String loanNo;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "取消原因", example = "审核未通过")
         private String reason;
 
         public String getLoanNo() { return loanNo; }
@@ -1388,8 +1480,11 @@ public class BlockchainDomainController {
         public void setReason(String v) { this.reason = v; }
     }
 
+    @io.swagger.v3.oas.annotations.media.Schema(description = "贷款放款请求")
     public static class LoanDisburseRequest {
+        @io.swagger.v3.oas.annotations.media.Schema(description = "贷款编号", example = "LN202603270001")
         private String loanNo;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "仓单编号", example = "WH202603270001")
         private String receiptId;
 
         public String getLoanNo() { return loanNo; }
@@ -1398,9 +1493,13 @@ public class BlockchainDomainController {
         public void setReceiptId(String v) { this.receiptId = v; }
     }
 
+    @io.swagger.v3.oas.annotations.media.Schema(description = "贷款还款请求")
     public static class LoanRepayRequest {
+        @io.swagger.v3.oas.annotations.media.Schema(description = "贷款编号", example = "LN202603270001")
         private String loanNo;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "还款金额", example = "100000")
         private Long amount;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "期次索引", example = "0")
         private Integer installmentIndex;
 
         public String getLoanNo() { return loanNo; }
@@ -1411,10 +1510,15 @@ public class BlockchainDomainController {
         public void setInstallmentIndex(Integer v) { this.installmentIndex = v; }
     }
 
+    @io.swagger.v3.oas.annotations.media.Schema(description = "贷款标记逾期请求")
     public static class LoanMarkOverdueRequest {
+        @io.swagger.v3.oas.annotations.media.Schema(description = "贷款编号", example = "LN202603270001")
         private String loanNo;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "逾期天数", example = "7")
         private Integer overdueDays;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "罚息利率", example = "0.001")
         private Double penaltyRate;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "罚息金额", example = "1000")
         private Long penaltyAmount;
 
         public String getLoanNo() { return loanNo; }
@@ -1427,9 +1531,13 @@ public class BlockchainDomainController {
         public void setPenaltyAmount(Long v) { this.penaltyAmount = v; }
     }
 
+    @io.swagger.v3.oas.annotations.media.Schema(description = "贷款标记坏账请求")
     public static class LoanMarkDefaultedRequest {
+        @io.swagger.v3.oas.annotations.media.Schema(description = "贷款编号", example = "LN202603270001")
         private String loanNo;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "处置方式", example = "质押物变现")
         private String disposalMethod;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "处置金额", example = "800000")
         private Long disposalAmount;
 
         public String getLoanNo() { return loanNo; }
@@ -1440,9 +1548,13 @@ public class BlockchainDomainController {
         public void setDisposalAmount(Long v) { this.disposalAmount = v; }
     }
 
+    @io.swagger.v3.oas.annotations.media.Schema(description = "贷款设置仓单请求")
     public static class LoanSetReceiptRequest {
+        @io.swagger.v3.oas.annotations.media.Schema(description = "仓单编号", example = "WH202603270001")
         private String receiptId;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "贷款编号", example = "LN202603270001")
         private String loanNo;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "质押金额", example = "800000")
         private Long pledgeAmount;
 
         public String getReceiptId() { return receiptId; }
@@ -1453,8 +1565,11 @@ public class BlockchainDomainController {
         public void setPledgeAmount(Long v) { this.pledgeAmount = v; }
     }
 
+    @io.swagger.v3.oas.annotations.media.Schema(description = "贷款更新仓单请求")
     public static class LoanUpdateReceiptRequest {
+        @io.swagger.v3.oas.annotations.media.Schema(description = "仓单编号", example = "WH202603270001")
         private String receiptId;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "新贷款编号", example = "LN202603270002")
         private String newLoanNo;
 
         public String getReceiptId() { return receiptId; }
@@ -1464,14 +1579,23 @@ public class BlockchainDomainController {
     }
 
     // Receivable requests
+    @io.swagger.v3.oas.annotations.media.Schema(description = "应收账款创建请求")
     public static class ReceivableCreateRequest {
+        @io.swagger.v3.oas.annotations.media.Schema(description = "应收账款编号", example = "AR202603270001")
         private String receivableId;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "初始金额", example = "1000000")
         private Long initialAmount;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "到期日期时间戳", example = "1714118400000")
         private Long dueDate;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "买卖方对哈希", example = "0xabc123...")
         private String buyerSellerPairHash;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "发票哈希", example = "0xdef456...")
         private String invoiceHash;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "合同哈希", example = "0xghi789...")
         private String contractHash;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "货物详情哈希", example = "0xjkl012...")
         private String goodsDetailHash;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "业务场景 0-采购 1-销售", example = "0")
         private Integer businessScene;
 
         public String getReceivableId() { return receivableId; }
@@ -1492,8 +1616,11 @@ public class BlockchainDomainController {
         public void setBusinessScene(Integer v) { this.businessScene = v; }
     }
 
+    @io.swagger.v3.oas.annotations.media.Schema(description = "应收账款确认请求")
     public static class ReceivableConfirmRequest {
+        @io.swagger.v3.oas.annotations.media.Schema(description = "应收账款编号", example = "AR202603270001")
         private String receivableId;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "签名", example = "0xabc123...")
         private String signature;
 
         public String getReceivableId() { return receivableId; }
@@ -1502,9 +1629,13 @@ public class BlockchainDomainController {
         public void setSignature(String v) { this.signature = v; }
     }
 
+    @io.swagger.v3.oas.annotations.media.Schema(description = "应收账款调整请求")
     public static class ReceivableAdjustRequest {
+        @io.swagger.v3.oas.annotations.media.Schema(description = "应收账款编号", example = "AR202603270001")
         private String receivableId;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "调整后金额", example = "900000")
         private Long adjustedAmount;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "调整类型 0-增加 1-减少", example = "0")
         private Integer adjustType;
 
         public String getReceivableId() { return receivableId; }
@@ -1515,9 +1646,13 @@ public class BlockchainDomainController {
         public void setAdjustType(Integer v) { this.adjustType = v; }
     }
 
+    @io.swagger.v3.oas.annotations.media.Schema(description = "应收账款融资请求")
     public static class ReceivableFinanceRequest {
+        @io.swagger.v3.oas.annotations.media.Schema(description = "应收账款编号", example = "AR202603270001")
         private String receivableId;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "融资金额", example = "800000")
         private Long financeAmount;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "融资机构", example = "0xfinance123...")
         private String financeEntity;
 
         public String getReceivableId() { return receivableId; }
@@ -1528,16 +1663,22 @@ public class BlockchainDomainController {
         public void setFinanceEntity(String v) { this.financeEntity = v; }
     }
 
+    @io.swagger.v3.oas.annotations.media.Schema(description = "应收账款结清请求")
     public static class ReceivableSettleRequest {
+        @io.swagger.v3.oas.annotations.media.Schema(description = "应收账款编号", example = "AR202603270001")
         private String receivableId;
 
         public String getReceivableId() { return receivableId; }
         public void setReceivableId(String v) { this.receivableId = v; }
     }
 
+    @io.swagger.v3.oas.annotations.media.Schema(description = "应收账款还款记录请求")
     public static class ReceivableRecordRepaymentRequest {
+        @io.swagger.v3.oas.annotations.media.Schema(description = "应收账款编号", example = "AR202603270001")
         private String receivableId;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "还款金额", example = "100000")
         private Long repaymentAmount;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "还款类型 0-部分 1-全额", example = "0")
         private Integer repaymentType;
 
         public String getReceivableId() { return receivableId; }
@@ -1548,17 +1689,24 @@ public class BlockchainDomainController {
         public void setRepaymentType(Integer v) { this.repaymentType = v; }
     }
 
+    @io.swagger.v3.oas.annotations.media.Schema(description = "应收账款全额还款请求")
     public static class ReceivableFullRepaymentRequest {
+        @io.swagger.v3.oas.annotations.media.Schema(description = "应收账款编号", example = "AR202603270001")
         private String receivableId;
 
         public String getReceivableId() { return receivableId; }
         public void setReceivableId(String v) { this.receivableId = v; }
     }
 
+    @io.swagger.v3.oas.annotations.media.Schema(description = "债务抵消请求")
     public static class OffsetDebtRequest {
+        @io.swagger.v3.oas.annotations.media.Schema(description = "应收账款编号", example = "AR202603270001")
         private String receivableId;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "仓单编号", example = "WH202603270001")
         private String receiptId;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "抵消金额", example = "500000")
         private Long offsetAmount;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "签名哈希", example = "0xabc123...")
         private String signatureHash;
 
         public String getReceivableId() { return receivableId; }

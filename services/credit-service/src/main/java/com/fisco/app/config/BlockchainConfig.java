@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -74,6 +75,7 @@ public class BlockchainConfig {
     }
 
     @Bean
+    @ConditionalOnProperty(name = "fisco.enabled", havingValue = "true", matchIfMissing = true)
     public CryptoKeyPair cryptoKeyPair(CryptoSuite cryptoSuite, @Autowired(required=false) org.fisco.bcos.sdk.v3.BcosSDK bcosSDK, @Autowired(required=false) Client client) {
         if (client != null) {
             try {

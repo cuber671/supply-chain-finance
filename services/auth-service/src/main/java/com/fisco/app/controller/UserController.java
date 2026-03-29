@@ -23,7 +23,6 @@ import com.fisco.app.config.JwtAuthenticationFilter;
 import com.fisco.app.dto.RegisterRequestDTO;
 import com.fisco.app.dto.UserQueryResponseDTO;
 import com.fisco.app.entity.User;
-import com.fisco.app.enums.UserStatusEnum;
 import com.fisco.app.mapper.UserMapper;
 import com.fisco.app.service.UserService;
 
@@ -155,56 +154,15 @@ public class UserController {
             return buildErrorResponse(400, "状态值不能为空");
         }
 
-        // 状态机校验
-        Integer currentStatus = user.getStatus();
-        boolean validTransition = false;
-        String errorMsg = null;
-
-        switch (newStatus) {
-            case User.STATUS_NORMAL:
-                // PENDING -> NORMAL（审核通过）
-                if (currentStatus == UserStatusEnum.PENDING.getValue()) {
-                    validTransition = true;
-                } else {
-                    errorMsg = "只有待审核状态可以设置为正常";
-                }
-                break;
-            case User.STATUS_FROZEN:
-                // NORMAL -> FROZEN（冻结）
-                if (currentStatus == UserStatusEnum.NORMAL.getValue()) {
-                    validTransition = true;
-                } else {
-                    errorMsg = "只有正常状态可以冻结";
-                }
-                break;
-            case User.STATUS_CANCELLING:
-                // NORMAL -> CANCELLING（申请注销）
-                if (currentStatus == UserStatusEnum.NORMAL.getValue()) {
-                    validTransition = true;
-                } else {
-                    errorMsg = "只有正常状态可以申请注销";
-                }
-                break;
-            case User.STATUS_CANCELLED:
-                // CANCELLING/PENDING_CANCEL -> CANCELLED（注销）
-                if (currentStatus == UserStatusEnum.CANCELLING.getValue()
-                        || currentStatus == UserStatusEnum.PENDING_CANCEL.getValue()) {
-                    validTransition = true;
-                } else {
-                    errorMsg = "只有注销中或注销待审核状态可以完成注销";
-                }
-                break;
-            default:
-                errorMsg = "不支持的状态值";
+        // 委托给 Service 层处理（含状态机校验）
+        try {
+            userService.updateUserStatus(userId, newStatus);
+        } catch (IllegalStateException e) {
+            return buildErrorResponse(400, e.getMessage());
+        } catch (Exception e) {
+            log.error("用户状态更新失败: userId={}, newStatus={}", userId, newStatus, e);
+            return buildErrorResponse(500, "状态更新失败: " + e.getMessage());
         }
-
-        if (!validTransition) {
-            return buildErrorResponse(400, errorMsg);
-        }
-
-        user.setStatus(newStatus);
-        userMapper.updateById(user);
-        log.info("用户状态变更成功, userId={}, oldStatus={}, newStatus={}", userId, currentStatus, newStatus);
 
         Map<String, Object> response = new HashMap<>();
         response.put("code", 200);

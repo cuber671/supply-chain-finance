@@ -17,6 +17,7 @@
 /home/llm_rca/fisco/supply-chain-finance/services/auth-service/src/main/java/com/fisco/app/controller/UserController.java
 /home/llm_rca/fisco/supply-chain-finance/services/auth-service/src/main/java/com/fisco/app/dto/RefreshTokenRequestDTO.java
 /home/llm_rca/fisco/supply-chain-finance/services/auth-service/src/main/java/com/fisco/app/config/SecurityConfig.java
+/home/llm_rca/fisco/supply-chain-finance/services/auth-service/src/main/java/com/fisco/app/config/MyBatisPlusConfig.java
 /home/llm_rca/fisco/supply-chain-finance/services/auth-service/src/main/java/com/fisco/app/config/JwtAuthenticationFilter.java
 /home/llm_rca/fisco/supply-chain-finance/services/auth-service/src/main/java/com/fisco/app/controller/AuthController.java
 /home/llm_rca/fisco/supply-chain-finance/services/auth-service/src/main/java/com/fisco/app/feign/EnterpriseFeignClientFallback.java

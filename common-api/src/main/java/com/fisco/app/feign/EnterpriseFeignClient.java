@@ -23,15 +23,15 @@ public interface EnterpriseFeignClient {
     @PostMapping("/api/v1/enterprise/login")
     Result<?> login(@RequestBody Map<String, String> loginRequest);
 
-    @GetMapping("/api/v1/enterprises/{id}")
+    @GetMapping("/api/v1/enterprise/{id}")
     Result<Object> getEnterpriseById(@PathVariable("id") Long id);
 
-    @GetMapping("/api/v1/enterprises/blockchain-address/{address}")
+    @GetMapping("/api/v1/enterprise/blockchain-address/{address}")
     Result<Object> getEnterpriseByBlockchainAddress(@PathVariable("address") String address);
 
-    @GetMapping("/api/v1/enterprises/check-financial-institution/{entId}")
+    @GetMapping("/api/v1/enterprise/check-financial-institution/{entId}")
     Result<Boolean> isFinancialInstitution(@PathVariable("entId") Long entId);
 
-    @GetMapping("/api/v1/enterprises/validate-invite-code")
+    @GetMapping("/api/v1/enterprise/validate-invite-code")
     Result<Boolean> validateInviteCode(@RequestParam("inviteCode") String inviteCode);
 }

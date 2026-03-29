@@ -8,7 +8,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.access.intercept.FilterSecurityInterceptor;
 
 /**
  * 安全配置 - JWT双令牌策略认证
@@ -38,7 +38,9 @@ public class SecurityConfig {
             // 配置拦截规则
             .authorizeRequests(auth -> auth
                 // 允许访问认证接口（登录、刷新Token等）
-                .antMatchers("/api/v1/auth/**").permitAll()
+                .antMatchers("/api/v1/auth/login", "/api/v1/auth/refresh", "/api/v1/auth/validate").permitAll()
+                // 用户管理接口需要认证
+                .antMatchers("/api/v1/auth/users/**").authenticated()
                 // 允许访问Swagger
                 .antMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
                 .antMatchers("/webjars/**").permitAll()
@@ -46,8 +48,8 @@ public class SecurityConfig {
                 .antMatchers("/health", "/", "/error").permitAll()
                 // 其他请求需要认证
                 .anyRequest().authenticated())
-            // 添加JWT认证过滤器
-            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+            // 添加JWT认证过滤器（在FilterSecurityInterceptor之前运行）
+            .addFilterBefore(jwtAuthenticationFilter, FilterSecurityInterceptor.class);
 
         return http.build();
     }

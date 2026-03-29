@@ -17,7 +17,7 @@ spring:
       connection-timeout: 30000
       pool-name: AuthHikariPool
   flyway:
-    enabled: true
+    enabled: false
     locations: classpath:db/migration
     sql-migration-prefix: V
     sql-migration-separator: __
@@ -43,6 +43,13 @@ spring:
         max-idle: 8
         min-idle: 2
         max-wait: 3000ms
+  cloud:
+    discovery:
+      client:
+        simple:
+          instances:
+            enterprise-service:
+              - uri: http://enterprise-service:8082
 
 # MyBatis Plus
 mybatis-plus:

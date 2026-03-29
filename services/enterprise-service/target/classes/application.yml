@@ -44,6 +44,10 @@ feign:
         connectTimeout: 5000
         readTimeout: 30000
         loggerLevel: BASIC
+      fisco-gateway-service:
+        url: http://fisco-gateway-service:8087
+        connectTimeout: 10000
+        readTimeout: 60000  # 区块链交易可能需要更长时间
   circuitbreaker:
     enabled: true
 

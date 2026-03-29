@@ -83,7 +83,7 @@ public class LogisticsServiceImpl implements LogisticsService {
         logger.info("创建物流委派单成功: voucherNo={}, ownerEntId={}, businessScene={}",
             voucherNo, delegate.getOwnerEntId(), delegate.getBusinessSceneDesc());
 
-        // 区块链上链
+        // 区块链上链（失败时需补偿：直接移库场景需解锁仓单）
         if (blockchainFeignClient != null) {
             try {
                 BlockchainFeignClient.LogisticsCreateRequest request = new BlockchainFeignClient.LogisticsCreateRequest();
@@ -101,6 +101,18 @@ public class LogisticsServiceImpl implements LogisticsService {
                 logger.info("物流委派单上链成功: voucherNo={}, result={}", voucherNo, result);
             } catch (Exception e) {
                 logger.error("物流委派单上链失败: voucherNo={}", voucherNo, e);
+                // 区块链失败时，直接移库场景需解锁仓单作为补偿
+                if (delegate.getBusinessScene() == LogisticsDelegate.SCENE_DIRECT_TRANSFER
+                    && delegate.getReceiptId() != null && warehouseFeignClient != null) {
+                    try {
+                        warehouseFeignClient.unlockReceipt(delegate.getReceiptId());
+                        logger.warn("区块链失败已补偿解锁仓单: receiptId={}, voucherNo={}",
+                            delegate.getReceiptId(), voucherNo);
+                    } catch (Exception unlockEx) {
+                        logger.error("仓单解锁补偿失败，需要人工干预: receiptId={}, voucherNo={}",
+                            delegate.getReceiptId(), voucherNo, unlockEx);
+                    }
+                }
                 throw new RuntimeException("区块链操作失败，物流委派单创建已回滚", e);
             }
         }
@@ -142,7 +154,7 @@ public class LogisticsServiceImpl implements LogisticsService {
                 ? (Integer) lockResult.get("code")
                 : Integer.parseInt(lockResult.get("code").toString());
 
-            if (code != 200) {
+            if (code != 0) {
                 throw new IllegalStateException("锁定仓单失败: " + lockResult.get("msg"));
             }
 
@@ -205,8 +217,8 @@ public class LogisticsServiceImpl implements LogisticsService {
         }
 
         if (warehouseFeignClient == null) {
-            logger.warn("仓单服务不可用，跳过仓库归属校验");
-            return;
+            throw new IllegalStateException(
+                "仓单服务不可用，无法验证仓库归属。请确保仓库服务已启动。");
         }
 
         try {
@@ -218,7 +230,7 @@ public class LogisticsServiceImpl implements LogisticsService {
 
             // 检查返回结果是否表示成功
             Object codeObj = warehouse.get("code");
-            if (codeObj instanceof Integer && (Integer) codeObj != 200) {
+            if (codeObj instanceof Integer && (Integer) codeObj != 0) {
                 logger.warn("仓库查询返回错误码: warehouseId={}, code={}", delegate.getSourceWhId(), codeObj);
                 return;
             }
@@ -334,6 +346,12 @@ public class LogisticsServiceImpl implements LogisticsService {
         LogisticsDelegate delegate = delegateMapper.selectByVoucherNo(voucherNo);
         if (delegate == null) {
             throw new IllegalArgumentException("委派单不存在: " + voucherNo);
+        }
+
+        // 幂等性：如果已经是 IN_TRANSIT 状态，直接返回成功
+        if (delegate.getStatus() == LogisticsDelegate.STATUS_IN_TRANSIT) {
+            logger.info("提货确认 idempotent: 已处于运输中状态, voucherNo={}", voucherNo);
+            return delegate;
         }
 
         if (delegate.getStatus() != LogisticsDelegate.STATUS_ASSIGNED) {
@@ -491,7 +509,7 @@ public class LogisticsServiceImpl implements LogisticsService {
                 Integer code = mintResult.get("code") instanceof Integer
                     ? (Integer) mintResult.get("code")
                     : Integer.parseInt(mintResult.get("code").toString());
-                if (code != 200) {
+                if (code != 0) {
                     throw new RuntimeException("创建仓单失败: " + mintResult.get("msg"));
                 }
                 logger.info("到货生成新仓单: voucherNo={}, targetWhId={}, result={}",
@@ -525,7 +543,7 @@ public class LogisticsServiceImpl implements LogisticsService {
                 Integer code = mergeResult.get("code") instanceof Integer
                     ? (Integer) mergeResult.get("code")
                     : Integer.parseInt(mergeResult.get("code").toString());
-                if (code != 200) {
+                if (code != 0) {
                     throw new RuntimeException("合并仓单失败: " + mergeResult.get("msg"));
                 }
                 logger.info("并入已有仓单: receiptId={}, 增加数量={}, result={}",
@@ -628,9 +646,23 @@ public class LogisticsServiceImpl implements LogisticsService {
         logger.info("上报物流轨迹成功: voucherNo={}, lat={}, lon={}",
             track.getVoucherNo(), track.getLatitude(), track.getLongitude());
 
+        // L3: 偏航时记录告警到委派单备注
         if (track.getIsDeviation() != null && track.getIsDeviation() == LogisticsTrack.DEVIATION_YES) {
             logger.warn("检测到物流偏航: voucherNo={}, deviationDistance={}",
                 track.getVoucherNo(), track.getDeviationDistance());
+
+            // 记录偏航告警到委派单备注
+            LogisticsDelegate delegate = delegateMapper.selectByVoucherNo(track.getVoucherNo());
+            if (delegate != null) {
+                String deviationAlert = String.format("[偏航告警 %s] 距离: %s, 位置: %s,%s",
+                    LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")),
+                    track.getDeviationDistance(),
+                    track.getLatitude(), track.getLongitude());
+                String existingRemark = delegate.getRemark() != null ? delegate.getRemark() + "\n" : "";
+                delegate.setRemark(existingRemark + deviationAlert);
+                delegateMapper.updateById(delegate);
+                logger.info("偏航告警已记录到委派单: voucherNo={}", track.getVoucherNo());
+            }
         }
 
         return track;
@@ -698,6 +730,12 @@ public class LogisticsServiceImpl implements LogisticsService {
             throw new IllegalArgumentException("委派单不存在: " + voucherNo);
         }
 
+        // 幂等性：如果已经是 DELIVERED 状态，直接返回成功
+        if (delegate.getStatus() == LogisticsDelegate.STATUS_DELIVERED) {
+            logger.info("交付确认 idempotent: 已处于已交付状态, voucherNo={}", voucherNo);
+            return delegate;
+        }
+
         if (delegate.getStatus() != LogisticsDelegate.STATUS_IN_TRANSIT) {
             throw new IllegalArgumentException("当前状态不允许确认交付: " + delegate.getStatusDesc());
         }
@@ -719,7 +757,7 @@ public class LogisticsServiceImpl implements LogisticsService {
             Integer code = unlockResult.get("code") instanceof Integer
                 ? (Integer) unlockResult.get("code")
                 : Integer.parseInt(unlockResult.get("code").toString());
-            if (code != 200) {
+            if (code != 0) {
                 throw new RuntimeException("解锁仓单失败: " + unlockResult.get("msg"));
             }
 
@@ -761,7 +799,7 @@ public class LogisticsServiceImpl implements LogisticsService {
             Integer code = unlockResult.get("code") instanceof Integer
                 ? (Integer) unlockResult.get("code")
                 : Integer.parseInt(unlockResult.get("code").toString());
-            if (code != 200) {
+            if (code != 0) {
                 throw new RuntimeException("解锁仓单失败: " + unlockResult.get("msg"));
             }
 

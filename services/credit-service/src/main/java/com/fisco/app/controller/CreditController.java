@@ -170,6 +170,7 @@ public class CreditController {
         @ApiResponse(responseCode = "403", description = "无权限：仅管理员可以上报信用事件"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
+    @RequireRole({"ADMIN"})
     @PostMapping("/event/report")
     public Result<Map<String, Object>> reportCreditEvent(
             @Parameter(description = "信用事件信息", required = true) @RequestBody CreditEventReportRequest request) {
@@ -226,6 +227,7 @@ public class CreditController {
         @ApiResponse(responseCode = "403", description = "无权限：仅管理员可以触发物流偏航信用扣分"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
+    @RequireRole({"ADMIN"})
     @PostMapping("/event/logistics-deviation")
     public Result<Map<String, Object>> reportLogisticsDeviation(
             @Parameter(description = "偏航事件信息", required = true) @RequestBody LogisticsDeviationRequest request) {

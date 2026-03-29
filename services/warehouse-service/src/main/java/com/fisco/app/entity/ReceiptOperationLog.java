@@ -69,4 +69,5 @@ public class ReceiptOperationLog {
     public static final int STATUS_PENDING = 1;
     public static final int STATUS_COMPLETED = 2;
     public static final int STATUS_REJECTED = 3;
+    public static final int STATUS_CANCELLED = 4;  // 已撤销（申请人主动撤销）
 }

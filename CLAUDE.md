@@ -32,6 +32,9 @@ mvn test
 
 ### Docker Commands
 ```bash
+# Build and start all services (rebuild if code changed)
+docker compose down && docker compose up -d --build
+
 # Start all services (excluding nginx for blockchain-only functionality)
 docker compose up -d
 
@@ -72,18 +75,30 @@ Client → Nginx (API Gateway) → Microservices → FISCO Gateway Service → F
 | Service | Port | Purpose | Blockchain Access |
 |---------|------|---------|-------------------|
 | auth-service | 8081 | JWT authentication, user management | No |
-| enterprise-service | 8082 | Enterprise management | Via Gateway |
+| enterprise-service | 8082 | Enterprise management | Via Gateway (FISCO_ENABLED=false) |
 | warehouse-service | 8083 | Warehouse receipts (仓单) | Via Gateway |
-| logistics-service | 8084 | Logistics tracking | Via Gateway |
-| finance-service | 8085 | Finance (loan, receivable) | Via Gateway |
-| credit-service | 8086 | Credit scoring | Via Gateway |
-| fisco-gateway-service | 8087 | Blockchain client (ONLY service with FISCO SDK) | Direct |
+| logistics-service | 8084 | Logistics tracking | Via Gateway (FISCO_ENABLED=false) |
+| finance-service | 8085 | Finance (loan, receivable) | Via Gateway (FISCO_ENABLED=false) |
+| credit-service | 8086 | Credit scoring | Via Gateway (FISCO_ENABLED=false) |
+| fisco-gateway-service | 8087 | Blockchain client (ONLY service with FISCO SDK) | Direct (FISCO_ENABLED=true) |
 | nginx | 80/443 | API Gateway, rate limiting | N/A |
 
 ### Network Configuration
 - Custom bridge network: `fisco-app-net` (172.26.0.0/16), defined in docker-compose.yml
 - MySQL: 172.26.0.100 (container name: `fisco-mysql`)
 - FISCO nodes: 172.26.0.20-23
+
+### FISCO SDK Integration Pattern
+
+Business services use `@ConditionalOnProperty` to control blockchain SDK initialization:
+```java
+@ConditionalOnProperty(name = "fisco.enabled", havingValue = "true", matchIfMissing = true)
+```
+- `matchIfMissing = true` means when the property is absent, the condition is satisfied
+- `havingValue = "true"` requires the value to be "true" for SDK initialization
+- **Result**: `FISCO_ENABLED=true` → SDK initialized; `FISCO_ENABLED=false` or unset → SDK disabled
+
+Four services explicitly set `FISCO_ENABLED=false` (enterprise, logistics, finance, credit) because they use Feign Client to call fisco-gateway-service instead of connecting to blockchain directly. The `WARN BlockchainConfig: FISCO BCOS 功能已禁用` log is **expected** for these services.
 
 ## Key Configuration Files
 

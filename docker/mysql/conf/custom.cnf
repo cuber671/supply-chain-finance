@@ -5,6 +5,8 @@
 [mysqld]
 # 字符集设置
 character-set-server = utf8mb4
+# 禁用主机缓存（替代已弃用的 skip-host-cache）
+host_cache_size = 0
 collation-server = utf8mb4_unicode_ci
 
 # 连接设置

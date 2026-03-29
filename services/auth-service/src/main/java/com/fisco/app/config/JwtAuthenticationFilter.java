@@ -83,11 +83,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
      * 不需要拦截的URL模式
      */
     private static final String[] EXCLUDE_PATTERNS = {
-            "/api/v1/auth/**",
+            // 认证相关接口允许匿名访问
+            "/api/v1/auth/login",
+            "/api/v1/auth/refresh",
+            "/api/v1/auth/validate",
+            // Swagger
             "/swagger-ui/**",
             "/swagger-ui.html",
             "/v3/api-docs/**",
             "/webjars/**",
+            // 其他
             "/error",
             "/",
             "/health",

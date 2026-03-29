@@ -1,7 +1,11 @@
 package com.fisco.app.config;
 
+import javax.annotation.PostConstruct;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
+
+import com.fisco.app.util.JwtUtil;
 
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -41,5 +45,15 @@ public class JwtConfig {
 
     public JwtConfig() {
         log.info("JWT配置加载完成");
+    }
+
+    /**
+     * 初始化JwtUtil的静态密钥
+     * 在Spring注入属性后调用
+     */
+    @PostConstruct
+    public void init() {
+        log.info("正在初始化JWT密钥...");
+        JwtUtil.init(secret, accessTokenExpiration, refreshTokenExpiration);
     }
 }
