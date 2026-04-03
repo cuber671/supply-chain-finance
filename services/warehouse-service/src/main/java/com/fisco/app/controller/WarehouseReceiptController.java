@@ -312,6 +312,62 @@ public class WarehouseReceiptController {
         }
     }
 
+    // ==================== 物流直接入库 ====================
+
+    @Operation(summary = "物流直接入库签发仓单", description = "物流到货时直接签发仓单，无需入库单。用于物流委托直接移库场景。")
+    @SecurityRequirement(name = "bearerAuth")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "创建成功，返回仓单ID"),
+        @ApiResponse(responseCode = "400", description = "参数错误：仓库ID、货物名称、重量、单位不能为空"),
+        @ApiResponse(responseCode = "401", description = "未登录或Token无效"),
+        @ApiResponse(responseCode = "500", description = "服务端异常")
+    })
+    @PostMapping("/receipt/mint-direct")
+    public Result<Long> mintDirectReceipt(
+            @Parameter(description = "直接签发仓单信息", required = true) @RequestBody Map<String, Object> params) {
+        try {
+            Long warehouseId = params.get("warehouseId") != null
+                ? Long.parseLong(params.get("warehouseId").toString()) : null;
+            String goodsName = params.get("goodsName") != null
+                ? params.get("goodsName").toString() : "测试货物";
+            Double weight = params.get("transportQuantity") != null
+                ? Double.parseDouble(params.get("transportQuantity").toString()) : null;
+            String unit = params.get("unit") != null ? params.get("unit").toString() : null;
+            Long ownerEntId = params.get("ownerEntId") != null
+                ? Long.parseLong(params.get("ownerEntId").toString()) : null;
+            String logisticsVoucherNo = params.get("logisticsVoucherNo") != null
+                ? params.get("logisticsVoucherNo").toString() : null;
+
+            if (warehouseId == null) {
+                return Result.error(400, "仓库ID不能为空");
+            }
+            if (weight == null) {
+                return Result.error(400, "重量不能为空");
+            }
+            if (unit == null || unit.isEmpty()) {
+                return Result.error(400, "单位不能为空");
+            }
+            if (ownerEntId == null) {
+                return Result.error(400, "货主企业ID不能为空");
+            }
+
+            Long userId = CurrentUser.getUserId();
+            Long entId = CurrentUser.getEntId();
+            if (userId == null || entId == null) {
+                return Result.error(401, "无法获取当前用户信息，请先登录");
+            }
+
+            Long receiptId = warehouseReceiptService.mintDirectReceipt(
+                    warehouseId, goodsName, BigDecimal.valueOf(weight), unit, ownerEntId, userId, entId, logisticsVoucherNo);
+            logger.info("物流直接签发仓单成功: receiptId={}, warehouseId={}, logisticsVoucherNo={}",
+                receiptId, warehouseId, logisticsVoucherNo);
+            return Result.success(receiptId);
+        } catch (Exception e) {
+            logger.error("物流直接签发仓单失败", e);
+            return Result.error(500, e.getMessage());
+        }
+    }
+
     // ==================== 仓单查询 ====================
 
     @Operation(summary = "根据ID查询仓单", description = "根据仓单ID查询仓单详情。")
@@ -1034,6 +1090,23 @@ public class WarehouseReceiptController {
         }
         List<Warehouse> list = warehouseReceiptService.getWarehousesByEntId(entId);
         return Result.success(list);
+    }
+
+    @Operation(summary = "根据ID查询仓库", description = "根据仓库ID查询仓库信息。")
+    @SecurityRequirement(name = "bearerAuth")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "查询成功"),
+        @ApiResponse(responseCode = "404", description = "仓库不存在"),
+        @ApiResponse(responseCode = "500", description = "服务端异常")
+    })
+    @GetMapping("/warehouse/{warehouseId}")
+    public Result<Warehouse> getWarehouseById(
+            @Parameter(description = "仓库ID", required = true) @PathVariable Long warehouseId) {
+        Warehouse warehouse = warehouseReceiptService.getWarehouseById(warehouseId);
+        if (warehouse == null) {
+            return Result.error(404, "仓库不存在");
+        }
+        return Result.success(warehouse);
     }
 
     @Operation(summary = "分页查询仓库列表", description = "分页查询当前企业用户的所有仓库。")

@@ -17,7 +17,8 @@ import java.util.Map;
  *
  * 提供所有业务服务的区块链操作统一入口
  */
-@FeignClient(name = "fisco-gateway-service", contextId = "blockchainFeignClient")
+@FeignClient(name = "fisco-gateway-service", contextId = "blockchainFeignClient",
+        url = "http://fisco-gateway-service:8087")
 public interface BlockchainFeignClient {
 
     // ==================== 基础操作 (已存在) ====================
@@ -505,6 +506,8 @@ public interface BlockchainFeignClient {
     class LoanCreateRequest {
         private String loanNo;
         private String borrowerHash;
+        private String financeEntHash;
+        private Double interestRate;
         private Long amount;
         private Integer loanDays;
         private String receiptId;
@@ -514,6 +517,10 @@ public interface BlockchainFeignClient {
         public void setLoanNo(String v) { this.loanNo = v; }
         public String getBorrowerHash() { return borrowerHash; }
         public void setBorrowerHash(String v) { this.borrowerHash = v; }
+        public String getFinanceEntHash() { return financeEntHash; }
+        public void setFinanceEntHash(String v) { this.financeEntHash = v; }
+        public Double getInterestRate() { return interestRate; }
+        public void setInterestRate(Double v) { this.interestRate = v; }
         public Long getAmount() { return amount; }
         public void setAmount(Long v) { this.amount = v; }
         public Integer getLoanDays() { return loanDays; }
@@ -563,12 +570,15 @@ public interface BlockchainFeignClient {
     class LoanRepayRequest {
         private String loanNo;
         private Long amount;
+        private Long interestAmount;
         private Integer installmentIndex;
 
         public String getLoanNo() { return loanNo; }
         public void setLoanNo(String v) { this.loanNo = v; }
         public Long getAmount() { return amount; }
         public void setAmount(Long v) { this.amount = v; }
+        public Long getInterestAmount() { return interestAmount; }
+        public void setInterestAmount(Long v) { this.interestAmount = v; }
         public Integer getInstallmentIndex() { return installmentIndex; }
         public void setInstallmentIndex(Integer v) { this.installmentIndex = v; }
     }

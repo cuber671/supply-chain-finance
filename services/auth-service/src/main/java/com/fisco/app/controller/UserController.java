@@ -197,10 +197,14 @@ public class UserController {
             return buildErrorResponse(404, "用户不存在");
         }
 
-        // FIX: 添加企业归属校验，防止A企业管理员修改B企业用户角色
+        // 企业归属校验：系统管理员(scope=1)可操作任何企业用户
         Long requesterEntId = JwtAuthenticationFilter.getEntId(httpRequest);
-        if (requesterEntId == null || !user.getEnterpriseId().equals(requesterEntId)) {
-            return buildErrorResponse(403, "无权操作其他企业的用户");
+        Integer scope = JwtAuthenticationFilter.getScope(httpRequest);
+        if (!Integer.valueOf(1).equals(scope)) {
+            // 非系统管理员，必须属于同一企业
+            if (requesterEntId == null || !user.getEnterpriseId().equals(requesterEntId)) {
+                return buildErrorResponse(403, "无权操作其他企业的用户");
+            }
         }
 
         String newRole = (String) request.get("role");
@@ -348,8 +352,12 @@ public class UserController {
             @Parameter(description = "页码", example = "1") @RequestParam(defaultValue = "1") int pageNum,
             @Parameter(description = "每页数量", example = "10") @RequestParam(defaultValue = "10") int pageSize) {
         Long enterpriseId = JwtAuthenticationFilter.getEntId(request);
-        if (enterpriseId == null) {
-            return buildErrorResponse(401, "无法获取企业信息");
+        Integer scope = JwtAuthenticationFilter.getScope(request);
+        // 平台管理员(scope=1)可获取所有企业用户列表
+        if (!Integer.valueOf(1).equals(scope)) {
+            if (enterpriseId == null) {
+                return buildErrorResponse(401, "无法获取企业信息");
+            }
         }
 
         IPage<User> page = userService.getUserPageByEnterpriseId(enterpriseId, pageNum, pageSize);
@@ -374,8 +382,10 @@ public class UserController {
     })
     @GetMapping("/pending")
     public ResponseEntity<Map<String, Object>> getPendingUsers(javax.servlet.http.HttpServletRequest request) {
+        Integer scope = JwtAuthenticationFilter.getScope(request);
         String role = JwtAuthenticationFilter.getRole(request);
-        if (!User.ROLE_ADMIN.equals(role)) {
+        // 系统管理员或平台管理员(scope=1)可访问
+        if (!Integer.valueOf(1).equals(scope) && !User.ROLE_ADMIN.equals(role)) {
             return buildErrorResponse(403, "只有管理员可以访问此接口");
         }
 
@@ -504,8 +514,10 @@ public class UserController {
     })
     @GetMapping("/cancel/pending")
     public ResponseEntity<Map<String, Object>> getPendingCancellationUsers(javax.servlet.http.HttpServletRequest request) {
+        Integer scope = JwtAuthenticationFilter.getScope(request);
         String role = JwtAuthenticationFilter.getRole(request);
-        if (!User.ROLE_ADMIN.equals(role)) {
+        // 系统管理员或平台管理员(scope=1)可访问
+        if (!Integer.valueOf(1).equals(scope) && !User.ROLE_ADMIN.equals(role)) {
             return buildErrorResponse(403, "只有管理员可以访问此接口");
         }
 

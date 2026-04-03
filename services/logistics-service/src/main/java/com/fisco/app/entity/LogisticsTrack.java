@@ -69,7 +69,7 @@ public class LogisticsTrack {
     // ==================== 便捷方法 ====================
 
     public boolean isDeviation() {
-        return DEVIATION_YES == this.isDeviation;
+        return this.isDeviation != null && DEVIATION_YES == this.isDeviation;
     }
 
     public String getStatusDesc() {

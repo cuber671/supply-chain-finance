@@ -211,13 +211,14 @@ public class AuthController {
                 return buildErrorResponse(401, "用户名或密码错误");
             }
 
-            // 管理员登录：userId, entId=null, role=ADMIN, scope=1
+            // 管理员登录：userId, entId=fromDB, role=ADMIN, scope=1
             Long userId = user.getUserId();
+            Long entId = user.getEnterpriseId();
             String role = "ADMIN";
             Integer scope = 1;
 
             // 生成令牌对
-            Map<String, String> tokenPair = tokenService.generateTokenPair(userId, null, role, scope, null);
+            Map<String, String> tokenPair = tokenService.generateTokenPair(userId, entId, role, scope, null);
 
             // 构建响应
             Map<String, Object> response = new HashMap<>();

@@ -92,25 +92,17 @@ public class LogisticsContractService extends BaseContractService {
             byte[] sourceWhHash,
             byte[] targetWhHash,
             BigInteger validUntil) {
-        checkOpsContract();
+        checkCoreContract();
 
         logger.info("链上创建物流委派单: voucherNo={}, businessScene={}", voucherNo, businessScene);
 
-        // 数组参数解决Stack too deep问题
-        String[] stringParams = new String[]{voucherNo, receiptId, unit};
-        BigInteger[] uintParams = new BigInteger[]{
-                BigInteger.valueOf(businessScene), transportQuantity, validUntil
-        };
-        byte[][] bytesParams = new byte[][]{ownerHash, carrierHash, sourceWhHash, targetWhHash};
-
-        TransactionResponse response = sendTransactionWithAudit(
-                logisticsOps,
-                "createLogisticsDelegate",
-                new Object[]{stringParams, uintParams, bytesParams},
-                "LOGISTICS_CREATE"
+        // 直接调用合约的三数组参数方法
+        TransactionReceipt receipt = logisticsCore.createLogisticsDelegate(
+                new String[] { voucherNo, receiptId, unit },
+                new BigInteger[] { BigInteger.valueOf(businessScene), transportQuantity, validUntil },
+                new byte[][] { ownerHash, carrierHash, sourceWhHash, targetWhHash }
         );
 
-        TransactionReceipt receipt = response != null ? response.getTransactionReceipt() : null;
         if (!isTransactionSuccess(receipt)) {
             String errorMsg = getTransactionErrorMessage(receipt);
             logger.error("链上创建物流委派单失败: {}", errorMsg);

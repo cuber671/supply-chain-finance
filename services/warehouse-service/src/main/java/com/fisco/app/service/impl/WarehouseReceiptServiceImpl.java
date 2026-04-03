@@ -227,6 +227,62 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
     }
 
     @Override
+    public Long mintDirectReceipt(Long warehouseId, String goodsName, BigDecimal weight, String unit,
+                                 Long ownerEntId, Long warehouseUserId, Long warehouseEntId, String logisticsVoucherNo) {
+        Warehouse warehouse = warehouseMapper.selectById(warehouseId);
+        if (warehouse == null) {
+            throw new IllegalArgumentException("仓库不存在");
+        }
+
+        WarehouseReceipt receipt = new WarehouseReceipt();
+        receipt.setWarehouseId(warehouseId);
+        receipt.setOwnerEntId(ownerEntId);
+        receipt.setOwnerUserId(warehouseUserId);
+        receipt.setWarehouseEntId(warehouseEntId);
+        receipt.setWarehouseUserId(warehouseUserId);
+        receipt.setGoodsName(goodsName);
+        receipt.setWeight(weight);
+        receipt.setUnit(unit);
+        receipt.setParentId(0L);
+        receipt.setRootId(0L);
+        receipt.setIsLocked(false);
+        receipt.setStatus(WarehouseReceipt.STATUS_IN_STOCK);
+        receipt.setOnChainStatus(WarehouseReceipt.ON_CHAIN_STATUS_PENDING);
+
+        warehouseReceiptMapper.insert(receipt);
+        logger.info("物流直接签发仓单成功: receiptId={}, warehouseId={}, logisticsVoucherNo={}",
+            receipt.getId(), warehouseId, logisticsVoucherNo);
+
+        // 区块链上链（简化版）
+        if (blockchainFeignClient != null) {
+            try {
+                BlockchainFeignClient.ReceiptIssueRequest request = new BlockchainFeignClient.ReceiptIssueRequest();
+                request.setReceiptId(receipt.getId().toString());
+                request.setOwnerHash(ownerEntId.toString());
+                request.setWarehouseHash(warehouseId.toString());
+                request.setGoodsDetailHash(goodsName);
+                request.setWeight(weight.longValue());
+                request.setUnit(unit);
+                request.setQuantity(1L);
+                blockchainFeignClient.issueReceipt(request);
+
+                receipt.setOnChainStatus(WarehouseReceipt.ON_CHAIN_STATUS_SYNCED);
+                warehouseReceiptMapper.updateById(receipt);
+                logger.info("物流仓单上链成功: receiptId={}", receipt.getId());
+            } catch (Exception e) {
+                receipt.setOnChainStatus(WarehouseReceipt.ON_CHAIN_STATUS_FAILED);
+                warehouseReceiptMapper.updateById(receipt);
+                logger.error("物流仓单上链失败: receiptId={}, 已标记为FAILED", receipt.getId(), e);
+            }
+        } else {
+            receipt.setOnChainStatus(WarehouseReceipt.ON_CHAIN_STATUS_FAILED);
+            warehouseReceiptMapper.updateById(receipt);
+        }
+
+        return receipt.getId();
+    }
+
+    @Override
     public WarehouseReceipt getReceiptById(Long receiptId) {
         return warehouseReceiptMapper.selectById(receiptId);
     }
@@ -348,7 +404,7 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
         endorsement.setTransferorEntId(receipt.getOwnerEntId());
         endorsement.setTransferorUserId(transferorUserId);
         endorsement.setTransfereeEntId(transfereeEntId);
-        endorsement.setSignatureHash(signatureHash);
+        endorsement.setSignatureHash(signatureHash != null ? signatureHash : "0x" + java.util.UUID.randomUUID().toString().replace("-", ""));
         endorsement.setStatus(ReceiptEndorsement.STATUS_PENDING);
 
         // FIX: 调用区块链记录背书转让交易
@@ -660,12 +716,32 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
             sourceReceiptIds.add(Long.parseLong(s.trim()));
         }
 
-        List<WarehouseReceipt> sourceReceipts = warehouseReceiptMapper.selectBatchIds(sourceReceiptIds);
+        // 按顺序逐个查询仓单，确保顺序一致
+        List<WarehouseReceipt> sourceReceipts = new java.util.ArrayList<>();
+        Long templateWarehouseId = null;
+        for (Long receiptId : sourceReceiptIds) {
+            WarehouseReceipt r = warehouseReceiptMapper.selectById(receiptId);
+            if (r == null) {
+                throw new IllegalArgumentException("源仓单不存在: " + receiptId);
+            }
+            // 验证仓单状态必须是在庫
+            if (r.getStatus() != WarehouseReceipt.STATUS_IN_STOCK) {
+                throw new IllegalArgumentException("仓单状态不是在庫: " + receiptId + ", status=" + r.getStatus());
+            }
+            // 验证所有仓单必须在同一仓库
+            if (templateWarehouseId == null) {
+                templateWarehouseId = r.getWarehouseId();
+            } else if (!templateWarehouseId.equals(r.getWarehouseId())) {
+                throw new IllegalArgumentException("合并的仓单不在同一仓库: " + receiptId);
+            }
+            sourceReceipts.add(r);
+        }
+
         if (sourceReceipts.isEmpty()) {
             throw new IllegalArgumentException("源仓单不存在");
         }
 
-        // 使用第一个源仓单作为模板
+        // 使用第一个源仓单作为模板（按sourceReceiptIds顺序）
         WarehouseReceipt template = sourceReceipts.get(0);
         BigDecimal totalWeight = sourceReceipts.stream()
                 .map(WarehouseReceipt::getWeight)

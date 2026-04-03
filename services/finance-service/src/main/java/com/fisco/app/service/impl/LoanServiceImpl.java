@@ -143,6 +143,11 @@ public class LoanServiceImpl implements LoanService {
                 BlockchainFeignClient.LoanCreateRequest request2 = new BlockchainFeignClient.LoanCreateRequest();
                 request2.setLoanNo(loanNo);
                 request2.setBorrowerHash(borrowerEntId != null ? borrowerEntId.toString() : null);
+                // financeEntHash: use borrowerEntId as placeholder since finance entity is determined at approval time
+                request2.setFinanceEntHash(borrowerEntId != null ? borrowerEntId.toString() : null);
+                // interestRate: use default if not specified in request
+                request2.setInterestRate(request.getAppliedInterestRate() != null
+                    ? request.getAppliedInterestRate().doubleValue() : DEFAULT_INTEREST_RATE.doubleValue());
                 request2.setAmount(request.getAppliedAmount().longValue());
                 request2.setLoanDays(request.getLoanDays());
                 request2.setReceiptId(request.getReceiptId() != null ? request.getReceiptId().toString() : null);
@@ -531,13 +536,16 @@ public class LoanServiceImpl implements LoanService {
             try {
                 BlockchainFeignClient.LoanRepayRequest request2 = new BlockchainFeignClient.LoanRepayRequest();
                 request2.setLoanNo(loan.getLoanNo());
-                request2.setAmount(request.getPrincipalAmount().add(request.getInterestAmount()).longValue());
+                request2.setAmount(request.getPrincipalAmount().longValue());
+                request2.setInterestAmount(request.getInterestAmount().longValue());
                 Result<String> result = blockchainFeignClient.recordLoanRepayment(request2);
                 if (result != null && ResultCodeEnum.SUCCESS.getCode().equals(result.getCode()) && result.getData() != null) {
                     loan.setChainTxHash(result.getData());
                     loanMapper.updateById(loan);
                 }
-                logger.info("贷款还款上链成功: loanNo={}, chainTxHash={}", loan.getLoanNo(), result != null ? result.getData() : "null");
+                logger.info("贷款还款上链成功: loanNo={}, principal={}, interest={}, chainTxHash={}",
+                        loan.getLoanNo(), request.getPrincipalAmount(), request.getInterestAmount(),
+                        result != null ? result.getData() : "null");
             } catch (Exception e) {
                 logger.error("贷款还款上链失败: loanNo={}", loan.getLoanNo(), e);
                 throw new RuntimeException("区块链操作失败，贷款还款记录已回滚", e);

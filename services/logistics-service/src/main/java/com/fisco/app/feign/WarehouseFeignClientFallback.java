@@ -79,4 +79,13 @@ public class WarehouseFeignClientFallback implements WarehouseFeignClient {
         result.put("msg", "仓单服务暂不可用");
         return result;
     }
+
+    @Override
+    public Map<String, Object> mintDirectReceipt(Map<String, Object> params) {
+        logger.warn("仓单服务降级: mintDirectReceipt");
+        Map<String, Object> result = new HashMap<>();
+        result.put("code", 503);
+        result.put("msg", "仓单服务暂不可用");
+        return result;
+    }
 }

@@ -137,14 +137,9 @@ public class WarehouseReceiptContractService extends BaseContractService {
 
         logger.info("签发仓单: receiptId={}, warehouseHash={}, weight={}", receiptId, warehouseHash, weight);
 
-        TransactionResponse response = sendTransactionWithAudit(
-                warehouseCoreContract,
-                "issueReceipt",
-                new Object[]{input},
-                "WAREHOUSE_ISSUE"
-        );
+        // Call contract method directly
+        TransactionReceipt receipt = warehouseCoreContract.issueReceipt(input);
 
-        TransactionReceipt receipt = response != null ? response.getTransactionReceipt() : null;
         if (!isTransactionSuccess(receipt)) {
             String errorMsg = getTransactionErrorMessage(receipt);
             logger.error("签发仓单失败: {}", errorMsg);
@@ -165,14 +160,9 @@ public class WarehouseReceiptContractService extends BaseContractService {
 
         logger.info("发起仓单背书: receiptId={}", receiptId);
 
-        TransactionResponse response = sendTransactionWithAudit(
-                warehouseOpsContract,
-                "launchEndorsement",
-                new Object[]{input},
-                "WAREHOUSE_LAUNCH_ENDORSEMENT"
-        );
+        // Call contract method directly
+        TransactionReceipt receipt = warehouseOpsContract.launchEndorsement(input);
 
-        TransactionReceipt receipt = response != null ? response.getTransactionReceipt() : null;
         if (!isTransactionSuccess(receipt)) {
             String errorMsg = getTransactionErrorMessage(receipt);
             logger.error("发起背书失败: {}", errorMsg);

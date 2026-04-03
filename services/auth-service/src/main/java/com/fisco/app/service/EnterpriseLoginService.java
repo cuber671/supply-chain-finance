@@ -46,7 +46,7 @@ public class EnterpriseLoginService {
         tx.setTryTime(LocalDateTime.now());
         tx.setExpireTime(LocalDateTime.now().plusHours(TX_EXPIRE_HOURS));
 
-        loginTransactionMapper.insert(tx);
+        loginTransactionMapper.insertWithAllFields(tx);
         log.info("[TCC-TRY] 登录事务已创建, txUuid={}, username={}", txUuid, username);
 
         return txUuid;

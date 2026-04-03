@@ -3,6 +3,7 @@ package com.fisco.app.entity;
 import java.time.LocalDateTime;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
@@ -29,6 +30,7 @@ public class LoginTransaction {
 
     private String txUuid;
 
+    @TableField(exist = true)
     private String username;
 
     private String loginType;

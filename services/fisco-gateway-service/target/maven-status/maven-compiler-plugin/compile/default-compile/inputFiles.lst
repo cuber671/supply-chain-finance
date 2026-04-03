@@ -11,6 +11,7 @@
 /home/llm_rca/fisco/supply-chain-finance/services/fisco-gateway-service/src/main/java/com/fisco/app/controller/BlockchainDomainController.java
 /home/llm_rca/fisco/supply-chain-finance/services/fisco-gateway-service/src/main/java/com/fisco/app/service/impl/BlockchainAuditServiceImpl.java
 /home/llm_rca/fisco/supply-chain-finance/services/fisco-gateway-service/src/main/java/com/fisco/app/contract/logistics/LogisticsCore.java
+/home/llm_rca/fisco/supply-chain-finance/services/fisco-gateway-service/src/main/java/com/fisco/app/config/JwtConfig.java
 /home/llm_rca/fisco/supply-chain-finance/services/fisco-gateway-service/src/main/java/com/fisco/app/contract/loan/LoanRepayment.java
 /home/llm_rca/fisco/supply-chain-finance/services/fisco-gateway-service/src/main/java/com/fisco/app/contract/warehouse/WarehouseReceiptCore.java
 /home/llm_rca/fisco/supply-chain-finance/services/fisco-gateway-service/src/main/java/com/fisco/app/entity/BlockchainTransactionRecord.java
@@ -27,6 +28,7 @@
 /home/llm_rca/fisco/supply-chain-finance/services/fisco-gateway-service/src/main/java/com/fisco/app/service/impl/LogisticsContractService.java
 /home/llm_rca/fisco/supply-chain-finance/services/fisco-gateway-service/src/main/java/com/fisco/app/service/BlockchainService.java
 /home/llm_rca/fisco/supply-chain-finance/services/fisco-gateway-service/src/main/java/com/fisco/app/config/OpenApiConfig.java
+/home/llm_rca/fisco/supply-chain-finance/services/fisco-gateway-service/src/main/java/com/fisco/app/config/JwtAuthenticationFilter.java
 /home/llm_rca/fisco/supply-chain-finance/services/fisco-gateway-service/src/main/java/com/fisco/app/service/impl/BlockchainServiceImpl.java
 /home/llm_rca/fisco/supply-chain-finance/services/fisco-gateway-service/src/main/java/com/fisco/app/service/impl/ReceivableContractService.java
 /home/llm_rca/fisco/supply-chain-finance/services/fisco-gateway-service/src/main/java/com/fisco/app/contract/logistics/LogisticsOps.java

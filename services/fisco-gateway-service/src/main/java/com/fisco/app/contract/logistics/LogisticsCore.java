@@ -5,11 +5,14 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.fisco.bcos.sdk.v3.client.Client;
 import org.fisco.bcos.sdk.v3.codec.abi.FunctionEncoder;
 import org.fisco.bcos.sdk.v3.codec.datatypes.Address;
 import org.fisco.bcos.sdk.v3.codec.datatypes.Bool;
+import org.fisco.bcos.sdk.v3.codec.datatypes.DynamicArray;
+import org.fisco.bcos.sdk.v3.codec.datatypes.DynamicStruct;
 import org.fisco.bcos.sdk.v3.codec.datatypes.Event;
 import org.fisco.bcos.sdk.v3.codec.datatypes.Function;
 import org.fisco.bcos.sdk.v3.codec.datatypes.Type;
@@ -41,7 +44,7 @@ public class LogisticsCore extends Contract {
 
     public static final String SM_BINARY = org.fisco.bcos.sdk.v3.utils.StringUtils.joinAll("", SM_BINARY_ARRAY);
 
-    public static final String[] ABI_ARRAY = {"[{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_initialAdmin\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"string\",\"name\":\"voucherNo\",\"type\":\"string\"},{\"indexed\":true,\"internalType\":\"bytes32\",\"name\":\"carrierHash\",\"type\":\"bytes32\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"operator\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"timestamp\",\"type\":\"uint256\"}],\"name\":\"CarrierAssigned\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"string\",\"name\":\"voucherNo\",\"type\":\"string\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"operator\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"timestamp\",\"type\":\"uint256\"}],\"name\":\"LogisticsDelegateCreated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"string\",\"name\":\"voucherNo\",\"type\":\"string\"},{\"indexed\":false,\"internalType\":\"uint8\",\"name\":\"oldStatus\",\"type\":\"uint8\"},{\"indexed\":false,\"internalType\":\"uint8\",\"name\":\"newStatus\",\"type\":\"uint8\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"operator\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"timestamp\",\"type\":\"uint256\"}],\"name\":\"StatusUpdated\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"admin\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"voucherNo\",\"type\":\"string\"},{\"internalType\":\"bytes32\",\"name\":\"carrierHash\",\"type\":\"bytes32\"}],\"name\":\"assignCarrier\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"success\",\"type\":\"bool\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"voucherNo\",\"type\":\"string\"}],\"name\":\"createLogisticsDelegate\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"success\",\"type\":\"bool\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"delegateCount\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"voucherNo\",\"type\":\"string\"}],\"name\":\"exists\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"voucherNo\",\"type\":\"string\"}],\"name\":\"getStatus\",\"outputs\":[{\"internalType\":\"uint8\",\"name\":\"\",\"type\":\"uint8\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"newAdmin\",\"type\":\"address\"}],\"name\":\"setAdmin\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]"};
+    public static final String[] ABI_ARRAY = {"[{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_initialAdmin\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"string\",\"name\":\"voucherNo\",\"type\":\"string\"},{\"indexed\":true,\"internalType\":\"bytes32\",\"name\":\"carrierHash\",\"type\":\"bytes32\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"operator\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"timestamp\",\"type\":\"uint256\"}],\"name\":\"CarrierAssigned\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"string\",\"name\":\"voucherNo\",\"type\":\"string\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"operator\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"timestamp\",\"type\":\"uint256\"}],\"name\":\"LogisticsDelegateCreated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"string\",\"name\":\"voucherNo\",\"type\":\"string\"},{\"indexed\":false,\"internalType\":\"uint8\",\"name\":\"oldStatus\",\"type\":\"uint8\"},{\"indexed\":false,\"internalType\":\"uint8\",\"name\":\"newStatus\",\"type\":\"uint8\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"operator\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"timestamp\",\"type\":\"uint256\"}],\"name\":\"StatusUpdated\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"admin\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"voucherNo\",\"type\":\"string\"}],\"name\":\"arrive\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"success\",\"type\":\"bool\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"voucherNo\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"targetReceiptId\",\"type\":\"string\"},{\"internalType\":\"uint256\",\"name\":\"quantity\",\"type\":\"uint256\"}],\"name\":\"arriveAndAddQuantity\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"success\",\"type\":\"bool\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"voucherNo\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"newReceiptId\",\"type\":\"string\"},{\"internalType\":\"uint256\",\"name\":\"weight\",\"type\":\"uint256\"},{\"internalType\":\"string\",\"name\":\"unit\",\"type\":\"string\"},{\"internalType\":\"bytes32\",\"name\":\"ownerHash\",\"type\":\"bytes32\"},{\"internalType\":\"bytes32\",\"name\":\"warehouseHash\",\"type\":\"bytes32\"}],\"name\":\"arriveAndCreateReceipt\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"success\",\"type\":\"bool\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"voucherNo\",\"type\":\"string\"},{\"internalType\":\"bytes32\",\"name\":\"carrierHash\",\"type\":\"bytes32\"}],\"name\":\"assignCarrier\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"success\",\"type\":\"bool\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"voucherNo\",\"type\":\"string\"},{\"internalType\":\"uint256\",\"name\":\"action\",\"type\":\"uint256\"},{\"internalType\":\"string\",\"name\":\"targetReceiptId\",\"type\":\"string\"}],\"name\":\"confirmDelivery\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"success\",\"type\":\"bool\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string[]\",\"name\":\"stringParams\",\"type\":\"string[]\"},{\"internalType\":\"uint256[]\",\"name\":\"uintParams\",\"type\":\"uint256[]\"},{\"internalType\":\"bytes32[]\",\"name\":\"bytesParams\",\"type\":\"bytes32[]\"}],\"name\":\"createLogisticsDelegate\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"success\",\"type\":\"bool\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"delegateCount\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"voucherNo\",\"type\":\"string\"}],\"name\":\"exists\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"voucherNo\",\"type\":\"string\"}],\"name\":\"getOwnerHash\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"voucherNo\",\"type\":\"string\"}],\"name\":\"getStatus\",\"outputs\":[{\"internalType\":\"uint8\",\"name\":\"\",\"type\":\"uint8\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"voucherNo\",\"type\":\"string\"}],\"name\":\"invalidate\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"success\",\"type\":\"bool\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"voucherNo\",\"type\":\"string\"},{\"internalType\":\"uint256\",\"name\":\"quantity\",\"type\":\"uint256\"}],\"name\":\"pickup\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"success\",\"type\":\"bool\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"newAdmin\",\"type\":\"address\"}],\"name\":\"setAdmin\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]"};
 
     public static final String ABI = org.fisco.bcos.sdk.v3.utils.StringUtils.joinAll("", ABI_ARRAY);
 
@@ -321,8 +324,8 @@ public class LogisticsCore extends Contract {
     public Tuple1<Boolean> getCreateLogisticsDelegateOutput(TransactionReceipt transactionReceipt) {
         String data = transactionReceipt.getOutput();
         @SuppressWarnings("rawtypes")
-        final Function function = new Function(FUNC_CREATELOGISTICSDELEGATE, 
-                Arrays.<Type>asList(), 
+        final Function function = new Function(FUNC_CREATELOGISTICSDELEGATE,
+                Arrays.<Type>asList(),
                 Arrays.<TypeReference<?>>asList(new TypeReference<Bool>() {}));
         @SuppressWarnings("rawtypes")
         List<Type> results = this.functionReturnDecoder.decode(data, function.getOutputParameters());
@@ -330,6 +333,34 @@ public class LogisticsCore extends Contract {
 
                 (Boolean) results.get(0).getValue()
                 );
+    }
+
+    /**
+     * Create logistics delegate with three-array parameters (matching deployed contract)
+     * @param stringParams [0]=voucherNo, [1]=receiptId, [2]=unit
+     * @param uintParams [0]=businessScene, [1]=transportQuantity, [2]=validUntil
+     * @param bytesParams [0]=ownerHash, [1]=carrierHash, [2]=sourceWhHash, [3]=targetWhHash
+     */
+    public TransactionReceipt createLogisticsDelegate(
+            String[] stringParams,
+            BigInteger[] uintParams,
+            byte[][] bytesParams) {
+        @SuppressWarnings("rawtypes")
+        final Function function = new Function(
+                FUNC_CREATELOGISTICSDELEGATE,
+                Arrays.<Type>asList(
+                        new DynamicArray<Utf8String>(
+                                Utf8String.class,
+                                Arrays.stream(stringParams).map(Utf8String::new).collect(Collectors.toList())),
+                        new DynamicArray<Uint256>(
+                                Uint256.class,
+                                Arrays.stream(uintParams).map(Uint256::new).collect(Collectors.toList())),
+                        new DynamicArray<Bytes32>(
+                                Bytes32.class,
+                                Arrays.stream(bytesParams).map(Bytes32::new).collect(Collectors.toList()))
+                ),
+                Collections.<TypeReference<?>>emptyList(), 0);
+        return executeTransaction(function);
     }
 
     public BigInteger delegateCount() throws ContractException {
@@ -498,5 +529,53 @@ public class LogisticsCore extends Contract {
         public BigInteger newStatus;
 
         public BigInteger timestamp;
+    }
+
+    /**
+     * Input class for createLogisticsDelegate (array-based parameters)
+     * Matches the deployed contract's new signature
+     */
+    public static class CreateLogisticsDelegateInput extends DynamicStruct {
+        public List<String> stringParams;
+        public List<BigInteger> uintParams;
+        public List<byte[]> bytesParams;
+
+        public CreateLogisticsDelegateInput(DynamicArray<Utf8String> stringParams,
+                DynamicArray<Uint256> uintParams,
+                DynamicArray<Bytes32> bytesParams) {
+            super(stringParams, uintParams, bytesParams);
+            this.stringParams = stringParams.getValue().stream().map(org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String::getValue).collect(java.util.stream.Collectors.toList());
+            this.uintParams = uintParams.getValue().stream().map(org.fisco.bcos.sdk.v3.codec.datatypes.generated.Uint256::getValue).collect(java.util.stream.Collectors.toList());
+            this.bytesParams = bytesParams.getValue().stream().map(Bytes32::getValue).collect(java.util.stream.Collectors.toList());
+        }
+
+        public CreateLogisticsDelegateInput(List<String> stringParams, List<BigInteger> uintParams, List<byte[]> bytesParams) {
+            super(
+                new org.fisco.bcos.sdk.v3.codec.datatypes.DynamicArray<org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String>(
+                    org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String.class,
+                    stringParams.stream().map(org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String::new).collect(java.util.stream.Collectors.toList())),
+                new org.fisco.bcos.sdk.v3.codec.datatypes.DynamicArray<org.fisco.bcos.sdk.v3.codec.datatypes.generated.Uint256>(
+                    org.fisco.bcos.sdk.v3.codec.datatypes.generated.Uint256.class,
+                    uintParams.stream().map(org.fisco.bcos.sdk.v3.codec.datatypes.generated.Uint256::new).collect(java.util.stream.Collectors.toList())),
+                new org.fisco.bcos.sdk.v3.codec.datatypes.DynamicArray<org.fisco.bcos.sdk.v3.codec.datatypes.generated.Bytes32>(
+                    org.fisco.bcos.sdk.v3.codec.datatypes.generated.Bytes32.class,
+                    bytesParams.stream().map(org.fisco.bcos.sdk.v3.codec.datatypes.generated.Bytes32::new).collect(java.util.stream.Collectors.toList()))
+            );
+            this.stringParams = stringParams;
+            this.uintParams = uintParams;
+            this.bytesParams = bytesParams;
+        }
+    }
+
+    /**
+     * Create logistics delegate with array-based parameters (matching deployed contract)
+     */
+    public TransactionReceipt createLogisticsDelegate(CreateLogisticsDelegateInput input) {
+        final Function function = new Function(
+            FUNC_CREATELOGISTICSDELEGATE,
+            Collections.singletonList(input),
+            Collections.<TypeReference<?>>emptyList(), 0
+        );
+        return executeTransaction(function);
     }
 }

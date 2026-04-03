@@ -85,6 +85,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private static final String[] EXCLUDE_PATTERNS = {
             // 认证相关接口允许匿名访问
             "/api/v1/auth/login",
+            "/api/v1/auth/admin/login",
             "/api/v1/auth/refresh",
             "/api/v1/auth/validate",
             // Swagger

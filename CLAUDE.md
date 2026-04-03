@@ -102,17 +102,37 @@ Four services explicitly set `FISCO_ENABLED=false` (enterprise, logistics, finan
 
 ## Key Configuration Files
 
-### Blockchain Contract Addresses (in docker-compose.yml)
-All contract addresses are passed as environment variables to fisco-gateway-service:
-```yaml
-- CONTRACT_ENTERPRISE=0x7a9b6d564d5d191093a29b7c760dd6af931cae73
-- CONTRACT_WAREHOUSE_CORE=0xeb000acf2e358cae769d308390145d9222b5577c
-- CONTRACT_WAREHOUSE_OPS=0xa26565f61568353af17f8ce9beeb8e685140d6fe
-- CONTRACT_LOGISTICS_CORE=0x69ef4c5eca7bc099c2e8a8336c97af765d60dbf1
-- CONTRACT_LOGISTICS_OPS=0x41a1281dba209614f2ada8ecc75fd957ad179d7b
-- CONTRACT_RECEIVABLE_CORE=0xb31661caf079ddd45d5ed8af7becc220199fab29
-- CONTRACT_RECEIVABLE_REPAYMENT=0x1d38f5d0c8c1ae7ed63a2d0ec905b9e9a17e70cf
-- CONTRACT_LOAN_CORE=0x8331808d209e1675323bc3d25dd8348a57f9efc0
+### Blockchain Contract Addresses
+All contract addresses are defined in `.env` file and passed to fisco-gateway-service:
+```bash
+# Enterprise
+CONTRACT_ENTERPRISE=0xe3fffb217e885578f75e1ac07f1fbff859171fe3
+CONTRACT_ENTERPRISE_AUTH=0xc860ab27901b3c2b810165a6096c64d88763617f
+
+# Credit
+CONTRACT_CREDIT_CORE=0xafcdafa5be0a0e2c34328adf10d893a591b5e774
+CONTRACT_CREDIT_SCORE=0x6ea6907f036ff456d2f0f0a858afa9807ff4b788
+
+# Warehouse
+CONTRACT_WAREHOUSE_CORE=0x5e0aa2793a9db58513610d8ff35aa877cee75b8e
+CONTRACT_WAREHOUSE_OPS=0xa26565f61568353af17f8ce9beeb8e685140d6fe
+CONTRACT_WAREHOUSE_CORE_EXT=0x55b63f96d81f094729af702adfc7af72bd75c54e
+
+# Receivable
+CONTRACT_RECEIVABLE_CORE=0xb31661caf079ddd45d5ed8af7becc220199fab29
+CONTRACT_RECEIVABLE_REPAYMENT=0x1d38f5d0c8c1ae7ed63a2d0ec905b9e9a17e70cf
+
+# Bill
+CONTRACT_BILL_CORE=0x2af6160e266f763652f433a80b94fc13f4065303
+CONTRACT_BILL_OPS=0xa6cdc4fed96bbf8c9c013cc19200b3c8ba95c93e
+
+# Logistics
+CONTRACT_LOGISTICS_CORE=0x3d06c6a1df7d56effec855f813f797a64ea1cee5
+CONTRACT_LOGISTICS_OPS=0x525f4e5362d8b15e5d4aa0335b2d153c70aa5eca
+
+# Loan
+CONTRACT_LOAN_CORE=0xbf14744175b48ac9a2e1fc4ebc6c0a5f4afd0ad2
+CONTRACT_LOAN_REPAYMENT=0xd688eabe4597d2d23180045a4444d0c3450b6ab9
 ```
 
 ### FISCO SDK Configuration
@@ -156,7 +176,7 @@ Each service implements a `/health` endpoint via `HealthController` that returns
 **auth-service is the ONLY service with Flyway enabled** and owns ALL schema changes to the shared `fisco_data` database. All other services (warehouse, logistics, finance, etc.) have Flyway disabled.
 
 Migration files live in `services/auth-service/src/main/resources/db/migration/` with version prefix `V{number}__`. When adding schema changes:
-1. Increment the version number (current max: V22)
+1. Increment the version number (current max: V23)
 2. Create the migration file in auth-service's migration directory
 3. Restart auth-service to apply
 

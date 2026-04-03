@@ -77,11 +77,14 @@ public class EnterpriseContractService extends BaseContractService {
             throw new IllegalArgumentException("统一社会信用代码不能为空");
         }
 
+        // FISCO SDK v3 Bytes32 要求恰好 32 字节，确保 padding
+        byte[] paddedMetadataHash = metadataHash != null ? padTo32Bytes(metadataHash) : new byte[32];
+
         EnterpriseRegistrationInput input = new EnterpriseRegistrationInput(
                 enterpriseAddress,
                 creditCode,
                 role,
-                metadataHash != null ? metadataHash : new byte[32]
+                paddedMetadataHash
         );
 
         logger.info("注册企业上链: address={}, creditCode={}, role={}",
@@ -260,5 +263,20 @@ public class EnterpriseContractService extends BaseContractService {
         public BigInteger getCreditRating() { return creditRating; }
         public BigInteger getCreatedAt() { return createdAt; }
         public byte[] getMetadataHash() { return metadataHash; }
+    }
+
+    /**
+     * 将 byte 数组 pad 到 32 字节（FISCO SDK Bytes32 要求恰好 32 字节）
+     */
+    private byte[] padTo32Bytes(byte[] data) {
+        if (data == null) {
+            return new byte[32];
+        }
+        if (data.length == 32) {
+            return data;
+        }
+        byte[] padded = new byte[32];
+        System.arraycopy(data, 0, padded, 32 - data.length, data.length);
+        return padded;
     }
 }

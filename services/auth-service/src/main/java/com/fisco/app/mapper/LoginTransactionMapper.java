@@ -1,5 +1,6 @@
 package com.fisco.app.mapper;
 
+import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
@@ -19,6 +20,13 @@ public interface LoginTransactionMapper extends BaseMapper<LoginTransaction> {
      */
     @Select("SELECT * FROM t_login_transaction WHERE tx_uuid = #{txUuid}")
     LoginTransaction selectByUuid(@Param("txUuid") String txUuid);
+
+    /**
+     * 插入登录事务（显式SQL，确保所有字段都被插入）
+     */
+    @Insert("INSERT INTO t_login_transaction (tx_uuid, username, login_type, status, try_time, expire_time) " +
+            "VALUES (#{txUuid}, #{username}, #{loginType}, #{status}, #{tryTime}, #{expireTime})")
+    int insertWithAllFields(LoginTransaction tx);
 
     /**
      * 更新事务状态为已确认

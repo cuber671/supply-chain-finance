@@ -17,7 +17,7 @@ spring:
       connection-timeout: 30000
       pool-name: AuthHikariPool
   flyway:
-    enabled: false
+    enabled: true
     locations: classpath:db/migration
     sql-migration-prefix: V
     sql-migration-separator: __

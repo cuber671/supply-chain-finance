@@ -616,13 +616,20 @@ public class BlockchainDomainController {
     @PostMapping("/loan/create")
     public Result<String> createLoan(@RequestBody LoanCreateRequest request) {
         try {
+            // Handle null pledgeAmount - it's not used in blockchain contract, only in DB
+            BigInteger pledgeAmount = request.getPledgeAmount() != null
+                    ? BigInteger.valueOf(request.getPledgeAmount())
+                    : BigInteger.ZERO;
+
             TransactionReceipt receipt = loanContractService.createLoan(
                     request.getLoanNo(),
                     request.getBorrowerHash(),
+                    request.getFinanceEntHash(),
+                    BigInteger.valueOf(request.getInterestRate()),
                     BigInteger.valueOf(request.getAmount()),
                     BigInteger.valueOf(request.getLoanDays()),
                     request.getReceiptId(),
-                    BigInteger.valueOf(request.getPledgeAmount())
+                    pledgeAmount
             );
             return Result.success(receipt != null ? receipt.getTransactionHash() : null);
         } catch (Exception e) {
@@ -706,9 +713,15 @@ public class BlockchainDomainController {
     @PostMapping("/loan/repay")
     public Result<String> recordLoanRepayment(@RequestBody LoanRepayRequest request) {
         try {
+            // 处理 null 的 interestAmount（向后兼容）
+            BigInteger interestAmount = request.getInterestAmount() != null
+                    ? BigInteger.valueOf(request.getInterestAmount())
+                    : BigInteger.ZERO;
+
             TransactionReceipt receipt = loanContractService.recordRepayment(
                     request.getLoanNo(),
                     BigInteger.valueOf(request.getAmount()),
+                    interestAmount,
                     BigInteger.valueOf(request.getInstallmentIndex())
             );
             return Result.success(receipt != null ? receipt.getTransactionHash() : null);
@@ -1074,14 +1087,20 @@ public class BlockchainDomainController {
             // 修复：抛出异常而非静默返回全零
             throw new IllegalArgumentException("hex 字符串不能为空");
         }
-        if (!hex.startsWith("0x")) {
-            hex = "0x" + hex;
+        if (hex.startsWith("0x")) {
+            hex = hex.substring(2);
         }
         int len = hex.length();
         byte[] data = new byte[len / 2];
         for (int i = 0; i < len; i += 2) {
             data[i / 2] = (byte) ((Character.digit(hex.charAt(i), 16) << 4)
                     + Character.digit(hex.charAt(i + 1), 16));
+        }
+        // FISCO SDK v3 Bytes32 要求恰好 32 字节，左侧补 0 至 32 字节
+        if (data.length < 32) {
+            byte[] padded = new byte[32];
+            System.arraycopy(data, 0, padded, 32 - data.length, data.length);
+            return padded;
         }
         return data;
     }
@@ -1423,6 +1442,10 @@ public class BlockchainDomainController {
         private String loanNo;
         @io.swagger.v3.oas.annotations.media.Schema(description = "借款方哈希", example = "0xabc123...")
         private String borrowerHash;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "借款方哈希", example = "0xabc123...")
+        private String financeEntHash;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "贷款利率(基点)", example = "500")
+        private Long interestRate;
         @io.swagger.v3.oas.annotations.media.Schema(description = "贷款金额", example = "1000000")
         private Long amount;
         @io.swagger.v3.oas.annotations.media.Schema(description = "贷款天数", example = "30")
@@ -1436,6 +1459,10 @@ public class BlockchainDomainController {
         public void setLoanNo(String v) { this.loanNo = v; }
         public String getBorrowerHash() { return borrowerHash; }
         public void setBorrowerHash(String v) { this.borrowerHash = v; }
+        public String getFinanceEntHash() { return financeEntHash; }
+        public void setFinanceEntHash(String v) { this.financeEntHash = v; }
+        public Long getInterestRate() { return interestRate; }
+        public void setInterestRate(Long v) { this.interestRate = v; }
         public Long getAmount() { return amount; }
         public void setAmount(Long v) { this.amount = v; }
         public Integer getLoanDays() { return loanDays; }
@@ -1497,8 +1524,10 @@ public class BlockchainDomainController {
     public static class LoanRepayRequest {
         @io.swagger.v3.oas.annotations.media.Schema(description = "贷款编号", example = "LN202603270001")
         private String loanNo;
-        @io.swagger.v3.oas.annotations.media.Schema(description = "还款金额", example = "100000")
+        @io.swagger.v3.oas.annotations.media.Schema(description = "还款本金金额", example = "100000")
         private Long amount;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "还款利息金额", example = "1000")
+        private Long interestAmount;
         @io.swagger.v3.oas.annotations.media.Schema(description = "期次索引", example = "0")
         private Integer installmentIndex;
 
@@ -1506,6 +1535,8 @@ public class BlockchainDomainController {
         public void setLoanNo(String v) { this.loanNo = v; }
         public Long getAmount() { return amount; }
         public void setAmount(Long v) { this.amount = v; }
+        public Long getInterestAmount() { return interestAmount; }
+        public void setInterestAmount(Long v) { this.interestAmount = v; }
         public Integer getInstallmentIndex() { return installmentIndex; }
         public void setInstallmentIndex(Integer v) { this.installmentIndex = v; }
     }

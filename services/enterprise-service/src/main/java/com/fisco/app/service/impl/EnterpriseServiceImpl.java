@@ -830,10 +830,10 @@ public class EnterpriseServiceImpl implements EnterpriseService {
     }
 
     private String generateUniqueCode() {
-        // 生成12位大写字母+数字组合（熵值提升：6位→12位，约 32^12 ≈ 10^18 种组合）
+        // 生成8位大写字母+数字组合（符合schema声明6-10位范围，约 32^8 ≈ 10^12 种组合）
         String chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
         StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < 12; i++) {
+        for (int i = 0; i < 8; i++) {
             int index = SECURE_RANDOM.nextInt(chars.length());
             sb.append(chars.charAt(index));
         }

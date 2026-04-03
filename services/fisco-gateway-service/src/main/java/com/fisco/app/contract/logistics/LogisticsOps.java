@@ -1402,6 +1402,65 @@ public List getLogisticsTrack(String voucherNo) throws ContractException {
         }
     }
 
+    /**
+     * Input class for createLogisticsDelegate (array-based parameters)
+     * stringParams[0]=voucherNo, stringParams[1]=receiptId, stringParams[2]=unit
+     * uintParams[0]=businessScene, uintParams[1]=transportQuantity, uintParams[2]=validUntil
+     * bytesParams[0]=ownerHash, bytesParams[1]=carrierHash, bytesParams[2]=sourceWhHash, bytesParams[3]=targetWhHash
+     */
+    public static class CreateLogisticsDelegateInput extends DynamicStruct {
+        public List<String> stringParams;
+        public List<BigInteger> uintParams;
+        public List<byte[]> bytesParams;
+
+        public CreateLogisticsDelegateInput(DynamicArray<Utf8String> stringParams,
+                DynamicArray<Uint256> uintParams,
+                DynamicArray<Bytes32> bytesParams) {
+            super(stringParams, uintParams, bytesParams);
+            this.stringParams = stringParams.getValue().stream().map(org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String::getValue).collect(java.util.stream.Collectors.toList());
+            this.uintParams = uintParams.getValue().stream().map(org.fisco.bcos.sdk.v3.codec.datatypes.generated.Uint256::getValue).collect(java.util.stream.Collectors.toList());
+            this.bytesParams = bytesParams.getValue().stream().map(Bytes32::getValue).collect(java.util.stream.Collectors.toList());
+        }
+
+        public CreateLogisticsDelegateInput(List<String> stringParams, List<BigInteger> uintParams, List<byte[]> bytesParams) {
+            super(
+                new org.fisco.bcos.sdk.v3.codec.datatypes.DynamicArray<org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String>(
+                    org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String.class,
+                    stringParams.stream().map(org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String::new).collect(java.util.stream.Collectors.toList())),
+                new org.fisco.bcos.sdk.v3.codec.datatypes.DynamicArray<org.fisco.bcos.sdk.v3.codec.datatypes.generated.Uint256>(
+                    org.fisco.bcos.sdk.v3.codec.datatypes.generated.Uint256.class,
+                    uintParams.stream().map(org.fisco.bcos.sdk.v3.codec.datatypes.generated.Uint256::new).collect(java.util.stream.Collectors.toList())),
+                new org.fisco.bcos.sdk.v3.codec.datatypes.DynamicArray<org.fisco.bcos.sdk.v3.codec.datatypes.generated.Bytes32>(
+                    org.fisco.bcos.sdk.v3.codec.datatypes.generated.Bytes32.class,
+                    bytesParams.stream().map(org.fisco.bcos.sdk.v3.codec.datatypes.generated.Bytes32::new).collect(java.util.stream.Collectors.toList()))
+            );
+            this.stringParams = stringParams;
+            this.uintParams = uintParams;
+            this.bytesParams = bytesParams;
+        }
+    }
+
+    /**
+     * Create logistics delegate with array-based parameters (matching deployed contract)
+     */
+    public TransactionReceipt createLogisticsDelegate(CreateLogisticsDelegateInput input) {
+        Function function = new Function(
+            FUNC_CREATELOGISTICSDELEGATE,
+            Collections.singletonList(input),
+            Collections.emptyList()
+        );
+        return executeTransaction(function);
+    }
+
+    public String getSignedTransactionForCreateLogisticsDelegate(CreateLogisticsDelegateInput input) {
+        final Function function = new Function(
+            FUNC_CREATELOGISTICSDELEGATE,
+            Collections.singletonList(input),
+            Collections.<TypeReference<?>>emptyList(), 0
+        );
+        return createSignedTransaction(function);
+    }
+
     public static class BatchCarrierAssignedEventResponse {
         public TransactionReceipt.Logs log;
 

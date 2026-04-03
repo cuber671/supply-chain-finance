@@ -34,6 +34,9 @@ public interface WarehouseFeignClient {
     @PostMapping("/api/v1/warehouse/receipt/mint")
     Map<String, Object> mintReceipt(@RequestBody Map<String, Object> params);
 
+    @PostMapping("/api/v1/warehouse/receipt/mint-direct")
+    Map<String, Object> mintDirectReceipt(@RequestBody Map<String, Object> params);
+
     @PostMapping("/api/v1/warehouse/receipt/merge")
     Map<String, Object> mergeReceipt(@RequestBody Map<String, Object> params);
 }
