@@ -4,6 +4,8 @@ com/fisco/app/config/JwtAuthenticationFilter.class
 com/fisco/app/entity/Enterprise.class
 com/fisco/app/config/OpenApiConfig.class
 com/fisco/app/EnterpriseServiceApplication.class
+com/fisco/app/feign/CreditFeignClient.class
+com/fisco/app/feign/CreditFeignClientFallback.class
 com/fisco/app/config/BlockchainConfig.class
 com/fisco/app/service/EnterpriseService.class
 com/fisco/app/service/impl/EnterpriseServiceImpl.class

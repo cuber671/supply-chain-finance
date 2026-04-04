@@ -6,6 +6,7 @@
 /home/llm_rca/fisco/supply-chain-finance/services/credit-service/src/main/java/com/fisco/app/contract/credit/CreditLimitCore.java
 /home/llm_rca/fisco/supply-chain-finance/services/credit-service/src/main/java/com/fisco/app/controller/HealthController.java
 /home/llm_rca/fisco/supply-chain-finance/services/credit-service/src/main/java/com/fisco/app/config/JwtAuthenticationFilter.java
+/home/llm_rca/fisco/supply-chain-finance/services/credit-service/src/main/java/com/fisco/app/feign/FinanceFeignClient.java
 /home/llm_rca/fisco/supply-chain-finance/services/credit-service/src/main/java/com/fisco/app/feign/EnterpriseFeignClientFallback.java
 /home/llm_rca/fisco/supply-chain-finance/services/credit-service/src/main/java/com/fisco/app/service/CreditContractService.java
 /home/llm_rca/fisco/supply-chain-finance/services/credit-service/src/main/java/com/fisco/app/service/impl/CreditServiceImpl.java
@@ -17,4 +18,5 @@
 /home/llm_rca/fisco/supply-chain-finance/services/credit-service/src/main/java/com/fisco/app/CreditServiceApplication.java
 /home/llm_rca/fisco/supply-chain-finance/services/credit-service/src/main/java/com/fisco/app/feign/EnterpriseFeignClient.java
 /home/llm_rca/fisco/supply-chain-finance/services/credit-service/src/main/java/com/fisco/app/config/MyBatisPlusConfig.java
+/home/llm_rca/fisco/supply-chain-finance/services/credit-service/src/main/java/com/fisco/app/feign/FinanceFeignClientFallback.java
 /home/llm_rca/fisco/supply-chain-finance/services/credit-service/src/main/java/com/fisco/app/contract/credit/CreditLimitScore.java

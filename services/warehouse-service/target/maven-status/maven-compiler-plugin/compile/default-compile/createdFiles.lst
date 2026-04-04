@@ -4,6 +4,7 @@ com/fisco/app/annotation/WarehouseStatusCheck.class
 com/fisco/app/entity/WarehouseReceipt.class
 com/fisco/app/config/OpenApiConfig.class
 com/fisco/app/controller/WarehouseReceiptController$ApplyBurnRequest.class
+com/fisco/app/feign/EnterpriseFeignClient.class
 com/fisco/app/service/WarehouseReceiptService.class
 com/fisco/app/mapper/ReceiptOperationLogMapper.class
 com/fisco/app/mapper/WarehouseMapper.class
@@ -22,6 +23,7 @@ com/fisco/app/controller/WarehouseReceiptController$ApplySplitRequest.class
 com/fisco/app/config/MyBatisPlusConfig$CustomMetaObjectHandler.class
 com/fisco/app/config/MyBatisPlusConfig.class
 com/fisco/app/service/impl/WarehouseReceiptServiceImpl.class
+com/fisco/app/feign/EnterpriseFeignClientFallback.class
 com/fisco/app/controller/WarehouseReceiptController$ApplyMergeRequest.class
 com/fisco/app/controller/WarehouseReceiptController$LaunchEndorsementRequest.class
 com/fisco/app/mapper/ReceiptEndorsementMapper.class

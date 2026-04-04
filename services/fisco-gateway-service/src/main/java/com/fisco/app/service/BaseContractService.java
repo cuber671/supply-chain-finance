@@ -120,6 +120,17 @@ public abstract class BaseContractService {
                     response.setTransactionReceipt(receipt);
                 }
 
+                // 【P2-8修复】检查区块链响应状态，确保交易真正成功后再记录审计
+                // 如果响应为空或状态不为OK，视为失败进行重试
+                if (response == null) {
+                    throw new ContractException("区块链返回空响应");
+                }
+                // 检查response的isStatusOK方法（如果SDK支持）
+                // 注意：这里通过判断TransactionReceipt的状态来验证
+                if (response.getTransactionReceipt() != null && !response.getTransactionReceipt().isStatusOK()) {
+                    throw new ContractException("区块链交易失败: " + response.getTransactionReceipt().getMessage());
+                }
+
                 // 记录审计日志
                 if (blockchainAuditService != null && response != null) {
                     String txHash = response.getTransactionReceipt() != null

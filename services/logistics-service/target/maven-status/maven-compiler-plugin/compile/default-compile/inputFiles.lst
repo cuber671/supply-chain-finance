@@ -1,4 +1,5 @@
 /home/llm_rca/fisco/supply-chain-finance/services/logistics-service/src/main/java/com/fisco/app/entity/LogisticsDelegate.java
+/home/llm_rca/fisco/supply-chain-finance/services/logistics-service/src/main/java/com/fisco/app/mapper/LogisticsAssignHistoryMapper.java
 /home/llm_rca/fisco/supply-chain-finance/services/logistics-service/src/main/java/com/fisco/app/config/FeignConfig.java
 /home/llm_rca/fisco/supply-chain-finance/services/logistics-service/src/main/java/com/fisco/app/controller/HealthController.java
 /home/llm_rca/fisco/supply-chain-finance/services/logistics-service/src/main/java/com/fisco/app/LogisticsServiceApplication.java
@@ -14,4 +15,8 @@
 /home/llm_rca/fisco/supply-chain-finance/services/logistics-service/src/main/java/com/fisco/app/service/impl/LogisticsServiceImpl.java
 /home/llm_rca/fisco/supply-chain-finance/services/logistics-service/src/main/java/com/fisco/app/entity/LogisticsTrack.java
 /home/llm_rca/fisco/supply-chain-finance/services/logistics-service/src/main/java/com/fisco/app/config/BlockchainConfig.java
+/home/llm_rca/fisco/supply-chain-finance/services/logistics-service/src/main/java/com/fisco/app/entity/LogisticsAssignHistory.java
+/home/llm_rca/fisco/supply-chain-finance/services/logistics-service/src/main/java/com/fisco/app/service/LogisticsDeviationDetector.java
+/home/llm_rca/fisco/supply-chain-finance/services/logistics-service/src/main/java/com/fisco/app/feign/CreditFeignClient.java
 /home/llm_rca/fisco/supply-chain-finance/services/logistics-service/src/main/java/com/fisco/app/mapper/LogisticsTrackMapper.java
+/home/llm_rca/fisco/supply-chain-finance/services/logistics-service/src/main/java/com/fisco/app/feign/CreditFeignClientFallback.java

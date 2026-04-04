@@ -512,16 +512,6 @@ public class LoanServiceImpl implements LoanService {
         if (newOutstandingPrincipal.compareTo(BigDecimal.ZERO) <= 0 &&
             newOutstandingInterest.compareTo(BigDecimal.ZERO) <= 0) {
             loan.setStatus(Loan.STATUS_SETTLED);
-            // 还款结清后解锁仓单
-            if (loan.getReceiptId() != null) {
-                try {
-                    warehouseFeignClient.unlockReceipt(loan.getReceiptId());
-                    logger.info("贷款结清已解锁仓单: loanNo={}, receiptId={}", loan.getLoanNo(), loan.getReceiptId());
-                } catch (Exception e) {
-                    logger.error("贷款结清解锁仓单失败: loanNo={}, receiptId={}", loan.getLoanNo(), loan.getReceiptId(), e);
-                    // 不阻止还款流程，但记录错误供后续补偿
-                }
-            }
         } else {
             loan.setStatus(Loan.STATUS_REPAYING);
         }
@@ -531,7 +521,8 @@ public class LoanServiceImpl implements LoanService {
         logger.info("还款成功: loanNo={}, repaymentNo={}, principal={}, interest={}",
                 loan.getLoanNo(), repaymentNo, request.getPrincipalAmount(), request.getInterestAmount());
 
-        // 区块链上链
+        // 区块链上链 - 【P1-2修复】区块链上链成功后才处理仓单解锁，保障链上链下一致性
+        boolean blockchainSuccess = false;
         if (blockchainFeignClient != null) {
             try {
                 BlockchainFeignClient.LoanRepayRequest request2 = new BlockchainFeignClient.LoanRepayRequest();
@@ -542,13 +533,43 @@ public class LoanServiceImpl implements LoanService {
                 if (result != null && ResultCodeEnum.SUCCESS.getCode().equals(result.getCode()) && result.getData() != null) {
                     loan.setChainTxHash(result.getData());
                     loanMapper.updateById(loan);
+                    blockchainSuccess = true;
+                    logger.info("贷款还款上链成功: loanNo={}, principal={}, interest={}, chainTxHash={}",
+                            loan.getLoanNo(), request.getPrincipalAmount(), request.getInterestAmount(),
+                            result != null ? result.getData() : "null");
+                } else {
+                    // 区块链返回错误码
+                    String errMsg = "贷款还款区块链返回错误: loanNo=" + loan.getLoanNo()
+                        + ", result=" + result + ", 还款记录已提交但链上未确认";
+                    logger.error(errMsg);
+                    // 【注意】此处抛出异常会回滚DB，但由于还款记录已插入，建议记录异常后人工处理
+                    throw new RuntimeException(errMsg);
                 }
-                logger.info("贷款还款上链成功: loanNo={}, principal={}, interest={}, chainTxHash={}",
-                        loan.getLoanNo(), request.getPrincipalAmount(), request.getInterestAmount(),
-                        result != null ? result.getData() : "null");
+            } catch (RuntimeException e) {
+                // 区块链调用失败，向上抛出异常触发事务回滚
+                throw e;
             } catch (Exception e) {
-                logger.error("贷款还款上链失败: loanNo={}", loan.getLoanNo(), e);
-                throw new RuntimeException("区块链操作失败，贷款还款记录已回滚", e);
+                String errMsg = "贷款还款上链异常: loanNo=" + loan.getLoanNo() + ", error=" + e.getMessage();
+                logger.error(errMsg, e);
+                throw new RuntimeException(errMsg, e);
+            }
+        } else {
+            // 无区块链网关时，标记为成功（降级模式）
+            blockchainSuccess = true;
+            logger.warn("区块链网关不可用，还款以降级模式处理: loanNo={}", loan.getLoanNo());
+        }
+
+        // 【P1-2修复】只有在区块链上链成功后才解锁仓单
+        // 如果区块链失败，事务回滚，仓单不解锁
+        if (blockchainSuccess && loan.getReceiptId() != null && loan.getStatus() == Loan.STATUS_SETTLED) {
+            try {
+                warehouseFeignClient.unlockReceipt(loan.getReceiptId());
+                logger.info("贷款结清已解锁仓单: loanNo={}, receiptId={}", loan.getLoanNo(), loan.getReceiptId());
+            } catch (Exception e) {
+                // 仓单解锁失败，记录错误但还款流程已完成
+                // 建议后续添加补偿机制处理这种边缘情况
+                logger.error("贷款结清解锁仓单失败: loanNo={}, receiptId={}, 请人工介入处理",
+                        loan.getLoanNo(), loan.getReceiptId(), e);
             }
         }
 

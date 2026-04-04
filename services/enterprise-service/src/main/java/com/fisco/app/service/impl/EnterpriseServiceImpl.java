@@ -21,6 +21,7 @@ import com.fisco.app.config.BlockchainConfig;
 import com.fisco.app.entity.Enterprise;
 import com.fisco.app.entity.InvitationCode;
 import com.fisco.app.feign.BlockchainFeignClient;
+import com.fisco.app.feign.CreditFeignClient;
 import com.fisco.app.mapper.EnterpriseMapper;
 import com.fisco.app.mapper.InvitationCodeMapper;
 import com.fisco.app.service.EnterpriseService;
@@ -50,6 +51,9 @@ public class EnterpriseServiceImpl implements EnterpriseService {
 
     @Autowired(required = false)
     private BlockchainFeignClient blockchainFeignClient;
+
+    @Autowired(required = false)
+    private CreditFeignClient creditFeignClient;
 
     @Value("${encrypt.aes.key:}")
     private String aesKey;
@@ -566,10 +570,34 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         // FIX: 审核通过时同步更新链上企业状态
         if (approved && enterprise.getBlockchainAddress() != null) {
             try {
-                updateEnterpriseStatusOnChain(entId, newStatus);
+                String txHash = updateEnterpriseStatusOnChain(entId, newStatus);
+                if (txHash == null) {
+                    // 链上更新失败，抛出异常让事务回滚
+                    String errMsg = "企业链上状态同步失败: entId=" + entId + ", newStatus=" + newStatus
+                        + ", 请稍后重试或联系技术支持";
+                    logger.error(errMsg);
+                    throw new RuntimeException(errMsg);
+                }
+            } catch (RuntimeException e) {
+                // 链上更新失败，向上抛出异常让事务回滚
+                throw e;
             } catch (Exception e) {
-                // 链上更新失败不应阻塞数据库更新，但需记录日志
-                logger.error("链上企业状态更新失败: entId={}, error={}", entId, e.getMessage());
+                String errMsg = "企业链上状态同步异常: entId=" + entId + ", error=" + e.getMessage();
+                logger.error(errMsg, e);
+                throw new RuntimeException(errMsg, e);
+            }
+        }
+
+        // 审核通过时同步锁定该企业的信用额度
+        if (approved && creditFeignClient != null) {
+            try {
+                Map<String, Object> lockResult = creditFeignClient.lockCreditLimit();
+                if (lockResult != null && "0".equals(String.valueOf(lockResult.get("code")))) {
+                    logger.info("企业注销后信用额度已锁定: entId={}", entId);
+                }
+            } catch (Exception e) {
+                // 信用额度锁定失败不应阻塞注销流程，但需记录日志
+                logger.error("企业信用额度锁定失败: entId={}, error={}", entId, e.getMessage());
             }
         }
 
@@ -697,16 +725,20 @@ public class EnterpriseServiceImpl implements EnterpriseService {
             request.setEnterpriseAddress(enterprise.getBlockchainAddress());
             request.setNewStatus(status);
             var result = blockchainFeignClient.updateEnterpriseStatus(request);
-            if (result != null && result.getCode() == 0) {
-                logger.info("更新链上企业状态成功: entId={}, status={}, txHash={}", entId, status, result.getData());
-                return result.getData();
-            } else {
-                logger.error("更新链上企业状态失败: entId={}, result={}", entId, result);
+            // 【P2-7修复】区块链响应码检查，失败时抛出异常保持一致性
+            if (result == null || result.getCode() != 0) {
+                String errMsg = "更新链上企业状态失败: entId=" + entId + ", result=" + result;
+                logger.error(errMsg);
+                throw new RuntimeException(errMsg);
             }
+            logger.info("更新链上企业状态成功: entId={}, status={}, txHash={}", entId, status, result.getData());
+            return result.getData();
+        } catch (RuntimeException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("更新链上企业状态异常: entId={}", entId, e);
+            throw new RuntimeException("更新链上企业状态异常: " + e.getMessage(), e);
         }
-        return null;
     }
 
     @Override
@@ -726,16 +758,20 @@ public class EnterpriseServiceImpl implements EnterpriseService {
             request.setRole(enterprise.getEntRole());
             request.setMetadataHash("");
             var result = blockchainFeignClient.registerEnterprise(request);
-            if (result != null && result.getCode() == 0) {
-                logger.info("注册企业上链成功: entId={}, txHash={}", entId, result.getData());
-                return result.getData();
-            } else {
-                logger.error("注册企业上链失败: entId={}, result={}", entId, result);
+            // 【P2-7修复】区块链响应码检查，失败时抛出异常保持一致性
+            if (result == null || result.getCode() != 0) {
+                String errMsg = "注册企业上链失败: entId=" + entId + ", result=" + result;
+                logger.error(errMsg);
+                throw new RuntimeException(errMsg);
             }
+            logger.info("注册企业上链成功: entId={}, txHash={}", entId, result.getData());
+            return result.getData();
+        } catch (RuntimeException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("注册企业上链异常: entId={}", entId, e);
+            throw new RuntimeException("注册企业上链异常: " + e.getMessage(), e);
         }
-        return null;
     }
 
     @Override
@@ -753,16 +789,20 @@ public class EnterpriseServiceImpl implements EnterpriseService {
             request.setEnterpriseAddress(enterprise.getBlockchainAddress());
             request.setNewRating(rating != null ? Integer.parseInt(rating) : 0);
             var result = blockchainFeignClient.updateCreditRating(request);
-            if (result != null && result.getCode() == 0) {
-                logger.info("更新链上企业信用评级成功: entId={}, rating={}, txHash={}", entId, rating, result.getData());
-                return result.getData();
-            } else {
-                logger.error("更新链上企业信用评级失败: entId={}, result={}", entId, result);
+            // 【P2-7修复】区块链响应码检查，失败时抛出异常保持一致性
+            if (result == null || result.getCode() != 0) {
+                String errMsg = "更新链上企业信用评级失败: entId=" + entId + ", result=" + result;
+                logger.error(errMsg);
+                throw new RuntimeException(errMsg);
             }
+            logger.info("更新链上企业信用评级成功: entId={}, rating={}, txHash={}", entId, rating, result.getData());
+            return result.getData();
+        } catch (RuntimeException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("更新链上企业信用评级异常: entId={}", entId, e);
+            throw new RuntimeException("更新链上企业信用评级异常: " + e.getMessage(), e);
         }
-        return null;
     }
 
     @Override
@@ -780,16 +820,20 @@ public class EnterpriseServiceImpl implements EnterpriseService {
             request.setEnterpriseAddress(enterprise.getBlockchainAddress());
             request.setNewLimit(creditLimit);
             var result = blockchainFeignClient.setCreditLimit(request);
-            if (result != null && result.getCode() == 0) {
-                logger.info("设置链上企业授信额度成功: entId={}, limit={}, txHash={}", entId, creditLimit, result.getData());
-                return result.getData();
-            } else {
-                logger.error("设置链上企业授信额度失败: entId={}, result={}", entId, result);
+            // 【P2-7修复】区块链响应码检查，失败时抛出异常保持一致性
+            if (result == null || result.getCode() != 0) {
+                String errMsg = "设置链上企业授信额度失败: entId=" + entId + ", result=" + result;
+                logger.error(errMsg);
+                throw new RuntimeException(errMsg);
             }
+            logger.info("设置链上企业授信额度成功: entId={}, limit={}, txHash={}", entId, creditLimit, result.getData());
+            return result.getData();
+        } catch (RuntimeException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("设置链上企业授信额度异常: entId={}", entId, e);
+            throw new RuntimeException("设置链上企业授信额度异常: " + e.getMessage(), e);
         }
-        return null;
     }
 
     // ==================== 私有方法 ====================

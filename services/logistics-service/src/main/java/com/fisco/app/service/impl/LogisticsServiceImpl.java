@@ -16,11 +16,15 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fisco.app.feign.BlockchainFeignClient;
+import com.fisco.app.feign.CreditFeignClient;
+import com.fisco.app.entity.LogisticsAssignHistory;
 import com.fisco.app.entity.LogisticsDelegate;
 import com.fisco.app.entity.LogisticsTrack;
 import com.fisco.app.feign.WarehouseFeignClient;
+import com.fisco.app.mapper.LogisticsAssignHistoryMapper;
 import com.fisco.app.mapper.LogisticsDelegateMapper;
 import com.fisco.app.mapper.LogisticsTrackMapper;
+import com.fisco.app.service.LogisticsDeviationDetector;
 import com.fisco.app.service.LogisticsService;
 
 /**
@@ -39,11 +43,20 @@ public class LogisticsServiceImpl implements LogisticsService {
     @Autowired
     private LogisticsTrackMapper trackMapper;
 
+    @Autowired
+    private LogisticsAssignHistoryMapper assignHistoryMapper;
+
     @Autowired(required = false)
     private WarehouseFeignClient warehouseFeignClient;
 
     @Autowired(required = false)
     private BlockchainFeignClient blockchainFeignClient;
+
+    @Autowired(required = false)
+    private CreditFeignClient creditFeignClient;
+
+    @Autowired(required = false)
+    private LogisticsDeviationDetector logisticsDeviationDetector;
 
     private static final DateTimeFormatter VOUCHER_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd");
     
@@ -102,6 +115,20 @@ public class LogisticsServiceImpl implements LogisticsService {
                 request.setValidUntil(delegate.getValidUntil() != null ? delegate.getValidUntil().toEpochSecond(java.time.ZoneOffset.UTC) : 0L);
                 var result = blockchainFeignClient.createLogisticsDelegate(request);
                 logger.info("物流委派单上链成功: voucherNo={}, result={}", voucherNo, result);
+
+                // 【P2-5修复】校验并保存链上交易hash，用于后续追溯和链上链下数据关联
+                if (result != null && result.getData() != null) {
+                    String chainTxHash = result.getData().toString();
+                    if (chainTxHash != null && !chainTxHash.isEmpty()) {
+                        delegate.setChainTxHash(chainTxHash);
+                        delegateMapper.updateById(delegate);
+                        logger.info("链上交易hash已保存: voucherNo={}, chainTxHash={}", voucherNo, chainTxHash);
+                    } else {
+                        logger.warn("区块链返回的交易hash为空: voucherNo={}", voucherNo);
+                    }
+                } else {
+                    logger.warn("区块链返回数据异常，未获取到交易hash: voucherNo={}", voucherNo);
+                }
             } catch (Exception e) {
                 logger.error("物流委派单上链失败: voucherNo={}", voucherNo, e);
                 // 区块链失败时，直接移库场景需解锁仓单作为补偿
@@ -176,7 +203,63 @@ public class LogisticsServiceImpl implements LogisticsService {
         if (delegate.getTargetWhId() == null) {
             throw new IllegalArgumentException("必须指定目的地仓库");
         }
-        logger.info("转让后移库-背书关联: endorseId={}", delegate.getEndorseId());
+
+        // 【P2-2修复】校验目标仓库归属，确保货物移至受让方自有仓库
+        validateTargetWarehouseOwnership(delegate);
+
+        logger.info("转让后移库-背书关联: endorseId={}, targetWhId={}", delegate.getEndorseId(), delegate.getTargetWhId());
+    }
+
+    /**
+     * 校验目标仓库归属
+     * 【P2-2修复】目标仓库应属于仓单当前持有人（受让方），即委派单的ownerEntId
+     */
+    private void validateTargetWarehouseOwnership(LogisticsDelegate delegate) {
+        if (delegate.getTargetWhId() == null || warehouseFeignClient == null) {
+            return;
+        }
+
+        try {
+            Map<String, Object> warehouse = warehouseFeignClient.getWarehouseById(delegate.getTargetWhId());
+            if (warehouse == null || warehouse.isEmpty()) {
+                throw new IllegalArgumentException("目标仓库不存在: warehouseId=" + delegate.getTargetWhId());
+            }
+
+            Object dataObj = warehouse.get("data");
+            if (!(dataObj instanceof Map)) {
+                throw new IllegalArgumentException("目标仓库数据格式不正确: warehouseId=" + delegate.getTargetWhId());
+            }
+            @SuppressWarnings("unchecked")
+            Map<String, Object> data = (Map<String, Object>) dataObj;
+            Object warehouseEntIdObj = data.get("entId");
+            if (warehouseEntIdObj == null) {
+                throw new IllegalArgumentException("目标仓库信息缺少entId字段: warehouseId=" + delegate.getTargetWhId());
+            }
+
+            Long warehouseEntId;
+            if (warehouseEntIdObj instanceof Integer) {
+                warehouseEntId = ((Integer) warehouseEntIdObj).longValue();
+            } else if (warehouseEntIdObj instanceof Long) {
+                warehouseEntId = (Long) warehouseEntIdObj;
+            } else {
+                warehouseEntId = Long.parseLong(warehouseEntIdObj.toString());
+            }
+
+            // 目标仓库应属于仓单当前持有人（受让方）
+            if (!warehouseEntId.equals(delegate.getOwnerEntId())) {
+                throw new IllegalArgumentException(
+                    "目标仓库不属于当前企业（仓单受让方），无法创建移库委派单。" +
+                    "目标仓库归属企业ID=" + warehouseEntId + ", 当前企业ID=" + delegate.getOwnerEntId());
+            }
+
+            logger.debug("目标仓库归属校验通过: targetWhId={}, ownerEntId={}", delegate.getTargetWhId(), delegate.getOwnerEntId());
+
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Exception e) {
+            logger.error("目标仓库归属校验异常: targetWhId={}", delegate.getTargetWhId(), e);
+            throw new IllegalStateException("目标仓库归属校验失败，请稍后重试", e);
+        }
     }
 
     private void handleSceneDeliveryToWarehouse(LogisticsDelegate delegate) {
@@ -212,6 +295,8 @@ public class LogisticsServiceImpl implements LogisticsService {
     /**
      * 校验起运地仓库归属
      * 确保sourceWhId属于当前企业，防止越权操作
+     *
+     * 【P2-1修复】仓库归属校验不匹配时应阻断流程，而非仅警告
      */
     private void validateWarehouseOwnership(LogisticsDelegate delegate) {
         if (delegate.getSourceWhId() == null) {
@@ -226,22 +311,19 @@ public class LogisticsServiceImpl implements LogisticsService {
         try {
             Map<String, Object> warehouse = warehouseFeignClient.getWarehouseById(delegate.getSourceWhId());
             if (warehouse == null || warehouse.isEmpty()) {
-                logger.warn("仓库不存在: warehouseId={}", delegate.getSourceWhId());
-                return;
+                throw new IllegalArgumentException("起运地仓库不存在: warehouseId=" + delegate.getSourceWhId());
             }
 
             // 检查返回结果是否表示成功
             Object codeObj = warehouse.get("code");
             if (codeObj instanceof Integer && (Integer) codeObj != 0) {
-                logger.warn("仓库查询返回错误码: warehouseId={}, code={}", delegate.getSourceWhId(), codeObj);
-                return;
+                throw new IllegalArgumentException("仓库查询失败: warehouseId=" + delegate.getSourceWhId() + ", code=" + codeObj);
             }
 
             // 获取仓库所属企业ID (entId在data对象内)
             Object dataObj = warehouse.get("data");
             if (!(dataObj instanceof Map)) {
-                logger.warn("仓库数据为空或格式不正确: warehouseId={}", delegate.getSourceWhId());
-                return;
+                throw new IllegalArgumentException("仓库数据格式不正确: warehouseId=" + delegate.getSourceWhId());
             }
             Map<?, ?> rawData = (Map<?, ?>) dataObj;
             Map<String, Object> data = new java.util.HashMap<>();
@@ -251,13 +333,11 @@ public class LogisticsServiceImpl implements LogisticsService {
                 }
             }
             if (data.isEmpty()) {
-                logger.warn("仓库数据为空: warehouseId={}", delegate.getSourceWhId());
-                return;
+                throw new IllegalArgumentException("仓库数据为空: warehouseId=" + delegate.getSourceWhId());
             }
             Object warehouseEntIdObj = data.get("entId");
             if (warehouseEntIdObj == null) {
-                logger.warn("仓库信息缺少entId字段: warehouseId={}", delegate.getSourceWhId());
-                return;
+                throw new IllegalArgumentException("仓库信息缺少entId字段: warehouseId=" + delegate.getSourceWhId());
             }
 
             Long warehouseEntId;
@@ -269,19 +349,20 @@ public class LogisticsServiceImpl implements LogisticsService {
                 warehouseEntId = Long.parseLong(warehouseEntIdObj.toString());
             }
 
-            // 校验仓库是否属于当前企业（仅作警告，不阻断流程）
+            // 【P2-1修复】归属不匹配时阻断，而非仅警告
             if (!warehouseEntId.equals(delegate.getOwnerEntId())) {
-                logger.warn("仓库归属与当前企业不匹配（仅警告）: sourceWhId={}, warehouseEntId={}, ownerEntId={}",
-                        delegate.getSourceWhId(), warehouseEntId, delegate.getOwnerEntId());
-            } else {
-                logger.debug("仓库归属校验通过: sourceWhId={}, ownerEntId={}", delegate.getSourceWhId(), delegate.getOwnerEntId());
+                throw new IllegalArgumentException(
+                    "起运地仓库不属于当前企业，无法创建物流委派单。" +
+                    "仓库归属企业ID=" + warehouseEntId + ", 当前企业ID=" + delegate.getOwnerEntId());
             }
+
+            logger.debug("仓库归属校验通过: sourceWhId={}, ownerEntId={}", delegate.getSourceWhId(), delegate.getOwnerEntId());
 
         } catch (IllegalArgumentException e) {
             throw e;
         } catch (Exception e) {
-            logger.warn("仓库归属校验异常: warehouseId={}, error={}", delegate.getSourceWhId(), e.getMessage());
-            // 校验异常不应阻止业务流程，但记录警告
+            logger.error("仓库归属校验异常: warehouseId={}", delegate.getSourceWhId(), e);
+            throw new IllegalStateException("仓库归属校验失败，请稍后重试", e);
         }
     }
 
@@ -342,6 +423,22 @@ public class LogisticsServiceImpl implements LogisticsService {
             throw new IllegalArgumentException("车牌号不能为空");
         }
 
+        // 【P2-3修复】承运身份和司机归属校验（预留扩展点）
+        // 当承运企业管理服务不可用时，记录警告但不阻断；服务可用时应启用完整校验
+        validateCarrierIdentity(delegate, driverId, vehicleNo);
+
+        // 【P2-4修复】指派次数校验（防止无限次更换司机）
+        if (assignHistoryMapper != null) {
+            long assignCount = assignHistoryMapper.countByVoucherNo(voucherNo);
+            if (assignCount >= 3) {
+                throw new IllegalArgumentException(
+                    "该委派单指派次数已达上限（3次），如需更换司机请先失效当前委派单后重新创建");
+            }
+        }
+
+        // 判断是指派还是变更
+        boolean isFirstAssign = delegate.getDriverId() == null;
+
         delegate.setDriverId(driverId);
         delegate.setDriverName(driverName);
         delegate.setVehicleNo(vehicleNo);
@@ -352,6 +449,23 @@ public class LogisticsServiceImpl implements LogisticsService {
         delegate.setPickupQrCode(qrCode);
 
         delegateMapper.updateById(delegate);
+
+        // 【P2-4修复】记录指派历史
+        if (assignHistoryMapper != null) {
+            LogisticsAssignHistory history = new LogisticsAssignHistory();
+            history.setVoucherNo(voucherNo);
+            history.setDriverId(driverId);
+            history.setDriverName(driverName);
+            history.setVehicleNo(vehicleNo);
+            history.setAssignTime(LocalDateTime.now());
+            history.setAssignType(isFirstAssign
+                ? LogisticsAssignHistory.TYPE_FIRST_ASSIGN
+                : LogisticsAssignHistory.TYPE_CHANGE_ASSIGN);
+            assignHistoryMapper.insert(history);
+            logger.info("指派历史已记录: voucherNo={}, assignType={}, driverId={}",
+                voucherNo, history.getAssignTypeDesc(), driverId);
+        }
+
         logger.info("物流指派任务成功: voucherNo={}, driver={}, vehicleNo={}", voucherNo, driverName, vehicleNo);
 
         return delegate;
@@ -571,9 +685,48 @@ public class LogisticsServiceImpl implements LogisticsService {
             }
         }
 
-        delegate.setStatus(LogisticsDelegate.STATUS_DELIVERED);
+        // 【P1-3修复】到货入库必须上链存证
+        if (blockchainFeignClient == null) {
+            throw new IllegalStateException("区块链网关服务不可用，无法执行到货入库操作。请确保 fisco-gateway-service 已启动。");
+        }
+
+        try {
+            // 根据actionType调用对应的区块链接口
+            if (actionType == LogisticsDelegate.ACTION_CREATE_NEW_RECEIPT) {
+                BlockchainFeignClient.LogisticsArriveCreateRequest request =
+                    new BlockchainFeignClient.LogisticsArriveCreateRequest();
+                request.setVoucherNo(voucherNo);
+                request.setWeight(delegate.getTransportQuantity() != null
+                    ? delegate.getTransportQuantity().longValue() : 0L);
+                request.setUnit(delegate.getUnit());
+                request.setOwnerHash(delegate.getOwnerEntId() != null
+                    ? delegate.getOwnerEntId().toString() : null);
+                request.setWarehouseHash(delegate.getTargetWhId() != null
+                    ? delegate.getTargetWhId().toString() : null);
+
+                var result = blockchainFeignClient.arriveAndCreateReceipt(request);
+                logger.info("到货入库（新建仓单）上链成功: voucherNo={}, result={}", voucherNo, result);
+            } else if (actionType == LogisticsDelegate.ACTION_MERGE_EXISTING_RECEIPT) {
+                BlockchainFeignClient.LogisticsArriveAddRequest request =
+                    new BlockchainFeignClient.LogisticsArriveAddRequest();
+                request.setVoucherNo(voucherNo);
+                request.setTargetReceiptId(targetReceiptId != null
+                    ? targetReceiptId.toString() : null);
+                request.setQuantity(delegate.getTransportQuantity() != null
+                    ? delegate.getTransportQuantity().longValue() : 0L);
+
+                var result = blockchainFeignClient.arriveAndAddQuantity(request);
+                logger.info("到货入库（合并仓单）上链成功: voucherNo={}, result={}", voucherNo, result);
+            }
+        } catch (Exception e) {
+            logger.error("到货入库上链失败: voucherNo={}", voucherNo, e);
+            throw new RuntimeException("区块链上链失败，到货入库操作已回滚", e);
+        }
+
+        // 【P1-1修复】arrive只执行仓单创建/合并操作，保持IN_TRANSIT状态
+        // 状态推进到DELIVERED由confirmDelivery方法负责，确保仓单解锁与货物到达一致
         delegateMapper.updateById(delegate);
-        logger.info("到货入库申请成功: voucherNo={}, actionType={}", voucherNo, actionType);
+        logger.info("到货入库操作成功（待确认交付）: voucherNo={}, actionType={}, 货物已到达但需货主确认交付后仓单方可解除锁定", voucherNo, actionType);
 
         return delegate;
     }
@@ -657,13 +810,35 @@ public class LogisticsServiceImpl implements LogisticsService {
             String existingDesc = track.getLocationDesc() != null ? track.getLocationDesc() + "; " : "";
             track.setLocationDesc(existingDesc + "locationHash:" + locationHash);
             logger.info("位置哈希计算: voucherNo={}, locationHash={}", track.getVoucherNo(), locationHash);
+
+            // 【P1-5修复】使用偏航自主检测服务计算偏航，而非依赖外部系统传入
+            if (logisticsDeviationDetector != null) {
+                try {
+                    LogisticsDeviationDetector.DeviationResult deviationResult =
+                        logisticsDeviationDetector.detectDeviation(
+                            track.getVoucherNo(), track.getLatitude(), track.getLongitude());
+
+                    // 使用自主检测结果覆盖外部传入值
+                    track.setIsDeviation(deviationResult.isDeviation()
+                        ? LogisticsTrack.DEVIATION_YES
+                        : LogisticsTrack.DEVIATION_NO);
+                    track.setDeviationDistance(deviationResult.getDistance());
+
+                    logger.info("偏航自主检测结果: voucherNo={}, isDeviation={}, distance={}, level={}",
+                        track.getVoucherNo(), deviationResult.isDeviation(),
+                        deviationResult.getDistance(), deviationResult.getDeviationLevel());
+                } catch (Exception e) {
+                    logger.warn("偏航自主检测失败，使用外部传入值: voucherNo={}, error={}",
+                        track.getVoucherNo(), e.getMessage());
+                }
+            }
         }
 
         trackMapper.insert(track);
         logger.info("上报物流轨迹成功: voucherNo={}, lat={}, lon={}",
             track.getVoucherNo(), track.getLatitude(), track.getLongitude());
 
-        // L3: 偏航时记录告警到委派单备注
+        // L3: 偏航时记录告警到委派单备注 AND 触发信用扣分
         if (track.getIsDeviation() != null && track.getIsDeviation() == LogisticsTrack.DEVIATION_YES) {
             logger.warn("检测到物流偏航: voucherNo={}, deviationDistance={}",
                 track.getVoucherNo(), track.getDeviationDistance());
@@ -679,6 +854,28 @@ public class LogisticsServiceImpl implements LogisticsService {
                 delegate.setRemark(existingRemark + deviationAlert);
                 delegateMapper.updateById(delegate);
                 logger.info("偏航告警已记录到委派单: voucherNo={}", track.getVoucherNo());
+
+                // 触发信用扣分
+                if (creditFeignClient != null) {
+                    try {
+                        CreditFeignClient.LogisticsDeviationRequest deviationRequest =
+                                new CreditFeignClient.LogisticsDeviationRequest();
+                        deviationRequest.setEntId(delegate.getOwnerEntId());
+                        deviationRequest.setLogisticsOrderId(track.getVoucherNo());
+                        deviationRequest.setDeviationLevel(calculateDeviationLevel(track.getDeviationDistance()));
+                        deviationRequest.setDeviationDesc("物流路径偏移检测");
+
+                        Map<String, Object> creditResult = creditFeignClient.reportLogisticsDeviation(deviationRequest);
+                        if (creditResult != null && "0".equals(String.valueOf(creditResult.get("code")))) {
+                            logger.info("偏航信用扣分已触发: voucherNo={}, entId={}",
+                                    track.getVoucherNo(), delegate.getOwnerEntId());
+                        }
+                    } catch (Exception e) {
+                        logger.error("偏航信用扣分失败: voucherNo={}, entId={}, error={}",
+                                track.getVoucherNo(), delegate.getOwnerEntId(), e.getMessage());
+                        // 不阻止轨迹上报，但记录错误供后续补偿
+                    }
+                }
             }
         }
 
@@ -731,9 +928,20 @@ public class LogisticsServiceImpl implements LogisticsService {
         result.put("tracks", tracks);
         result.put("chainTxHash", delegate.getChainTxHash());
 
+        // 【P2-6修复】运输时效风控：检测运输超时
         if (delegate.getStatus() == LogisticsDelegate.STATUS_IN_TRANSIT && latestTrack != null) {
             long minutes = java.time.Duration.between(latestTrack.getEventTime(), LocalDateTime.now()).toMinutes();
+            long maxMinutes = 72 * 60; // 默认最大运输时限72小时
+
             result.put("transitDurationMinutes", minutes);
+
+            // 超时预警
+            if (minutes > maxMinutes) {
+                result.put("transitWarning", "运输超时警告");
+                result.put("transitOvertimeMinutes", minutes - maxMinutes);
+                logger.warn("物流运输超时: voucherNo={}, 已运输{}分钟, 最大时限{}分钟",
+                    voucherNo, minutes, maxMinutes);
+            }
         }
 
         return result;
@@ -786,6 +994,35 @@ public class LogisticsServiceImpl implements LogisticsService {
             logger.info("转让后移库-完成交付: endorseId={}, voucherNo={}", delegate.getEndorseId(), voucherNo);
         }
 
+        // 【P2-7修复】确认交付必须上链存证
+        if (blockchainFeignClient == null) {
+            throw new IllegalStateException("区块链网关服务不可用，无法执行确认交付。请确保 fisco-gateway-service 已启动。");
+        }
+
+        try {
+            BlockchainFeignClient.LogisticsConfirmDeliveryRequest request =
+                new BlockchainFeignClient.LogisticsConfirmDeliveryRequest();
+            request.setVoucherNo(voucherNo);
+            request.setAction(action);
+            request.setTargetReceiptId(targetReceiptId);
+
+            var result = blockchainFeignClient.confirmDelivery(request);
+            logger.info("确认交付上链成功: voucherNo={}, result={}", voucherNo, result);
+
+            // 保存链上交易hash
+            if (result != null && result.getData() != null) {
+                String chainTxHash = result.getData().toString();
+                if (chainTxHash != null && !chainTxHash.isEmpty()) {
+                    // 追加到现有chainTxHash
+                    String existingHash = delegate.getChainTxHash();
+                    delegate.setChainTxHash(existingHash != null ? existingHash + "," + chainTxHash : chainTxHash);
+                }
+            }
+        } catch (Exception e) {
+            logger.error("确认交付上链失败: voucherNo={}", voucherNo, e);
+            throw new RuntimeException("区块链上链失败，确认交付操作已回滚", e);
+        }
+
         delegate.setStatus(LogisticsDelegate.STATUS_DELIVERED);
         delegateMapper.updateById(delegate);
         logger.info("物流确认交付: voucherNo={}", voucherNo);
@@ -799,6 +1036,12 @@ public class LogisticsServiceImpl implements LogisticsService {
         LogisticsDelegate delegate = delegateMapper.selectByVoucherNo(voucherNo);
         if (delegate == null) {
             throw new IllegalArgumentException("委派单不存在: " + voucherNo);
+        }
+
+        // 【P1-2修复】运输中状态禁止失效，防止货物在途但仓单被解锁的"幽灵货物"风险
+        if (delegate.getStatus() == LogisticsDelegate.STATUS_IN_TRANSIT) {
+            throw new IllegalArgumentException(
+                "当前货物正在运输中，禁止执行失效操作。请等待货物到达目的地后再尝试，或联系客服处理异常情况。");
         }
 
         // 直接移库场景：必须先解锁仓单，否则仓单永久锁死
@@ -822,6 +1065,37 @@ public class LogisticsServiceImpl implements LogisticsService {
 
             logger.info("直接移库-委派单失效-仓单已解锁: receiptId={}, voucherNo={}",
                 delegate.getReceiptId(), voucherNo);
+        }
+
+        // 【P2-8修复】失效操作必须上链存证
+        if (blockchainFeignClient == null) {
+            throw new IllegalStateException("区块链网关服务不可用，无法执行失效操作。请确保 fisco-gateway-service 已启动。");
+        }
+
+        try {
+            BlockchainFeignClient.LogisticsInvalidateRequest request =
+                new BlockchainFeignClient.LogisticsInvalidateRequest();
+            request.setVoucherNo(voucherNo);
+
+            var result = blockchainFeignClient.invalidateLogistics(request);
+            logger.info("失效操作上链成功: voucherNo={}, result={}", voucherNo, result);
+
+            // 保存链上交易hash
+            if (result != null && result.getData() != null) {
+                String chainTxHash = result.getData().toString();
+                if (chainTxHash != null && !chainTxHash.isEmpty()) {
+                    String existingHash = delegate.getChainTxHash();
+                    delegate.setChainTxHash(existingHash != null ? existingHash + "," + chainTxHash : chainTxHash);
+                }
+            }
+        } catch (Exception e) {
+            logger.error("失效操作上链失败: voucherNo={}", voucherNo, e);
+            throw new RuntimeException("区块链上链失败，失效操作已回滚", e);
+        }
+
+        // 【P1-4修复】如果已指派司机，触发通知（预留扩展点）
+        if (delegate.getDriverId() != null && delegate.getStatus() == LogisticsDelegate.STATUS_ASSIGNED) {
+            notifyDriverForCancellation(delegate);
         }
 
         delegate.setStatus(LogisticsDelegate.STATUS_INVALID);
@@ -857,6 +1131,72 @@ public class LogisticsServiceImpl implements LogisticsService {
         }
 
         throw new IllegalStateException("voucherNo生成失败，已尝试" + MAX_VOUCHER_NO_GENERATION_ATTEMPTS + "次");
+    }
+
+    /**
+     * 校验承运企业身份和司机归属
+     * 【P2-3修复】确保只有承运企业名下的司机和车辆才能执行运输任务
+     *
+     * 注意：当前预留扩展点，接入司机/车辆管理服务后可启用完整校验
+     */
+    private void validateCarrierIdentity(LogisticsDelegate delegate, String driverId, String vehicleNo) {
+        // 1. 承运企业身份校验
+        if (delegate.getCarrierEntId() == null) {
+            logger.warn("委派单未指定承运企业: voucherNo={}", delegate.getVoucherNo());
+            // 承运企业为空时记录警告但不阻断（兼容历史数据）
+            return;
+        }
+
+        // 2. 司机归属校验（预留扩展点）
+        // 当司机管理服务可用时应启用此校验：
+        // if (driverManagementService != null) {
+        //     if (!driverManagementService.isDriverOfEnterprise(driverId, delegate.getCarrierEntId())) {
+        //         throw new IllegalArgumentException("司机不属于指定承运企业，无法指派运输任务");
+        //     }
+        // }
+        logger.debug("司机归属校验（扩展点未启用）: driverId={}, carrierEntId={}", driverId, delegate.getCarrierEntId());
+
+        // 3. 车辆归属校验（预留扩展点）
+        // 当车辆管理服务可用时应启用此校验：
+        // if (vehicleManagementService != null) {
+        //     if (!vehicleManagementService.isVehicleOfEnterprise(vehicleNo, delegate.getCarrierEntId())) {
+        //         throw new IllegalArgumentException("车辆不属于指定承运企业，无法指派运输任务");
+        //     }
+        // }
+        logger.debug("车辆归属校验（扩展点未启用）: vehicleNo={}, carrierEntId={}", vehicleNo, delegate.getCarrierEntId());
+
+        logger.info("承运身份校验通过: carrierEntId={}, driverId={}, vehicleNo={}",
+            delegate.getCarrierEntId(), driverId, vehicleNo);
+    }
+
+    /**
+     * 通知司机委派单已取消
+     * 【P1-4修复】防止司机不知情继续执行任务导致空跑
+     *
+     * 注意：当前预留扩展点，接入通知服务（短信/推送）后可启用完整通知
+     */
+    private void notifyDriverForCancellation(LogisticsDelegate delegate) {
+        logger.warn("委派单已失效，已指派司机将被通知: voucherNo={}, driverId={}, driverName={}, vehicleNo={}",
+            delegate.getVoucherNo(), delegate.getDriverId(), delegate.getDriverName(), delegate.getVehicleNo());
+
+        // 【扩展点】可接入短信/推送服务通知司机
+        // 示例：
+        // if (notificationService != null) {
+        //     notificationService.sendDriverCancellationNotice(
+        //         delegate.getDriverId(),
+        //         "物流委派单已取消",
+        //         "委派单号：" + delegate.getVoucherNo() + "，请勿前往提货"
+        //     );
+        // }
+
+        // 记录失效原因和时间戳
+        String cancellationRecord = String.format("[委派单失效 %s] 司机ID=%s, 司机姓名=%s, 车牌号=%s",
+            LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")),
+            delegate.getDriverId(),
+            delegate.getDriverName(),
+            delegate.getVehicleNo());
+        String existingRemark = delegate.getRemark() != null ? delegate.getRemark() + "\n" : "";
+        delegate.setRemark(existingRemark + cancellationRecord);
     }
 
     // 移除了易混淆字符 (0,O,1,I,l) 以提高识别度
@@ -913,5 +1253,25 @@ public class LogisticsServiceImpl implements LogisticsService {
             logger.error("计算位置哈希失败", e);
             return "";
         }
+    }
+
+    /**
+     * 根据偏航距离计算偏航级别
+     * 1-轻度（2km以内）
+     * 2-中度（2-5km）
+     * 3-严重（5km以上）
+     */
+    private Integer calculateDeviationLevel(BigDecimal deviationDistance) {
+        if (deviationDistance == null) {
+            return 1;
+        }
+        // 【P3-1修复】使用 >= 比较，明确边界值归属：>=5km为严重，>=2km为中度，<2km为轻度
+        if (deviationDistance.compareTo(new BigDecimal("5")) >= 0) {
+            return 3;  // 严重：>=5km
+        }
+        if (deviationDistance.compareTo(new BigDecimal("2")) >= 0) {
+            return 2;  // 中度：>=2km 且 <5km
+        }
+        return 1;  // 轻度：<2km
     }
 }

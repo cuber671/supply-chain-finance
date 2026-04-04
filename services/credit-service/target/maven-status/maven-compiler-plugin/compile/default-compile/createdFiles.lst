@@ -80,6 +80,7 @@ com/fisco/app/contract/credit/CreditLimitCore$14.class
 com/fisco/app/controller/CreditController$LogisticsDeviationRequest.class
 com/fisco/app/contract/credit/CreditLimitCore$30.class
 com/fisco/app/contract/credit/CreditLimitCore$37.class
+com/fisco/app/feign/FinanceFeignClientFallback.class
 com/fisco/app/service/CreditService$DifferentiatedServiceConfig.class
 com/fisco/app/contract/credit/CreditLimitScore$26.class
 com/fisco/app/contract/credit/CreditLimitCore$65.class
@@ -145,6 +146,7 @@ com/fisco/app/contract/credit/CreditLimitScore$52.class
 com/fisco/app/contract/credit/CreditLimitCore$46.class
 com/fisco/app/contract/credit/CreditLimitScore$35.class
 com/fisco/app/contract/credit/CreditLimitCore$CreditEvent.class
+com/fisco/app/feign/FinanceFeignClient.class
 com/fisco/app/service/impl/CreditServiceImpl.class
 com/fisco/app/contract/credit/CreditLimitScore$3.class
 com/fisco/app/contract/credit/CreditLimitCore$4.class

@@ -411,5 +411,9 @@
       "/home/llm_rca/fisco/supply-chain-finance/test_output",
       "/tmp"
     ]
+  },
+  "enabledPlugins": {
+    "example-skills@anthropic-agent-skills": true,
+    "document-skills@anthropic-agent-skills": true
   }
 }
