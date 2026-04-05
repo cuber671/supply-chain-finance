@@ -16,7 +16,6 @@ import com.fisco.app.feign.BlockchainFeignClient;
 import com.fisco.app.feign.LogisticsFeignClient;
 import com.fisco.app.feign.WarehouseFeignClient;
 import com.fisco.app.util.Result;
-import com.fisco.app.enums.ResultCodeEnum;
 import com.fisco.app.entity.RepaymentRecord;
 import com.fisco.app.mapper.ReceivableMapper;
 import com.fisco.app.mapper.RepaymentRecordMapper;
@@ -120,11 +119,19 @@ public class FinanceServiceImpl implements FinanceService {
                 request.setDueDate(receivable.getDueDate().toLocalDate().toEpochDay());
                 request.setBusinessScene(receivable.getBusinessScene() != null ? receivable.getBusinessScene() : Receivable.SCENE_STOCK_IN);
                 Result<String> result = blockchainFeignClient.createReceivable(request);
-                if (result != null && ResultCodeEnum.SUCCESS.getCode().equals(result.getCode()) && result.getData() != null) {
+                // 【新问题修复】检查响应码确保区块链调用真正成功
+                if (result == null || result.getCode() != 0) {
+                    String errMsg = "应收账款区块链创建失败: receivableNo=" + receivableNo + ", result=" + result;
+                    logger.error(errMsg);
+                    throw new RuntimeException(errMsg);
+                }
+                if (result.getData() != null) {
                     receivable.setChainTxHash(result.getData());
                     receivableMapper.updateById(receivable);
                 }
-                logger.info("应收账款上链成功: receivableNo={}, chainTxHash={}", receivableNo, result != null ? result.getData() : "null");
+                logger.info("应收账款上链成功: receivableNo={}, chainTxHash={}", receivableNo, result.getData());
+            } catch (RuntimeException e) {
+                throw e;
             } catch (Exception e) {
                 logger.error("应收账款上链失败: receivableNo={}", receivableNo, e);
                 throw new RuntimeException("区块链操作失败，应收款创建已回滚", e);
@@ -189,12 +196,20 @@ public class FinanceServiceImpl implements FinanceService {
             try {
                 BlockchainFeignClient.ReceivableConfirmRequest request = new BlockchainFeignClient.ReceivableConfirmRequest();
                 request.setReceivableId(receivable.getReceivableNo());
+                // 【新问题修复】检查响应码确保区块链调用真正成功
                 Result<String> result = blockchainFeignClient.confirmReceivable(request);
-                if (result != null && ResultCodeEnum.SUCCESS.getCode().equals(result.getCode()) && result.getData() != null) {
+                if (result == null || result.getCode() != 0) {
+                    String errMsg = "应收账款确认区块链失败: receivableNo=" + receivable.getReceivableNo() + ", result=" + result;
+                    logger.error(errMsg);
+                    throw new RuntimeException(errMsg);
+                }
+                if (result.getData() != null) {
                     receivable.setChainTxHash(result.getData());
                     receivableMapper.updateById(receivable);
                 }
-                logger.info("应收账款确认上链成功: receivableNo={}, chainTxHash={}", receivable.getReceivableNo(), result != null ? result.getData() : "null");
+                logger.info("应收账款确认上链成功: receivableNo={}, chainTxHash={}", receivable.getReceivableNo(), result.getData());
+            } catch (RuntimeException e) {
+                throw e;
             } catch (Exception e) {
                 logger.error("应收账款确认上链失败: receivableNo={}", receivable.getReceivableNo(), e);
                 throw new RuntimeException("区块链操作失败，应收款确认已回滚", e);
@@ -289,13 +304,22 @@ public class FinanceServiceImpl implements FinanceService {
             try {
                 BlockchainFeignClient.ReceivableSettleRequest request = new BlockchainFeignClient.ReceivableSettleRequest();
                 request.setReceivableId(receivable.getReceivableNo());
+                // 【新问题修复】添加result.getCode()检查
                 Result<String> result = blockchainFeignClient.settleReceivable(request);
-                if (result != null && result.getData() != null) {
+                if (result == null || result.getCode() != 0) {
+                    String errMsg = "现金还款区块链结算失败: receivableNo=" + receivable.getReceivableNo()
+                        + ", result=" + result;
+                    logger.error(errMsg);
+                    throw new RuntimeException(errMsg);
+                }
+                if (result.getData() != null) {
                     record.setChainTxHash(result.getData());
                     repaymentRecordMapper.updateById(record);
                     logger.info("现金还款上链成功: receivableNo={}, amount={}, chainTxHash={}",
                         receivable.getReceivableNo(), amount, result.getData());
                 }
+            } catch (RuntimeException e) {
+                throw e;
             } catch (Exception e) {
                 logger.error("现金还款上链失败: receivableNo={}", receivable.getReceivableNo(), e);
                 throw new RuntimeException("区块链操作失败，现金还款已回滚", e);
@@ -364,12 +388,20 @@ public class FinanceServiceImpl implements FinanceService {
                 request.setReceivableId(receivable.getReceivableNo());
                 request.setReceiptId(receiptId != null ? receiptId.toString() : null);
                 request.setOffsetAmount(offsetPrice != null ? offsetPrice.longValue() : 0L);
+                // 【新问题修复】检查响应码确保区块链调用真正成功
                 Result<String> result = blockchainFeignClient.offsetDebtWithCollateral(request);
-                if (result != null && ResultCodeEnum.SUCCESS.getCode().equals(result.getCode()) && result.getData() != null) {
+                if (result == null || result.getCode() != 0) {
+                    String errMsg = "仓单抵债区块链失败: receivableNo=" + receivable.getReceivableNo() + ", result=" + result;
+                    logger.error(errMsg);
+                    throw new RuntimeException(errMsg);
+                }
+                if (result.getData() != null) {
                     receivable.setChainTxHash(result.getData());
                     receivableMapper.updateById(receivable);
                 }
-                logger.info("仓单抵债上链成功: receivableNo={}, chainTxHash={}", receivable.getReceivableNo(), result != null ? result.getData() : "null");
+                logger.info("仓单抵债上链成功: receivableNo={}, chainTxHash={}", receivable.getReceivableNo(), result.getData());
+            } catch (RuntimeException e) {
+                throw e;
             } catch (Exception e) {
                 logger.error("仓单抵债上链失败: receivableNo={}", receivable.getReceivableNo(), e);
                 throw new RuntimeException("区块链操作失败，仓单抵债已回滚", e);
@@ -433,12 +465,20 @@ public class FinanceServiceImpl implements FinanceService {
             try {
                 BlockchainFeignClient.ReceivableSettleRequest request = new BlockchainFeignClient.ReceivableSettleRequest();
                 request.setReceivableId(receivable.getReceivableNo());
+                // 【新问题修复】检查响应码确保区块链调用真正成功
                 Result<String> result = blockchainFeignClient.settleReceivable(request);
-                if (result != null && ResultCodeEnum.SUCCESS.getCode().equals(result.getCode()) && result.getData() != null) {
+                if (result == null || result.getCode() != 0) {
+                    String errMsg = "应收账款结算区块链失败: receivableNo=" + receivable.getReceivableNo() + ", result=" + result;
+                    logger.error(errMsg);
+                    throw new RuntimeException(errMsg);
+                }
+                if (result.getData() != null) {
                     receivable.setChainTxHash(result.getData());
                     receivableMapper.updateById(receivable);
                 }
-                logger.info("应收账款结算上链成功: receivableNo={}, chainTxHash={}", receivable.getReceivableNo(), result != null ? result.getData() : "null");
+                logger.info("应收账款结算上链成功: receivableNo={}, chainTxHash={}", receivable.getReceivableNo(), result.getData());
+            } catch (RuntimeException e) {
+                throw e;
             } catch (Exception e) {
                 logger.error("应收账款结算上链失败: receivableNo={}", receivable.getReceivableNo(), e);
                 throw new RuntimeException("区块链操作失败，应收款结算已回滚", e);

@@ -281,28 +281,64 @@ public class LoanContractService extends BaseContractService {
         }
 
         // 同步更新 LoanCore 合约状态
+        // 【YX-02修复】增加重试逻辑，使用指数退避处理临时性EVM错误
         // 注意: loanCoreContract.recordRepayment() 在某些部署环境下可能失败 (Status:16)
         // 这可能是由于ABI/字节码不匹配或EVM执行问题
         // 即使LoanCore同步失败,还款仍记录在LoanRepayment合约中
         logger.info("同步更新 LoanCore 状态: loanNo={}", loanNo);
-        try {
-            TransactionReceipt coreReceipt = loanCoreContract.recordRepayment(
-                    loanNo, principal, interest, penalty, "STANDARD");
+        boolean syncSuccess = false;
+        String lastErrorMsg = null;
+        int maxRetries = 3;
+        long baseDelay = 1000; // 基础延迟1秒
 
-            if (!isTransactionSuccess(coreReceipt)) {
-                String errorMsg = getTransactionErrorMessage(coreReceipt);
-                // 使用warn而不是error,并记录详细错误以便后续调试
-                logger.warn("同步 LoanCore 还款状态失败 (还款仍记录在LoanRepayment): loanNo={}, status=16, error={}",
-                        loanNo, errorMsg);
-                // 不再抛出异常,因为还款已经成功记录在LoanRepayment合约中
-                // 这是一个临时 workaround,需要进一步调查Status:16的根本原因
-            } else {
-                logger.info("同步 LoanCore 还款状态成功: loanNo={}", loanNo);
+        for (int attempt = 1; attempt <= maxRetries && !syncSuccess; attempt++) {
+            try {
+                TransactionReceipt coreReceipt = loanCoreContract.recordRepayment(
+                        loanNo, principal, interest, penalty, "STANDARD");
+
+                if (!isTransactionSuccess(coreReceipt)) {
+                    lastErrorMsg = getTransactionErrorMessage(coreReceipt);
+                    logger.warn("同步 LoanCore 还款状态失败 (尝试 {}/{}): loanNo={}, error={}",
+                            attempt, maxRetries, loanNo, lastErrorMsg);
+                    // 指数退避延迟
+                    if (attempt < maxRetries) {
+                        long delay = baseDelay * (long) Math.pow(2, attempt - 1);
+                        logger.info("等待 {}ms 后重试...", delay);
+                        Thread.sleep(delay);
+                    }
+                } else {
+                    syncSuccess = true;
+                    logger.info("同步 LoanCore 还款状态成功: loanNo={}", loanNo);
+                }
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                lastErrorMsg = "重试被中断";
+                break;
+            } catch (Exception e) {
+                lastErrorMsg = e.getMessage();
+                logger.warn("同步 LoanCore 还款状态异常 (尝试 {}/{}): loanNo={}, error={}",
+                        attempt, maxRetries, loanNo, e.getMessage());
+                if (attempt < maxRetries) {
+                    long delay = baseDelay * (long) Math.pow(2, attempt - 1);
+                    try {
+                        Thread.sleep(delay);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
             }
-        } catch (Exception e) {
-            // 如果发生异常,记录警告但继续 (还款已记录在LoanRepayment)
-            logger.warn("同步 LoanCore 还款状态异常 (还款仍记录在LoanRepayment): loanNo={}, error={}",
-                    loanNo, e.getMessage());
+        }
+
+        // 如果同步失败，记录ERROR日志和审计追踪
+        if (!syncSuccess) {
+            // 【YX-02修复】使用ERROR级别日志，记录完整信息供补偿任务处理
+            // 补偿任务应定期扫描ERROR日志来处理这类情况
+            logger.error("【严重】LoanCore还款同步失败，需要人工/补偿任务介入: " +
+                    "loanNo={}, principal={}, interest={}, penalty={}, " +
+                    "LoanRepayment合约已成功记录, LoanCore同步失败, " +
+                    "最后错误={}, 重试次数={}",
+                    loanNo, principal, interest, penalty, lastErrorMsg, maxRetries);
         }
 
         return receipt;
@@ -452,10 +488,15 @@ public class LoanContractService extends BaseContractService {
     /**
      * Convert hex string to byte array (for bytes32 type)
      * Handles both "0x..." hex format and plain hex strings
+     *
+     * 【QS-06修复】空hex字符串必须抛出异常而非返回全零bytes32
+     * 全零bytes32会导致链上ID异常（如仓单ID为全零无法识别）
      */
     private byte[] hexStringToBytes(String hex) {
         if (hex == null || hex.isEmpty()) {
-            return new byte[32];
+            // G4: 空 hex 字符串返回全零会导致链上 ID 异常
+            // 修复：抛出异常而非静默返回全零
+            throw new IllegalArgumentException("hex 字符串不能为空");
         }
         // Strip 0x prefix if present
         if (hex.startsWith("0x")) {
@@ -478,10 +519,14 @@ public class LoanContractService extends BaseContractService {
      *
      * Example: entityId="123456" → bytes32 representing decimal 123456
      *          (not hex interpretation which would give [0x12, 0x34, 0x56])
+     *
+     * 【QS-06修复】空entity ID必须抛出异常而非返回全零bytes32
      */
     private byte[] entityIdToBytes32(String entityId) {
         if (entityId == null || entityId.isEmpty()) {
-            return new byte[32];
+            // G4: 空 entity ID 返回全零会导致链上 ID 异常
+            // 修复：抛出异常而非静默返回全零
+            throw new IllegalArgumentException("entity ID 不能为空");
         }
         try {
             BigInteger bigInt = new BigInteger(entityId);

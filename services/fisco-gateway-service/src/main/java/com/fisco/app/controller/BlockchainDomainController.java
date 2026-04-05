@@ -240,10 +240,12 @@ public class BlockchainDomainController {
     @PostMapping("/receipt/issue")
     public Result<String> issueReceipt(@RequestBody ReceiptIssueRequest request) {
         try {
+            // 【YX-01修复】ownerHash和warehouseHash是entity ID（decimal数字），应使用entityIdToBytes32
+            // 其他hash字段（goodsDetailHash, locationPhotoHash, contractHash）是真正的哈希值，使用hexStringToBytes
             TransactionReceipt receipt = warehouseReceiptContractService.issueReceipt(
                     request.getReceiptId(),
-                    hexStringToBytes(request.getOwnerHash()),
-                    hexStringToBytes(request.getWarehouseHash()),
+                    entityIdToBytes32(request.getOwnerHash()),
+                    entityIdToBytes32(request.getWarehouseHash()),
                     hexStringToBytes(request.getGoodsDetailHash()),
                     hexStringToBytes(request.getLocationPhotoHash()),
                     hexStringToBytes(request.getContractHash()),
@@ -270,10 +272,11 @@ public class BlockchainDomainController {
     @PostMapping("/receipt/launch-endorsement")
     public Result<String> launchEndorsement(@RequestBody EndorsementRequest request) {
         try {
+            // 【YX-01修复】fromHash和toHash是entity ID（企业ID），应使用entityIdToBytes32
             TransactionReceipt receipt = warehouseReceiptContractService.launchEndorsement(
                     request.getReceiptId(),
-                    hexStringToBytes(request.getFromHash()),
-                    hexStringToBytes(request.getToHash())
+                    entityIdToBytes32(request.getFromHash()),
+                    entityIdToBytes32(request.getToHash())
             );
             return Result.success(receipt != null ? receipt.getTransactionHash() : null);
         } catch (Exception e) {
@@ -292,10 +295,11 @@ public class BlockchainDomainController {
     @PostMapping("/receipt/confirm-endorsement")
     public Result<String> confirmEndorsement(@RequestBody EndorsementRequest request) {
         try {
+            // 【YX-01修复】fromHash和toHash是entity ID（企业ID），应使用entityIdToBytes32
             TransactionReceipt receipt = warehouseReceiptContractService.confirmEndorsement(
                     request.getReceiptId(),
-                    hexStringToBytes(request.getFromHash()),
-                    hexStringToBytes(request.getToHash())
+                    entityIdToBytes32(request.getFromHash()),
+                    entityIdToBytes32(request.getToHash())
             );
             return Result.success(receipt != null ? receipt.getTransactionHash() : null);
         } catch (Exception e) {
@@ -314,10 +318,11 @@ public class BlockchainDomainController {
     @PostMapping("/receipt/split")
     public Result<String> splitReceipt(@RequestBody SplitReceiptRequest request) {
         try {
+            // 【YX-01修复】ownerHashes是entity ID列表，应使用entityIdToBytes32
             List<byte[]> ownerHashes = null;
             if (request.getOwnerHashes() != null) {
                 ownerHashes = request.getOwnerHashes().stream()
-                        .map(this::hexStringToBytes).collect(Collectors.toList());
+                        .map(this::entityIdToBytes32).collect(Collectors.toList());
             }
             TransactionReceipt receipt = warehouseReceiptContractService.splitReceipt(
                     request.getOriginalReceiptId(),
@@ -343,10 +348,11 @@ public class BlockchainDomainController {
     @PostMapping("/receipt/merge")
     public Result<String> mergeReceipts(@RequestBody MergeReceiptRequest request) {
         try {
+            // 【YX-01修复】targetOwnerHash是entity ID，应使用entityIdToBytes32
             TransactionReceipt receipt = warehouseReceiptContractService.mergeReceipts(
                     request.getSourceReceiptIds(),
                     request.getTargetReceiptId(),
-                    hexStringToBytes(request.getTargetOwnerHash()),
+                    entityIdToBytes32(request.getTargetOwnerHash()),
                     request.getUnit(),
                     BigInteger.valueOf(request.getTotalWeight())
             );
@@ -403,9 +409,15 @@ public class BlockchainDomainController {
     @PostMapping("/receipt/burn")
     public Result<String> burnReceipt(@RequestBody BurnReceiptRequest request) {
         try {
+            // 【QS-05修复】合约burnReceipt的signatureHash参数未被使用（合约只有owner/admin/javaBackend授权校验）
+            // 由于合约未实现签名验证，传入占位符值（空bytes32）
+            // 注意：如果后续合约升级实现签名验证，需要在此处传入真实的signatureHash
+            byte[] signatureHash = request.getSignatureHash() != null && !request.getSignatureHash().isEmpty()
+                    ? hexStringToBytes(request.getSignatureHash())
+                    : new byte[32]; // 传入空bytes32作为占位符
             TransactionReceipt receipt = warehouseReceiptContractService.burnReceipt(
                     request.getReceiptId(),
-                    hexStringToBytes(request.getSignatureHash())
+                    signatureHash
             );
             return Result.success(receipt != null ? receipt.getTransactionHash() : null);
         } catch (Exception e) {
@@ -426,16 +438,17 @@ public class BlockchainDomainController {
     @PostMapping("/logistics/create")
     public Result<String> createLogisticsDelegate(@RequestBody LogisticsCreateRequest request) {
         try {
+            // 【YX-01修复】ownerHash, carrierHash, sourceWhHash, targetWhHash是entity ID，应使用entityIdToBytes32
             TransactionReceipt receipt = logisticsContractService.createLogisticsDelegate(
                     request.getVoucherNo(),
                     request.getBusinessScene(),
                     request.getReceiptId(),
                     BigInteger.valueOf(request.getTransportQuantity()),
                     request.getUnit(),
-                    hexStringToBytes(request.getOwnerHash()),
-                    hexStringToBytes(request.getCarrierHash()),
-                    hexStringToBytes(request.getSourceWhHash()),
-                    hexStringToBytes(request.getTargetWhHash()),
+                    entityIdToBytes32(request.getOwnerHash()),
+                    entityIdToBytes32(request.getCarrierHash()),
+                    entityIdToBytes32(request.getSourceWhHash()),
+                    entityIdToBytes32(request.getTargetWhHash()),
                     BigInteger.valueOf(request.getValidUntil())
             );
             return Result.success(receipt != null ? receipt.getTransactionHash() : null);
@@ -498,9 +511,10 @@ public class BlockchainDomainController {
     @PostMapping("/logistics/assign-carrier")
     public Result<String> assignCarrier(@RequestBody LogisticsAssignCarrierRequest request) {
         try {
+            // 【YX-01修复】carrierHash是entity ID，应使用entityIdToBytes32
             TransactionReceipt receipt = logisticsContractService.assignCarrier(
                     request.getVoucherNo(),
-                    hexStringToBytes(request.getCarrierHash())
+                    entityIdToBytes32(request.getCarrierHash())
             );
             return Result.success(receipt != null ? receipt.getTransactionHash() : null);
         } catch (Exception e) {
@@ -1080,6 +1094,37 @@ public class BlockchainDomainController {
     }
 
     // ==================== Helper Methods ====================
+
+    /**
+     * Convert entity ID string to bytes32 for blockchain storage.
+     * 【YX-01修复】统一entity ID转换格式：entity ID为decimal数字字符串（如"123456"），
+     * 应作为decimal数字解析而非hex字符串，与LoanContractService.entityIdToBytes32保持一致。
+     *
+     * Example: entityId="123456" → bytes32 representing decimal 123456
+     *          (not hex interpretation which would give bytes32[0x12, 0x34, 0x56])
+     */
+    private byte[] entityIdToBytes32(String entityId) {
+        if (entityId == null || entityId.isEmpty()) {
+            throw new IllegalArgumentException("entity ID 不能为空");
+        }
+        try {
+            java.math.BigInteger bigInt = new java.math.BigInteger(entityId);
+            byte[] valueBytes = bigInt.toByteArray();
+            byte[] result = new byte[32];
+            // BigInteger.toByteArray() returns sign+magnitude
+            // If the first byte is 0, it means the actual data starts from index 1
+            int start = (valueBytes[0] == 0) ? 1 : 0;
+            int len = valueBytes.length - start;
+            // Copy to the rightmost position of the 32-byte array
+            if (len > 0) {
+                System.arraycopy(valueBytes, start, result, 32 - len, len);
+            }
+            return result;
+        } catch (NumberFormatException e) {
+            // If not a valid decimal number, treat as hex string
+            return hexStringToBytes(entityId);
+        }
+    }
 
     private byte[] hexStringToBytes(String hex) {
         if (hex == null || hex.isEmpty()) {

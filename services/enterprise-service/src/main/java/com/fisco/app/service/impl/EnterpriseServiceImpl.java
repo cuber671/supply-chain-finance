@@ -666,8 +666,12 @@ public class EnterpriseServiceImpl implements EnterpriseService {
                 info.setCreditCode((String) data.get("creditCode"));
                 info.setRole(data.get("role") != null ? new BigInteger(data.get("role").toString()) : null);
                 info.setStatus(data.get("status") != null ? new BigInteger(data.get("status").toString()) : null);
-                info.setCreditLimit(data.get("creditLimit") != null ? new BigInteger(data.get("creditLimit").toString()) : null);
-                info.setCreditRating(data.get("creditRating") != null ? new BigInteger(data.get("creditRating").toString()) : null);
+                // 【YX-03修复】合约getEnterprise()对creditRating和creditLimit返回0（这些值存储在metadataHash中但合约实现未解析）
+                // Java端不应从链上获取这些值，因为它们总是返回0
+                // 如需creditRating和creditLimit，应从Java DB查询（Enterprise实体有独立字段存储）
+                // 注意：链上企业信息(creditCode, role, status)可从链上获取，但rating和limit应从DB获取
+                info.setCreditLimit(null); // 不从链上获取（返回0无意义）
+                info.setCreditRating(null); // 不从链上获取（返回0无意义）
                 return info;
             }
         } catch (Exception e) {

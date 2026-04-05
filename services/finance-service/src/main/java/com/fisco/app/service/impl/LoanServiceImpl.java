@@ -152,12 +152,20 @@ public class LoanServiceImpl implements LoanService {
                 request2.setLoanDays(request.getLoanDays());
                 request2.setReceiptId(request.getReceiptId() != null ? request.getReceiptId().toString() : null);
                 request2.setPledgeAmount(collateralValue.longValue());
+                // 【新问题修复】检查响应码确保区块链调用真正成功
                 Result<String> result = blockchainFeignClient.createLoan(request2);
-                if (result != null && ResultCodeEnum.SUCCESS.getCode().equals(result.getCode()) && result.getData() != null) {
+                if (result == null || result.getCode() != 0) {
+                    String errMsg = "贷款申请区块链失败: loanNo=" + loanNo + ", result=" + result;
+                    logger.error(errMsg);
+                    throw new RuntimeException(errMsg);
+                }
+                if (result.getData() != null) {
                     loan.setChainTxHash(result.getData());
                     loanMapper.updateById(loan);
                 }
-                logger.info("贷款上链成功: loanNo={}, chainTxHash={}", loanNo, result != null ? result.getData() : "null");
+                logger.info("贷款上链成功: loanNo={}, chainTxHash={}", loanNo, result.getData());
+            } catch (RuntimeException e) {
+                throw e;
             } catch (Exception e) {
                 logger.error("贷款上链失败: loanNo={}", loanNo, e);
                 throw new RuntimeException("区块链操作失败，贷款申请创建已回滚", e);
@@ -279,12 +287,20 @@ public class LoanServiceImpl implements LoanService {
                 request2.setApprovedAmount(request.getApprovedAmount().longValue());
                 request2.setInterestRate(request.getInterestRate().doubleValue());
                 request2.setLoanDays(request.getLoanDays());
+                // 【新问题修复】检查响应码确保区块链调用真正成功
                 Result<String> result = blockchainFeignClient.approveLoan(request2);
-                if (result != null && ResultCodeEnum.SUCCESS.getCode().equals(result.getCode()) && result.getData() != null) {
+                if (result == null || result.getCode() != 0) {
+                    String errMsg = "贷款审批区块链失败: loanNo=" + loan.getLoanNo() + ", result=" + result;
+                    logger.error(errMsg);
+                    throw new RuntimeException(errMsg);
+                }
+                if (result.getData() != null) {
                     loan.setChainTxHash(result.getData());
                     loanMapper.updateById(loan);
                 }
-                logger.info("贷款审批上链成功: loanNo={}, chainTxHash={}", loan.getLoanNo(), result != null ? result.getData() : "null");
+                logger.info("贷款审批上链成功: loanNo={}, chainTxHash={}", loan.getLoanNo(), result.getData());
+            } catch (RuntimeException e) {
+                throw e;
             } catch (Exception e) {
                 logger.error("贷款审批上链失败: loanNo={}", loan.getLoanNo(), e);
                 throw new RuntimeException("区块链操作失败，贷款审批已回滚", e);
@@ -362,12 +378,20 @@ public class LoanServiceImpl implements LoanService {
                 BlockchainFeignClient.LoanCancelRequest request = new BlockchainFeignClient.LoanCancelRequest();
                 request.setLoanNo(loan.getLoanNo());
                 request.setReason(reason);
+                // 【新问题修复】检查响应码确保区块链调用真正成功
                 Result<String> result = blockchainFeignClient.cancelLoan(request);
-                if (result != null && ResultCodeEnum.SUCCESS.getCode().equals(result.getCode()) && result.getData() != null) {
+                if (result == null || result.getCode() != 0) {
+                    String errMsg = "贷款取消区块链失败: loanNo=" + loan.getLoanNo() + ", result=" + result;
+                    logger.error(errMsg);
+                    throw new RuntimeException(errMsg);
+                }
+                if (result.getData() != null) {
                     loan.setChainTxHash(result.getData());
                     loanMapper.updateById(loan);
                 }
-                logger.info("贷款取消上链成功: loanNo={}, chainTxHash={}", loan.getLoanNo(), result != null ? result.getData() : "null");
+                logger.info("贷款取消上链成功: loanNo={}, chainTxHash={}", loan.getLoanNo(), result.getData());
+            } catch (RuntimeException e) {
+                throw e;
             } catch (Exception e) {
                 logger.error("贷款取消上链失败: loanNo={}", loan.getLoanNo(), e);
                 throw new RuntimeException("区块链操作失败，贷款取消已回滚", e);
@@ -436,12 +460,20 @@ public class LoanServiceImpl implements LoanService {
                 BlockchainFeignClient.LoanDisburseRequest request2 = new BlockchainFeignClient.LoanDisburseRequest();
                 request2.setLoanNo(loan.getLoanNo());
                 request2.setReceiptId(loan.getReceiptId() != null ? loan.getReceiptId().toString() : null);
+                // 【新问题修复】检查响应码确保区块链调用真正成功
                 Result<String> result = blockchainFeignClient.disburseLoan(request2);
-                if (result != null && ResultCodeEnum.SUCCESS.getCode().equals(result.getCode()) && result.getData() != null) {
+                if (result == null || result.getCode() != 0) {
+                    String errMsg = "贷款放款区块链失败: loanNo=" + loan.getLoanNo() + ", result=" + result;
+                    logger.error(errMsg);
+                    throw new RuntimeException(errMsg);
+                }
+                if (result.getData() != null) {
                     loan.setChainTxHash(result.getData());
                     loanMapper.updateById(loan);
                 }
-                logger.info("贷款放款上链成功: loanNo={}, chainTxHash={}", loan.getLoanNo(), result != null ? result.getData() : "null");
+                logger.info("贷款放款上链成功: loanNo={}, chainTxHash={}", loan.getLoanNo(), result.getData());
+            } catch (RuntimeException e) {
+                throw e;
             } catch (Exception e) {
                 logger.error("贷款放款上链失败: loanNo={}", loan.getLoanNo(), e);
                 throw new RuntimeException("区块链操作失败，贷款放款已回滚", e);
@@ -657,12 +689,18 @@ public class LoanServiceImpl implements LoanService {
                 try {
                     BlockchainFeignClient.LoanMarkOverdueRequest request = new BlockchainFeignClient.LoanMarkOverdueRequest();
                     request.setLoanNo(loan.getLoanNo());
+                    // 【新问题修复】检查响应码确保区块链调用真正成功
                     Result<String> result = blockchainFeignClient.markOverdue(request);
-                    if (result != null && ResultCodeEnum.SUCCESS.getCode().equals(result.getCode()) && result.getData() != null) {
-                        loan.setChainTxHash(result.getData());
-                        loanMapper.updateById(loan);
+                    if (result == null || result.getCode() != 0) {
+                        logger.error("贷款逾期区块链失败: loanNo={}, result={}", loan.getLoanNo(), result);
+                        // 不阻止本地逾期处理，但记录错误
+                    } else {
+                        if (result.getData() != null) {
+                            loan.setChainTxHash(result.getData());
+                            loanMapper.updateById(loan);
+                        }
+                        logger.info("贷款逾期上链成功: loanNo={}, chainTxHash={}", loan.getLoanNo(), result.getData());
                     }
-                    logger.info("贷款逾期上链成功: loanNo={}, chainTxHash={}", loan.getLoanNo(), result != null ? result.getData() : "null");
                 } catch (Exception e) {
                     logger.error("贷款逾期上链失败: loanNo={}", loan.getLoanNo(), e);
                     // 不阻止本地逾期处理，但记录错误

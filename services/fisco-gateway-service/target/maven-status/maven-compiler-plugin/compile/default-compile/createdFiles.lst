@@ -1266,6 +1266,7 @@ com/fisco/app/contract/enterprise/EnterpriseRegistryV2$5.class
 com/fisco/app/contract/receivable/ReceivableCore$63.class
 com/fisco/app/contract/warehouse/WarehouseReceiptOps$17.class
 com/fisco/app/contract/receivable/ReceivableCore$33.class
+com/fisco/app/service/BlockchainEventService.class
 com/fisco/app/contract/loan/LoanRepayment$48.class
 com/fisco/app/contract/warehouse/WarehouseReceiptOps$50.class
 com/fisco/app/contract/loan/LoanCore$11.class

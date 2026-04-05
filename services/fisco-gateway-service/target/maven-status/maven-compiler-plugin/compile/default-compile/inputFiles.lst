@@ -21,6 +21,7 @@
 /home/llm_rca/fisco/supply-chain-finance/services/fisco-gateway-service/src/main/java/com/fisco/app/contract/receivable/ReceivableRepayment.java
 /home/llm_rca/fisco/supply-chain-finance/services/fisco-gateway-service/src/main/java/com/fisco/app/contract/loan/WarehouseReceiptCoreExt.java
 /home/llm_rca/fisco/supply-chain-finance/services/fisco-gateway-service/src/main/java/com/fisco/app/contract/warehouse/WarehouseReceiptHistory.java
+/home/llm_rca/fisco/supply-chain-finance/services/fisco-gateway-service/src/main/java/com/fisco/app/service/BlockchainEventService.java
 /home/llm_rca/fisco/supply-chain-finance/services/fisco-gateway-service/src/main/java/com/fisco/app/service/impl/LoanContractService.java
 /home/llm_rca/fisco/supply-chain-finance/services/fisco-gateway-service/src/main/java/com/fisco/app/FiscoGatewayServiceApplication.java
 /home/llm_rca/fisco/supply-chain-finance/services/fisco-gateway-service/src/main/java/com/fisco/app/service/impl/WarehouseReceiptContractService.java

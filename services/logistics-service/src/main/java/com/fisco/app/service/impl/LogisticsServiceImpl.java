@@ -114,6 +114,12 @@ public class LogisticsServiceImpl implements LogisticsService {
                 request.setTargetWhHash(delegate.getTargetWhId() != null ? delegate.getTargetWhId().toString() : null);
                 request.setValidUntil(delegate.getValidUntil() != null ? delegate.getValidUntil().toEpochSecond(java.time.ZoneOffset.UTC) : 0L);
                 var result = blockchainFeignClient.createLogisticsDelegate(request);
+                // 【新问题修复】添加result.getCode()检查
+                if (result == null || result.getCode() != 0) {
+                    String errMsg = "物流委派单区块链创建失败: voucherNo=" + voucherNo + ", result=" + result;
+                    logger.error(errMsg);
+                    throw new RuntimeException(errMsg);
+                }
                 logger.info("物流委派单上链成功: voucherNo={}, result={}", voucherNo, result);
 
                 // 【P2-5修复】校验并保存链上交易hash，用于后续追溯和链上链下数据关联
@@ -704,8 +710,18 @@ public class LogisticsServiceImpl implements LogisticsService {
                 request.setWarehouseHash(delegate.getTargetWhId() != null
                     ? delegate.getTargetWhId().toString() : null);
 
+                // 【新问题修复】添加result.getCode()检查
                 var result = blockchainFeignClient.arriveAndCreateReceipt(request);
-                logger.info("到货入库（新建仓单）上链成功: voucherNo={}, result={}", voucherNo, result);
+                if (result == null || result.getCode() != 0) {
+                    String errMsg = "到货入库（新建仓单）区块链失败: voucherNo=" + voucherNo + ", result=" + result;
+                    logger.error(errMsg);
+                    throw new RuntimeException(errMsg);
+                }
+                // 【新问题修复】保存txHash用于追溯
+                if (result.getData() != null) {
+                    delegate.setChainTxHash(result.getData());
+                }
+                logger.info("到货入库（新建仓单）上链成功: voucherNo={}, txHash={}", voucherNo, result.getData());
             } else if (actionType == LogisticsDelegate.ACTION_MERGE_EXISTING_RECEIPT) {
                 BlockchainFeignClient.LogisticsArriveAddRequest request =
                     new BlockchainFeignClient.LogisticsArriveAddRequest();
@@ -715,9 +731,21 @@ public class LogisticsServiceImpl implements LogisticsService {
                 request.setQuantity(delegate.getTransportQuantity() != null
                     ? delegate.getTransportQuantity().longValue() : 0L);
 
+                // 【新问题修复】添加result.getCode()检查
                 var result = blockchainFeignClient.arriveAndAddQuantity(request);
-                logger.info("到货入库（合并仓单）上链成功: voucherNo={}, result={}", voucherNo, result);
+                if (result == null || result.getCode() != 0) {
+                    String errMsg = "到货入库（合并仓单）区块链失败: voucherNo=" + voucherNo + ", result=" + result;
+                    logger.error(errMsg);
+                    throw new RuntimeException(errMsg);
+                }
+                // 【新问题修复】保存txHash用于追溯
+                if (result.getData() != null) {
+                    delegate.setChainTxHash(result.getData());
+                }
+                logger.info("到货入库（合并仓单）上链成功: voucherNo={}, txHash={}", voucherNo, result.getData());
             }
+        } catch (RuntimeException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("到货入库上链失败: voucherNo={}", voucherNo, e);
             throw new RuntimeException("区块链上链失败，到货入库操作已回滚", e);
@@ -1007,7 +1035,13 @@ public class LogisticsServiceImpl implements LogisticsService {
             request.setTargetReceiptId(targetReceiptId);
 
             var result = blockchainFeignClient.confirmDelivery(request);
-            logger.info("确认交付上链成功: voucherNo={}, result={}", voucherNo, result);
+            // 【新问题修复】添加result.getCode()检查
+            if (result == null || result.getCode() != 0) {
+                String errMsg = "确认交付区块链失败: voucherNo=" + voucherNo + ", result=" + result;
+                logger.error(errMsg);
+                throw new RuntimeException(errMsg);
+            }
+            logger.info("确认交付上链成功: voucherNo={}, txHash={}", voucherNo, result.getData());
 
             // 保存链上交易hash
             if (result != null && result.getData() != null) {
@@ -1078,7 +1112,13 @@ public class LogisticsServiceImpl implements LogisticsService {
             request.setVoucherNo(voucherNo);
 
             var result = blockchainFeignClient.invalidateLogistics(request);
-            logger.info("失效操作上链成功: voucherNo={}, result={}", voucherNo, result);
+            // 【新问题修复】添加result.getCode()检查
+            if (result == null || result.getCode() != 0) {
+                String errMsg = "失效操作区块链失败: voucherNo=" + voucherNo + ", result=" + result;
+                logger.error(errMsg);
+                throw new RuntimeException(errMsg);
+            }
+            logger.info("失效操作上链成功: voucherNo={}, txHash={}", voucherNo, result.getData());
 
             // 保存链上交易hash
             if (result != null && result.getData() != null) {

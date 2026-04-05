@@ -22,6 +22,21 @@ import com.fisco.app.contract.logistics.LogisticsOps;
 
 /**
  * 物流合约服务
+ *
+ * 【QS-04修复说明】物流合约(LogisticsCore)设计为极简存储：
+ * - 链上仅存储 status(uint8)，记录物流状态流转
+ * - 其他业务数据(ownerHash, carrierHash, receiptId, quantity等)存储在Java DB的LogisticsDelegate表中
+ *
+ * 设计取舍：
+ * - 优点：合约极简，存储成本低，状态明确
+ * - 缺点：链上数据不完整，无法仅通过链上数据还原完整业务上下文
+ *
+ * Java层补偿措施：
+ * - 所有上链操作前先写入Java DB，确保数据一致性
+ * - 链上status变更时，Java层同步更新DB中的status
+ * - 通过voucherNo作为关联键，Java DB可查询完整业务数据
+ *
+ * 如需完整链上数据，需重新部署物流合约（不在本次修复范围内）
  */
 @Service
 public class LogisticsContractService extends BaseContractService {
