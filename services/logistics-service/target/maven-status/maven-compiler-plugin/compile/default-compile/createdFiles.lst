@@ -3,8 +3,10 @@ com/fisco/app/feign/WarehouseFeignClient.class
 com/fisco/app/config/OpenApiConfig.class
 com/fisco/app/LogisticsServiceApplication.class
 com/fisco/app/feign/CreditFeignClient.class
+com/fisco/app/mapper/LogisticsDeviationCreditRecordMapper.class
 com/fisco/app/feign/CreditFeignClientFallback.class
 com/fisco/app/config/BlockchainConfig.class
+com/fisco/app/entity/LogisticsDeviationCreditRecord.class
 com/fisco/app/feign/WarehouseFeignClientFallback.class
 com/fisco/app/config/FeignConfig.class
 com/fisco/app/service/LogisticsDeviationDetector.class

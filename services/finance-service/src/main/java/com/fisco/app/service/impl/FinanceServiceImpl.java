@@ -59,29 +59,57 @@ public class FinanceServiceImpl implements FinanceService {
             throw new IllegalArgumentException("单价必须大于0");
         }
 
-        // H1: 正确逻辑应从物流单获取货物数量后计算 initialAmount = unitPrice * transportQuantity
-        BigDecimal transportQuantity = BigDecimal.ONE; // 默认值，防止物流服务不可用时出错
+        // 【修复SC-006-03/SC-006-04】从物流单获取运输数量和债务人信息，fail-fast模式
+        BigDecimal transportQuantity = null;
+        Long debtorEntIdFromLogistics = null;
         if (logisticsFeignClient != null) {
             try {
                 Result<?> result = logisticsFeignClient.getDelegateById(voucherId.toString());
                 if (result != null && result.getCode() == 200 && result.getData() != null) {
-                    // 解析 transportQuantity - Result.data is LinkedHashMap when JSON serialized
+                    // 解析物流单数据 - Result.data is LinkedHashMap when JSON serialized
                     Object data = result.getData();
                     if (data instanceof Map) {
                         Map<?, ?> delegateMap = (Map<?, ?>) data;
+                        // 【修复SC-006-05】验证物流单有效性
+                        Object delegateStatus = delegateMap.get("status");
+                        if (delegateStatus == null) {
+                            throw new IllegalStateException("物流单状态字段缺失: voucherId=" + voucherId);
+                        }
+                        Integer delegateStatusInt;
+                        if (delegateStatus instanceof Integer) {
+                            delegateStatusInt = (Integer) delegateStatus;
+                        } else {
+                            delegateStatusInt = Integer.valueOf(delegateStatus.toString());
+                        }
+                        // 物流单状态：1=待指派, 2=已调度, 3=运输中, 4=已交付, 5=已失效
+                        if (delegateStatusInt == 5) {  // 已失效
+                            throw new IllegalStateException("物流单已失效: voucherId=" + voucherId);
+                        }
                         Object qty = delegateMap.get("transportQuantity");
                         if (qty != null) {
                             transportQuantity = new BigDecimal(qty.toString());
                         }
+                        // 【修复SC-006-04】从物流单提取债务人信息（ownerEntId为货主，即货物所有者）
+                        Object ownerEntId = delegateMap.get("ownerEntId");
+                        if (ownerEntId != null) {
+                            debtorEntIdFromLogistics = Long.valueOf(ownerEntId.toString());
+                        }
                     }
-                } else {
-                    logger.warn("获取物流单信息失败: voucherId={}, code={}", voucherId, result != null ? result.getCode() : "null");
                 }
+                if (transportQuantity == null) {
+                    throw new IllegalStateException("无法从物流单获取运输数量: voucherId=" + voucherId);
+                }
+                if (debtorEntIdFromLogistics == null) {
+                    throw new IllegalStateException("无法从物流单获取债务人信息: voucherId=" + voucherId);
+                }
+            } catch (IllegalStateException e) {
+                throw e;
             } catch (Exception e) {
-                logger.warn("调用物流服务异常，使用默认值1: voucherId={}", voucherId, e);
+                logger.error("调用物流服务异常: voucherId={}", voucherId, e);
+                throw new IllegalStateException("物流服务不可用: voucherId=" + voucherId, e);
             }
         } else {
-            logger.warn("LogisticsFeignClient 未注入，跳过物流单查询，voucherId={}", voucherId);
+            throw new IllegalStateException("LogisticsFeignClient 未注入，无法获取物流单信息: voucherId=" + voucherId);
         }
         BigDecimal initialAmount = unitPrice.multiply(transportQuantity);
 
@@ -90,10 +118,14 @@ public class FinanceServiceImpl implements FinanceService {
         Receivable receivable = new Receivable();
         receivable.setReceivableNo(receivableNo);
         receivable.setSourceVoucherId(voucherId);
-        // H9: 设置债权人和债务人信息
+        // 【修复SC-006-04】设置债权人和债务人信息
         Long creditorEntId = CurrentUser.getEntId();
+        // 债务人不能与债权人相同（业务规则校验）
+        if (debtorEntIdFromLogistics.equals(creditorEntId)) {
+            throw new IllegalStateException("债务人不能与债权人相同: creditorEntId=" + creditorEntId);
+        }
         receivable.setCreditorEntId(creditorEntId);
-        receivable.setDebtorEntId(creditorEntId); // 临时方案：债务人待业务确认
+        receivable.setDebtorEntId(debtorEntIdFromLogistics); // 【修复SC-006-04】使用从物流单获取的真实债务人
         receivable.setInitialAmount(initialAmount);
         receivable.setAdjustedAmount(initialAmount);
         receivable.setCollectedAmount(BigDecimal.ZERO);
@@ -253,6 +285,33 @@ public class FinanceServiceImpl implements FinanceService {
 
         logger.info("调整应收款: receivableId={}, adjustType={}, oldAmount={}, newAmount={}",
                 receivableId, adjustType, receivable.getAdjustedAmount(), newAdjustedAmount);
+
+        // 【修复SC-006-01】应收款调整需要上链记录，保持链上链下一致性
+        if (blockchainFeignClient != null) {
+            try {
+                BlockchainFeignClient.ReceivableAdjustRequest request =
+                    new BlockchainFeignClient.ReceivableAdjustRequest();
+                request.setReceivableId(receivable.getReceivableNo());
+                request.setAdjustedAmount(newAdjustedAmount.longValue());
+                request.setAdjustType(adjustType);
+                Result<String> result = blockchainFeignClient.adjustReceivable(request);
+                if (result == null || result.getCode() != 0) {
+                    String errMsg = "应收款调整区块链失败: receivableNo=" + receivable.getReceivableNo() + ", result=" + result;
+                    logger.error(errMsg);
+                    throw new RuntimeException(errMsg);
+                }
+                if (result.getData() != null) {
+                    receivable.setChainTxHash(result.getData());
+                    receivableMapper.updateById(receivable);
+                }
+                logger.info("应收款调整上链成功: receivableNo={}, chainTxHash={}", receivable.getReceivableNo(), result.getData());
+            } catch (RuntimeException e) {
+                throw e;
+            } catch (Exception e) {
+                logger.error("应收款调整区块链异常: receivableNo={}", receivable.getReceivableNo(), e);
+                throw new RuntimeException("区块链操作失败，应收款调整已回滚", e);
+            }
+        }
 
         return receivable;
     }
@@ -438,6 +497,36 @@ public class FinanceServiceImpl implements FinanceService {
         receivableMapper.updateById(receivable);
 
         logger.info("应收款融资: receivableId={}, financeAmount={}, financeEntId={}", receivableId, financeAmount, financeEntId);
+
+        // 【修复SC-006-02】应收款融资需要上链记录，保持链上链下一致性
+        if (blockchainFeignClient != null) {
+            try {
+                // 获取金融机构的区块链地址
+                String financeEntHash = financeEntId != null ? financeEntId.toString() : null;
+
+                BlockchainFeignClient.ReceivableFinanceRequest request =
+                    new BlockchainFeignClient.ReceivableFinanceRequest();
+                request.setReceivableId(receivable.getReceivableNo());
+                request.setFinanceAmount(financeAmount.longValue());
+                request.setFinanceEntity(financeEntHash);
+                Result<String> result = blockchainFeignClient.financeReceivable(request);
+                if (result == null || result.getCode() != 0) {
+                    String errMsg = "应收款融资区块链失败: receivableNo=" + receivable.getReceivableNo() + ", result=" + result;
+                    logger.error(errMsg);
+                    throw new RuntimeException(errMsg);
+                }
+                if (result.getData() != null) {
+                    receivable.setChainTxHash(result.getData());
+                    receivableMapper.updateById(receivable);
+                }
+                logger.info("应收款融资上链成功: receivableNo={}, chainTxHash={}", receivable.getReceivableNo(), result.getData());
+            } catch (RuntimeException e) {
+                throw e;
+            } catch (Exception e) {
+                logger.error("应收款融资区块链异常: receivableNo={}", receivable.getReceivableNo(), e);
+                throw new RuntimeException("区块链操作失败，应收款融资已回滚", e);
+            }
+        }
 
         return receivable;
     }

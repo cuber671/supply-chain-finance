@@ -1200,11 +1200,7 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
             }
         }
 
-        // 【QS-01修复】DB状态设为BURNED以与链上状态保持一致（链上cancelReceipt/burnReceipt都会将状态设为Burned）
-        receipt.setStatus(WarehouseReceipt.STATUS_BURNED);
-        receipt.setRemark("作废原因: " + reason);
-        warehouseReceiptMapper.updateById(receipt);
-
+        // 【修复SC-001-01】区块链调用FIRST，成功后才更新DB状态
         // 【QS-01修复】根据仓单当前状态选择正确的链上操作
         // 在库(1)仓单调用burnReceipt，转运中(5)仓单不能作废，其他状态调用cancelReceipt
         if (blockchainFeignClient != null && receipt.getOnChainId() != null) {
@@ -1241,6 +1237,12 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
                 throw new RuntimeException("仓单区块链作废失败: " + e.getMessage());
             }
         }
+
+        // 【修复SC-001-01】区块链成功后更新DB状态
+        // 【QS-01修复】DB状态设为BURNED以与链上状态保持一致（链上cancelReceipt/burnReceipt都会将状态设为Burned）
+        receipt.setStatus(WarehouseReceipt.STATUS_BURNED);
+        receipt.setRemark("作废原因: " + reason);
+        warehouseReceiptMapper.updateById(receipt);
 
         logger.info("仓单作废成功: receiptId={}, operatorUserId={}, reason={}, 原状态={}", receiptId, operatorUserId, reason, currentStatus);
         return true;

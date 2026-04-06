@@ -25,6 +25,7 @@ import com.fisco.app.feign.CreditFeignClient;
 import com.fisco.app.mapper.EnterpriseMapper;
 import com.fisco.app.mapper.InvitationCodeMapper;
 import com.fisco.app.service.EnterpriseService;
+import com.fisco.app.util.Result;
 
 /**
  * 企业业务服务实现类
@@ -634,17 +635,29 @@ public class EnterpriseServiceImpl implements EnterpriseService {
 
         balance.setBlockchainAddress(enterprise.getBlockchainAddress());
 
-        // 调用各模块的区块链服务查询资产数量
-        // 目前返回0，实际需要查询：
-        // 1. 仓单数量 - WarehouseReceiptContractService
-        // 2. 票据数量 - BillContractService
-        // 3. 应收款数量 - ReceivableContractService
+        // 【修复SC-001-02】调用区块链服务查询真实资产数量
+        String ownerHash = enterprise.getBlockchainAddress();
 
-        // 暂时设置为0，后续完善
-        balance.setWarehouseReceiptCount(0);
+        // 1. 查询仓单数量
+        if (blockchainFeignClient != null) {
+            try {
+                Result<List<String>> receiptResult = blockchainFeignClient.getReceiptIdsByOwner(ownerHash);
+                if (receiptResult != null && receiptResult.getCode() == 0 && receiptResult.getData() != null) {
+                    balance.setWarehouseReceiptCount(receiptResult.getData().size());
+                }
+            } catch (Exception e) {
+                logger.warn("查询仓单数量失败: entId={}, blockchainAddress={}", entId, ownerHash, e);
+            }
+        }
+
+        // 2. 票据数量 - 暂时设置为0（enterprise-service无可用的链上票据查询接口）
         balance.setBillCount(0);
+
+        // 3. 应收款数量 - 暂时设置为0（enterprise-service无可用的链上应收款查询接口）
         balance.setReceivableCount(0);
-        balance.setTotalAssets(0);
+
+        // 计算资产总数
+        balance.setTotalAssets(balance.getWarehouseReceiptCount() + balance.getBillCount() + balance.getReceivableCount());
 
         return balance;
     }

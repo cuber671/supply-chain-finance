@@ -287,6 +287,8 @@ public class LoanServiceImpl implements LoanService {
                 request2.setApprovedAmount(request.getApprovedAmount().longValue());
                 request2.setInterestRate(request.getInterestRate().doubleValue());
                 request2.setLoanDays(request.getLoanDays());
+                // 【修复SC-002-01】设置正确的金融机构哈希
+                request2.setFinanceEntHash(currentEntId != null ? currentEntId.toString() : null);
                 // 【新问题修复】检查响应码确保区块链调用真正成功
                 Result<String> result = blockchainFeignClient.approveLoan(request2);
                 if (result == null || result.getCode() != 0) {

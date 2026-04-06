@@ -18,11 +18,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fisco.app.feign.BlockchainFeignClient;
 import com.fisco.app.feign.CreditFeignClient;
 import com.fisco.app.entity.LogisticsAssignHistory;
+import com.fisco.app.entity.LogisticsDeviationCreditRecord;
 import com.fisco.app.entity.LogisticsDelegate;
 import com.fisco.app.entity.LogisticsTrack;
 import com.fisco.app.feign.WarehouseFeignClient;
 import com.fisco.app.mapper.LogisticsAssignHistoryMapper;
 import com.fisco.app.mapper.LogisticsDelegateMapper;
+import com.fisco.app.mapper.LogisticsDeviationCreditRecordMapper;
 import com.fisco.app.mapper.LogisticsTrackMapper;
 import com.fisco.app.service.LogisticsDeviationDetector;
 import com.fisco.app.service.LogisticsService;
@@ -45,6 +47,9 @@ public class LogisticsServiceImpl implements LogisticsService {
 
     @Autowired
     private LogisticsAssignHistoryMapper assignHistoryMapper;
+
+    @Autowired(required = false)
+    private LogisticsDeviationCreditRecordMapper deviationCreditRecordMapper;
 
     @Autowired(required = false)
     private WarehouseFeignClient warehouseFeignClient;
@@ -901,7 +906,10 @@ public class LogisticsServiceImpl implements LogisticsService {
                     } catch (Exception e) {
                         logger.error("偏航信用扣分失败: voucherNo={}, entId={}, error={}",
                                 track.getVoucherNo(), delegate.getOwnerEntId(), e.getMessage());
-                        // 不阻止轨迹上报，但记录错误供后续补偿
+                        // 【修复SC-005-01】记录失败项供后续补偿重试
+                        savePendingCreditDeduction(delegate.getOwnerEntId(), track.getVoucherNo(),
+                            calculateDeviationLevel(track.getDeviationDistance()), "物流路径偏移检测",
+                            e.getMessage());
                     }
                 }
             }
@@ -1313,5 +1321,36 @@ public class LogisticsServiceImpl implements LogisticsService {
             return 2;  // 中度：>=2km 且 <5km
         }
         return 1;  // 轻度：<2km
+    }
+
+    // 【修复SC-005-01】保存待补偿的偏航信用扣分记录
+    private void savePendingCreditDeduction(Long entId, String voucherNo,
+            Integer deviationLevel, String deviationDesc, String errorMsg) {
+        if (deviationCreditRecordMapper == null) {
+            logger.warn("偏航信用记录Mapper未注入，无法保存待补偿记录");
+            return;
+        }
+        try {
+            // 检查是否已有待处理的记录
+            LogisticsDeviationCreditRecord existing = deviationCreditRecordMapper
+                    .selectPendingByEntIdAndOrderId(entId, voucherNo);
+            if (existing != null) {
+                logger.info("偏航信用扣分待补偿记录已存在: entId={}, voucherNo={}", entId, voucherNo);
+                return;
+            }
+            LogisticsDeviationCreditRecord record = new LogisticsDeviationCreditRecord();
+            record.setEntId(entId);
+            record.setLogisticsOrderId(voucherNo);
+            record.setDeviationLevel(deviationLevel);
+            record.setDeviationDesc(deviationDesc);
+            record.setStatus(LogisticsDeviationCreditRecord.STATUS_PENDING);
+            record.setRetryCount(0);
+            record.setErrorMsg(errorMsg);
+            deviationCreditRecordMapper.insert(record);
+            logger.info("偏航信用扣分待补偿记录已保存: entId={}, voucherNo={}", entId, voucherNo);
+        } catch (Exception e) {
+            logger.error("保存偏航信用扣分待补偿记录失败: entId={}, voucherNo={}, error={}",
+                    entId, voucherNo, e.getMessage());
+        }
     }
 }

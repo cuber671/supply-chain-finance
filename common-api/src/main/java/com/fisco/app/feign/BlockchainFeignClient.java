@@ -536,6 +536,7 @@ public interface BlockchainFeignClient {
         private Long approvedAmount;
         private Double interestRate;
         private Integer loanDays;
+        private String financeEntHash;  // 【修复SC-002-01】金融机构区块链地址哈希
 
         public String getLoanNo() { return loanNo; }
         public void setLoanNo(String v) { this.loanNo = v; }
@@ -545,6 +546,8 @@ public interface BlockchainFeignClient {
         public void setInterestRate(Double v) { this.interestRate = v; }
         public Integer getLoanDays() { return loanDays; }
         public void setLoanDays(Integer v) { this.loanDays = v; }
+        public String getFinanceEntHash() { return financeEntHash; }
+        public void setFinanceEntHash(String v) { this.financeEntHash = v; }
     }
 
     class LoanCancelRequest {
