@@ -34,7 +34,7 @@ public class BlockchainAuditServiceImpl implements BlockchainAuditService {
 
         BlockchainTransactionRecord record = new BlockchainTransactionRecord();
         record.setTxHash(txHash);
-        record.setOperation(operation);
+        record.setMethodName(operation);
         record.setContractName(contractName);
         record.setUserId(userId);
         record.setEntId(entId);

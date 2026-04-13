@@ -20,7 +20,7 @@ spring:
     enabled: false
   cloud:
     loadbalancer:
-      enabled: false
+      enabled: true
 
 fisco:
   enabled: ${FISCO_ENABLED:true}

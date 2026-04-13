@@ -34,7 +34,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 /**
  * 金融管理 Controller
  */
-@Tag(name = "金融管理")
+@Tag(name = "金融管理", description = "应收款管理、还款操作、融资服务")
 @RestController
 @RequestMapping("/api/v1/finance")
 public class FinanceController {
@@ -404,6 +404,11 @@ public class FinanceController {
         try {
             List<RepaymentRecord> list = financeService.listRepayments(id);
             return Result.success(list.stream().map(this::convertToRepaymentRecordResponse).collect(Collectors.toList()));
+        } catch (IllegalArgumentException e) {
+            if (e.getMessage() != null && e.getMessage().contains("不存在")) {
+                return Result.error(404, e.getMessage());
+            }
+            return Result.error(400, e.getMessage());
         } catch (Exception e) {
             logger.error("查询还款记录异常", e);
             return Result.error(500, "查询失败");
@@ -581,7 +586,7 @@ public class FinanceController {
     public static class AdjustReceivableRequest {
         @Schema(description = "应收款ID", example = "1")
         private Long receivableId;
-        @Schema(description = "调整类型：1-物流损耗扣减, 2-仓单拆分同步", example = "1")
+        @Schema(description = "调整类型：1-物流损耗扣减, 2-仓单拆分同步", example = "1", allowableValues = {"1", "2"})
         private Integer adjustType;
         @Schema(description = "调整金额（扣减为负数）", example = "-50.00")
         private BigDecimal amount;
@@ -625,76 +630,76 @@ public class FinanceController {
     @lombok.Data
     @Schema(description = "应收款响应")
     public static class ReceivableResponse {
-        @Schema(description = "应收款ID")
+        @Schema(description = "应收款ID", example = "1")
         private Long id;
         @Schema(description = "应收款编号", example = "AR1234567890")
         private String receivableNo;
-        @Schema(description = "业务场景")
+        @Schema(description = "业务场景", example = "1")
         private Integer businessScene;
-        @Schema(description = "源物流单ID")
+        @Schema(description = "源物流单ID", example = "1")
         private Long sourceVoucherId;
-        @Schema(description = "债权人企业ID")
+        @Schema(description = "债权人企业ID", example = "1")
         private Long creditorEntId;
-        @Schema(description = "债务人企业ID")
+        @Schema(description = "债务人企业ID", example = "2")
         private Long debtorEntId;
-        @Schema(description = "初始金额")
+        @Schema(description = "初始金额", example = "100000.00")
         private BigDecimal initialAmount;
-        @Schema(description = "调整后金额")
+        @Schema(description = "调整后金额", example = "99500.00")
         private BigDecimal adjustedAmount;
-        @Schema(description = "已收金额")
+        @Schema(description = "已收金额", example = "30000.00")
         private BigDecimal collectedAmount;
-        @Schema(description = "待还余额")
+        @Schema(description = "待还余额", example = "69500.00")
         private BigDecimal balanceUnpaid;
         @Schema(description = "币种", example = "CNY")
         private String currency;
-        @Schema(description = "到期日期")
+        @Schema(description = "到期日期", example = "2026-06-30T00:00:00")
         private java.time.LocalDateTime dueDate;
-        @Schema(description = "状态：1-待确认, 2-生效中, 3-部分还款, 4-已结清, 5-逾期")
+        @Schema(description = "状态", example = "2", allowableValues = {"1", "2", "3", "4", "5"})
         private Integer status;
-        @Schema(description = "状态名称")
+        @Schema(description = "状态名称", example = "生效中")
         private String statusName;
-        @Schema(description = "是否已融资：0-未融资, 1-已融资")
+        @Schema(description = "是否已融资：0-未融资, 1-已融资", example = "0")
         private Integer isFinanced;
-        @Schema(description = "区块链交易哈希")
+        @Schema(description = "区块链交易哈希", example = "0xabc123...")
         private String chainTxHash;
-        @Schema(description = "备注")
+        @Schema(description = "备注", example = "正常应收款")
         private String remark;
-        @Schema(description = "创建时间")
+        @Schema(description = "创建时间", example = "2026-03-01T10:00:00")
         private java.time.LocalDateTime createTime;
-        @Schema(description = "更新时间")
+        @Schema(description = "更新时间", example = "2026-03-15T14:30:00")
         private java.time.LocalDateTime updateTime;
     }
 
     @lombok.Data
     @Schema(description = "还款记录响应")
     public static class RepaymentRecordResponse {
-        @Schema(description = "记录ID")
+        @Schema(description = "记录ID", example = "1")
         private Long id;
-        @Schema(description = "应收款ID")
+        @Schema(description = "应收款ID", example = "1")
         private Long receivableId;
         @Schema(description = "还款编号", example = "REP1234567890")
         private String repaymentNo;
-        @Schema(description = "还款类型：1-现金, 2-仓单抵债")
+        @Schema(description = "还款类型：1-现金, 2-仓单抵债", example = "1", allowableValues = {"1", "2"})
         private Integer repaymentType;
-        @Schema(description = "还款金额")
+        @Schema(description = "还款金额", example = "30000.00")
         private BigDecimal amount;
         @Schema(description = "币种", example = "CNY")
         private String currency;
-        @Schema(description = "支付凭证")
+        @Schema(description = "支付凭证", example = "voucher123.png")
         private String paymentVoucher;
-        @Schema(description = "仓单ID（抵债时）")
+        @Schema(description = "仓单ID（抵债时）", example = "1")
         private Long receiptId;
-        @Schema(description = "抵债价格")
+        @Schema(description = "抵债价格", example = "50000.00")
         private BigDecimal offsetPrice;
-        @Schema(description = "签名哈希")
+        @Schema(description = "签名哈希", example = "0xdef456...")
         private String signatureHash;
-        @Schema(description = "还款时间")
+        @Schema(description = "还款时间", example = "2026-03-15T14:30:00")
         private java.time.LocalDateTime repaymentTime;
-        @Schema(description = "区块链交易哈希")
+        @Schema(description = "区块链交易哈希", example = "0xghi789...")
         private String chainTxHash;
-        @Schema(description = "备注")
+        @Schema(description = "备注", example = "正常还款")
         private String remark;
-        @Schema(description = "创建时间")
+        @Schema(description = "创建时间", example = "2026-03-15T14:30:00")
         private java.time.LocalDateTime createTime;
     }
 }

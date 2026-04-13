@@ -55,7 +55,7 @@ public class LoanRepayment {
     /** 已拒绝 */
     public static final int STATUS_REJECTED = 3;
 
-    @TableId(type = IdType.ASSIGN_ID)
+    @TableId(type = IdType.AUTO)
     private Long id;
 
     @TableField("loan_id")

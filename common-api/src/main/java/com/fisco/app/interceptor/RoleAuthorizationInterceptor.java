@@ -10,7 +10,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.fisco.app.annotation.RequireRole;
 import com.fisco.app.util.CurrentUser;
@@ -59,7 +61,7 @@ public class RoleAuthorizationInterceptor {
             String currentRole = CurrentUser.getRole();
             if (currentRole == null) {
                 logger.warn("角色校验失败：无法获取当前用户角色");
-                throw new AuthorizationException("未登录或Token无效");
+                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "未登录或Token无效");
             }
 
             // 检查是否具有所需角色之一
@@ -68,17 +70,17 @@ public class RoleAuthorizationInterceptor {
                 logger.warn("角色校验失败：用户角色 {} 不在允许列表 {} 中，方法: {}.{}",
                         currentRole, Arrays.toString(allowedRoles),
                         joinPoint.getTarget().getClass().getSimpleName(), method.getName());
-                throw new AuthorizationException("权限不足，需要角色: " + Arrays.toString(allowedRoles));
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "权限不足，需要角色: " + Arrays.toString(allowedRoles));
             }
 
             logger.debug("角色校验通过：用户角色 {} 在允许列表 {} 中",
                     currentRole, Arrays.toString(allowedRoles));
 
-        } catch (AuthorizationException e) {
+        } catch (ResponseStatusException e) {
             throw e;
         } catch (Exception e) {
             logger.error("角色校验异常", e);
-            throw new AuthorizationException("权限校验失败: " + e.getMessage());
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "权限校验失败: " + e.getMessage());
         }
     }
 

@@ -43,7 +43,7 @@ import lombok.Data;
 /**
  * 质押贷款 Controller
  */
-@Tag(name = "质押贷款管理")
+@Tag(name = "质押贷款管理", description = "仓单质押贷款申请、审批、放款、还款等全流程管理")
 @RestController
 @RequestMapping("/api/v1/finance/loan")
 public class LoanController {
@@ -149,6 +149,9 @@ public class LoanController {
             }
 
             Loan loan = loanService.getLoanById(id);
+            if (loan == null) {
+                return Result.error(404, "贷款不存在");
+            }
             return Result.success(convertToLoanResponse(loan));
 
         } catch (IllegalArgumentException e) {
@@ -162,7 +165,7 @@ public class LoanController {
     @Operation(summary = "审批通过", description = "金融机构审批通过贷款申请，确定最终放款金额、利率和期限。审批通过后状态变为\"已审批\"。\n\n**前置条件**：当前用户必须为金融机构。\n**业务规则**：\n- 审批金额必须大于0\n- 利率必须大于0\n- 贷款期限必须大于0")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "审批成功", content = @Content),
+        @ApiResponse(responseCode = "200", description = "审批成功", content = @Content(schema = @Schema(implementation = Boolean.class))),
         @ApiResponse(responseCode = "400", description = "参数错误", content = @Content),
         @ApiResponse(responseCode = "401", description = "未登录或Token无效", content = @Content),
         @ApiResponse(responseCode = "403", description = "无权限：仅金融机构可审批", content = @Content),
@@ -206,7 +209,7 @@ public class LoanController {
     @Operation(summary = "审批拒绝", description = "金融机构拒绝贷款申请，记录拒绝原因。拒绝后状态变为\"已拒绝\"。\n\n**前置条件**：当前用户必须为金融机构。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "拒绝成功", content = @Content),
+        @ApiResponse(responseCode = "200", description = "拒绝成功", content = @Content(schema = @Schema(implementation = Boolean.class))),
         @ApiResponse(responseCode = "400", description = "拒绝原因不能为空", content = @Content),
         @ApiResponse(responseCode = "401", description = "未登录或Token无效", content = @Content),
         @ApiResponse(responseCode = "403", description = "无权限：仅金融机构可拒绝", content = @Content),
@@ -244,7 +247,7 @@ public class LoanController {
     @Operation(summary = "取消申请", description = "借款企业取消尚未审批的贷款申请，记录取消原因。取消后状态变为\"已取消\"。\n\n**业务规则**：仅在审批前可取消。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "取消成功", content = @Content),
+        @ApiResponse(responseCode = "200", description = "取消成功", content = @Content(schema = @Schema(implementation = Boolean.class))),
         @ApiResponse(responseCode = "400", description = "参数错误", content = @Content),
         @ApiResponse(responseCode = "401", description = "未登录或Token无效", content = @Content),
         @ApiResponse(responseCode = "500", description = "服务端异常", content = @Content)
@@ -268,7 +271,7 @@ public class LoanController {
     @Operation(summary = "放款", description = "金融机构对已审批通过的贷款执行放款操作，放款后状态变为\"已放款\"。\n\n**前置条件**：当前用户必须为金融机构。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "放款成功", content = @Content),
+        @ApiResponse(responseCode = "200", description = "放款成功", content = @Content(schema = @Schema(implementation = Boolean.class))),
         @ApiResponse(responseCode = "400", description = "参数错误", content = @Content),
         @ApiResponse(responseCode = "401", description = "未登录或Token无效", content = @Content),
         @ApiResponse(responseCode = "403", description = "无权限：仅金融机构可放款", content = @Content),
@@ -336,6 +339,11 @@ public class LoanController {
         try {
             List<LoanRepayment> list = loanService.listRepayments(id);
             return Result.success(list.stream().map(this::convertToLoanRepaymentResponse).collect(Collectors.toList()));
+        } catch (IllegalArgumentException e) {
+            if (e.getMessage() != null && e.getMessage().contains("不存在")) {
+                return Result.error(404, e.getMessage());
+            }
+            return Result.error(400, e.getMessage());
         } catch (Exception e) {
             logger.error("查询还款记录异常", e);
             return Result.error(500, "查询失败");
@@ -571,171 +579,171 @@ public class LoanController {
     @Data
     @Schema(description = "贷款响应")
     public static class LoanResponse {
-        @Schema(description = "贷款ID")
+        @Schema(description = "贷款ID", example = "1")
         private Long id;
         @Schema(description = "贷款编号", example = "LN1234567890")
         private String loanNo;
-        @Schema(description = "借款企业ID")
+        @Schema(description = "借款企业ID", example = "1")
         private Long borrowerEntId;
-        @Schema(description = "借款企业名称")
+        @Schema(description = "借款企业名称", example = "某供应链公司")
         private String borrowerEntName;
-        @Schema(description = "金融机构ID")
+        @Schema(description = "金融机构ID", example = "2")
         private Long financeEntId;
-        @Schema(description = "金融机构名称")
+        @Schema(description = "金融机构名称", example = "某金融机构")
         private String financeEntName;
-        @Schema(description = "仓单ID")
+        @Schema(description = "仓单ID", example = "1")
         private Long receiptId;
-        @Schema(description = "仓单编号")
+        @Schema(description = "仓单编号", example = "WR1234567890")
         private String receiptNo;
-        @Schema(description = "货物名称")
+        @Schema(description = "货物名称", example = "铁矿石")
         private String goodsName;
-        @Schema(description = "仓库名称")
+        @Schema(description = "仓库名称", example = "上海某仓库")
         private String warehouseName;
-        @Schema(description = "申请金额")
+        @Schema(description = "申请金额", example = "100000.00")
         private BigDecimal appliedAmount;
-        @Schema(description = "审批金额")
+        @Schema(description = "审批金额", example = "95000.00")
         private BigDecimal approvedAmount;
-        @Schema(description = "实际放款金额")
+        @Schema(description = "实际放款金额", example = "95000.00")
         private BigDecimal loanAmount;
-        @Schema(description = "申请利率")
+        @Schema(description = "申请利率", example = "0.05")
         private BigDecimal appliedInterestRate;
-        @Schema(description = "审批利率")
+        @Schema(description = "审批利率", example = "0.048")
         private BigDecimal approvedInterestRate;
-        @Schema(description = "实际贷款利率")
+        @Schema(description = "实际贷款利率", example = "0.048")
         private BigDecimal loanInterestRate;
-        @Schema(description = "贷款期限（天）")
+        @Schema(description = "贷款期限（天）", example = "90")
         private Integer loanDays;
-        @Schema(description = "质押物价值")
+        @Schema(description = "质押物价值", example = "120000.00")
         private BigDecimal collateralValue;
-        @Schema(description = "质押率")
+        @Schema(description = "质押率", example = "0.8")
         private BigDecimal pledgeRate;
-        @Schema(description = "最大可贷金额")
+        @Schema(description = "最大可贷金额", example = "96000.00")
         private BigDecimal maxLoanAmount;
-        @Schema(description = "申请时间")
+        @Schema(description = "申请时间", example = "2026-03-01T10:00:00")
         private java.time.LocalDateTime appliedTime;
-        @Schema(description = "审批时间")
+        @Schema(description = "审批时间", example = "2026-03-02T14:30:00")
         private java.time.LocalDateTime approvedTime;
-        @Schema(description = "放款时间")
+        @Schema(description = "放款时间", example = "2026-03-03T09:00:00")
         private java.time.LocalDateTime disbursedTime;
-        @Schema(description = "贷款开始日期")
+        @Schema(description = "贷款开始日期", example = "2026-03-03")
         private java.time.LocalDate loanStartDate;
-        @Schema(description = "贷款结束日期")
+        @Schema(description = "贷款结束日期", example = "2026-06-01")
         private java.time.LocalDate loanEndDate;
-        @Schema(description = "已还本金")
+        @Schema(description = "已还本金", example = "50000.00")
         private BigDecimal repaidPrincipal;
-        @Schema(description = "已还利息")
+        @Schema(description = "已还利息", example = "1200.00")
         private BigDecimal repaidInterest;
-        @Schema(description = "已还罚息")
+        @Schema(description = "已还罚息", example = "0.00")
         private BigDecimal repaidPenalty;
-        @Schema(description = "待还本金")
+        @Schema(description = "待还本金", example = "45000.00")
         private BigDecimal outstandingPrincipal;
-        @Schema(description = "待还利息")
+        @Schema(description = "待还利息", example = "1080.00")
         private BigDecimal outstandingInterest;
-        @Schema(description = "待还罚息")
+        @Schema(description = "待还罚息", example = "0.00")
         private BigDecimal outstandingPenalty;
-        @Schema(description = "状态")
+        @Schema(description = "状态", example = "6", allowableValues = {"1", "2", "3", "4", "5", "6", "7", "8", "9"})
         private Integer status;
-        @Schema(description = "状态名称")
+        @Schema(description = "状态名称", example = "还款中")
         private String statusName;
-        @Schema(description = "应收款ID（融资时）")
+        @Schema(description = "应收款ID（融资时）", example = "1")
         private Long receivableId;
-        @Schema(description = "审批备注")
+        @Schema(description = "审批备注", example = "批准放款")
         private String approveRemark;
-        @Schema(description = "拒绝原因")
+        @Schema(description = "拒绝原因", example = "材料不全")
         private String rejectReason;
-        @Schema(description = "拒绝时间")
+        @Schema(description = "拒绝时间", example = "2026-03-02T15:00:00")
         private java.time.LocalDateTime rejectTime;
-        @Schema(description = "取消原因")
+        @Schema(description = "取消原因", example = "企业主动取消")
         private String cancelReason;
-        @Schema(description = "取消时间")
+        @Schema(description = "取消时间", example = "2026-03-02T16:00:00")
         private java.time.LocalDateTime cancelTime;
-        @Schema(description = "区块链交易哈希")
+        @Schema(description = "区块链交易哈希", example = "0xabc123...")
         private String chainTxHash;
-        @Schema(description = "创建时间")
+        @Schema(description = "创建时间", example = "2026-03-01T10:00:00")
         private java.time.LocalDateTime createTime;
-        @Schema(description = "更新时间")
+        @Schema(description = "更新时间", example = "2026-03-15T14:30:00")
         private java.time.LocalDateTime updateTime;
     }
 
     @Data
     @Schema(description = "还款记录响应")
     public static class LoanRepaymentResponse {
-        @Schema(description = "还款记录ID")
+        @Schema(description = "还款记录ID", example = "1")
         private Long id;
-        @Schema(description = "贷款ID")
+        @Schema(description = "贷款ID", example = "1")
         private Long loanId;
         @Schema(description = "还款编号", example = "REP1234567890")
         private String repaymentNo;
-        @Schema(description = "本金金额")
+        @Schema(description = "本金金额", example = "45000.00")
         private BigDecimal principalAmount;
-        @Schema(description = "利息金额")
+        @Schema(description = "利息金额", example = "1080.00")
         private BigDecimal interestAmount;
-        @Schema(description = "罚息金额")
+        @Schema(description = "罚息金额", example = "0.00")
         private BigDecimal penaltyAmount;
-        @Schema(description = "总金额")
+        @Schema(description = "总金额", example = "46080.00")
         private BigDecimal totalAmount;
-        @Schema(description = "还款类型")
+        @Schema(description = "还款类型", example = "CASH", allowableValues = {"CASH", "OFFSET"})
         private String repaymentType;
-        @Schema(description = "还款类型名称")
+        @Schema(description = "还款类型名称", example = "现金还款")
         private String repaymentTypeName;
-        @Schema(description = "支付凭证")
+        @Schema(description = "支付凭证", example = "voucher123.png")
         private String paymentVoucher;
-        @Schema(description = "支付账户")
+        @Schema(description = "支付账户", example = "6217***1234")
         private String paymentAccount;
-        @Schema(description = "抵债仓单ID")
+        @Schema(description = "抵债仓单ID", example = "1")
         private Long offsetReceiptId;
-        @Schema(description = "抵债仓单编号")
+        @Schema(description = "抵债仓单编号", example = "WR1234567890")
         private String offsetReceiptNo;
-        @Schema(description = "抵债应收款ID")
+        @Schema(description = "抵债应收款ID", example = "1")
         private Long offsetReceivableId;
-        @Schema(description = "抵债应收款编号")
+        @Schema(description = "抵债应收款编号", example = "AR1234567890")
         private String offsetReceivableNo;
-        @Schema(description = "处置方式")
+        @Schema(description = "处置方式", example = "抵扣本金")
         private String disposalMethod;
-        @Schema(description = "处置金额")
+        @Schema(description = "处置金额", example = "0.00")
         private BigDecimal disposalAmount;
-        @Schema(description = "签名哈希")
+        @Schema(description = "签名哈希", example = "0xdef456...")
         private String signatureHash;
-        @Schema(description = "还款时间")
+        @Schema(description = "还款时间", example = "2026-03-15T14:30:00")
         private java.time.LocalDateTime repaymentTime;
-        @Schema(description = "状态")
+        @Schema(description = "状态", example = "2", allowableValues = {"1", "2", "3"})
         private Integer status;
-        @Schema(description = "状态名称")
+        @Schema(description = "状态名称", example = "已确认")
         private String statusName;
-        @Schema(description = "区块链交易哈希")
+        @Schema(description = "区块链交易哈希", example = "0xghi789...")
         private String chainTxHash;
-        @Schema(description = "备注")
+        @Schema(description = "备注", example = "正常还款")
         private String remark;
-        @Schema(description = "创建时间")
+        @Schema(description = "创建时间", example = "2026-03-15T14:30:00")
         private java.time.LocalDateTime createTime;
     }
 
     @Data
     @Schema(description = "分期计划响应")
     public static class LoanInstallmentResponse {
-        @Schema(description = "分期ID")
+        @Schema(description = "分期ID", example = "1")
         private Long id;
-        @Schema(description = "贷款ID")
+        @Schema(description = "贷款ID", example = "1")
         private Long loanId;
         @Schema(description = "期号", example = "1")
         private Integer installmentNo;
-        @Schema(description = "到期日期")
+        @Schema(description = "到期日期", example = "2026-04-15")
         private java.time.LocalDate dueDate;
-        @Schema(description = "应还本金")
+        @Schema(description = "应还本金", example = "15000.00")
         private BigDecimal principalAmount;
-        @Schema(description = "应还利息")
+        @Schema(description = "应还利息", example = "360.00")
         private BigDecimal interestAmount;
-        @Schema(description = "应还总金额")
+        @Schema(description = "应还总金额", example = "15360.00")
         private BigDecimal totalAmount;
-        @Schema(description = "已还金额")
+        @Schema(description = "已还金额", example = "15360.00")
         private BigDecimal repaidAmount;
-        @Schema(description = "状态")
+        @Schema(description = "状态", example = "2", allowableValues = {"1", "2", "3"})
         private Integer status;
-        @Schema(description = "状态名称")
+        @Schema(description = "状态名称", example = "已还")
         private String statusName;
-        @Schema(description = "创建时间")
+        @Schema(description = "创建时间", example = "2026-03-01T10:00:00")
         private java.time.LocalDateTime createTime;
-        @Schema(description = "更新时间")
+        @Schema(description = "更新时间", example = "2026-03-15T14:30:00")
         private java.time.LocalDateTime updateTime;
     }
 }

@@ -70,3 +70,50 @@ docker-compose.override.yml
 # ===================
 .github/java-upgrade/
 build.log
+
+# ===================
+# Spring Boot / JVM
+# ===================
+*.pid
+*.hprof
+*.hprof.bin
+spring-boot-*.log
+
+# ===================
+# 测试报告
+# ===================
+surefire-reports/
+failsafe-reports/
+jacoco/
+coverage/
+*.exec
+
+# ===================
+# Javadoc
+# ===================
+apidocs/
+
+# ===================
+# Eclipse / STS
+# ===================
+.settings/
+.sts4-cache/
+nbproject/
+
+# ===================
+# 本地配置文件 (不提交本地开发配置)
+# ===================
+application-local.yml
+application-local.yaml
+application-local.properties
+
+# ===================
+# Docker 数据卷
+# ===================
+*.vol
+
+# ===================
+# FISCO SDK 临时文件
+# ===================
+*.crt.lock
+*.key.lock

@@ -21,7 +21,7 @@ import lombok.Data;
 @TableName("t_receipt_endorsement")
 public class ReceiptEndorsement {
 
-    @TableId(type = IdType.ASSIGN_ID)
+    @TableId(type = IdType.AUTO)
     private Long id;
 
     @TableField("receipt_id")

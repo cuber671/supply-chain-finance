@@ -27,7 +27,7 @@ public class CreditEvent {
     /**
      * 信用事件ID - 雪花算法生成
      */
-    @TableId(type = IdType.ASSIGN_ID)
+    @TableId(type = IdType.AUTO)
     private Long id;
 
     /**

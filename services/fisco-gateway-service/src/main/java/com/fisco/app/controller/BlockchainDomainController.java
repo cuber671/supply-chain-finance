@@ -17,6 +17,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.fisco.app.annotation.RequireRole;
+import com.fisco.app.feign.BlockchainFeignClient.LogisticsArriveCreateRequest;
+import com.fisco.app.feign.BlockchainFeignClient.UpdateBalanceRequest;
 import com.fisco.app.util.Result;
 import com.fisco.app.service.impl.EnterpriseContractService;
 import com.fisco.app.service.impl.WarehouseReceiptContractService;
@@ -25,6 +27,9 @@ import com.fisco.app.service.impl.LoanContractService;
 import com.fisco.app.service.impl.ReceivableContractService;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -62,14 +67,16 @@ public class BlockchainDomainController {
     @Operation(summary = "注册企业上链", description = "将企业信息注册到区块链上。需要ADMIN角色。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "注册成功，返回交易哈希"),
+        @ApiResponse(responseCode = "200", description = "注册成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "400", description = "参数错误"),
         @ApiResponse(responseCode = "403", description = "无权限"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @RequireRole(value = {"ADMIN"}, adminBypass = true)
     @PostMapping("/enterprise/register")
-    public Result<String> registerEnterprise(@RequestBody EnterpriseRegisterRequest request) {
+    public Result<String> registerEnterprise(
+            @Parameter(description = "企业注册请求信息", required = true)
+            @RequestBody EnterpriseRegisterRequest request) {
         try {
             TransactionReceipt receipt = enterpriseContractService.registerEnterprise(
                     request.getEnterpriseAddress(),
@@ -87,14 +94,16 @@ public class BlockchainDomainController {
     @Operation(summary = "更新企业状态上链", description = "将企业状态更新上链。需要ADMIN角色。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "更新成功，返回交易哈希"),
+        @ApiResponse(responseCode = "200", description = "更新成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "400", description = "参数错误"),
         @ApiResponse(responseCode = "403", description = "无权限"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @RequireRole(value = {"ADMIN"}, adminBypass = true)
     @PostMapping("/enterprise/update-status")
-    public Result<String> updateEnterpriseStatus(@RequestBody EnterpriseStatusRequest request) {
+    public Result<String> updateEnterpriseStatus(
+            @Parameter(description = "企业状态更新请求信息", required = true)
+            @RequestBody EnterpriseStatusRequest request) {
         try {
             TransactionReceipt receipt = enterpriseContractService.updateEnterpriseStatus(
                     request.getEnterpriseAddress(),
@@ -110,14 +119,16 @@ public class BlockchainDomainController {
     @Operation(summary = "更新企业信用评级上链", description = "将企业信用评级更新上链。需要ADMIN角色。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "更新成功，返回交易哈希"),
+        @ApiResponse(responseCode = "200", description = "更新成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "400", description = "参数错误"),
         @ApiResponse(responseCode = "403", description = "无权限"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @RequireRole(value = {"ADMIN"}, adminBypass = true)
     @PostMapping("/enterprise/update-credit-rating")
-    public Result<String> updateCreditRating(@RequestBody EnterpriseCreditRatingRequest request) {
+    public Result<String> updateCreditRating(
+            @Parameter(description = "企业信用评级更新请求信息", required = true)
+            @RequestBody EnterpriseCreditRatingRequest request) {
         try {
             TransactionReceipt receipt = enterpriseContractService.updateCreditRating(
                     request.getEnterpriseAddress(),
@@ -133,14 +144,16 @@ public class BlockchainDomainController {
     @Operation(summary = "设置企业授信额度上链", description = "将企业授信额度设置上链。需要ADMIN角色。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "设置成功，返回交易哈希"),
+        @ApiResponse(responseCode = "200", description = "设置成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "400", description = "参数错误"),
         @ApiResponse(responseCode = "403", description = "无权限"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @RequireRole(value = {"ADMIN"}, adminBypass = true)
     @PostMapping("/enterprise/set-credit-limit")
-    public Result<String> setCreditLimit(@RequestBody EnterpriseCreditLimitRequest request) {
+    public Result<String> setCreditLimit(
+            @Parameter(description = "企业授信额度设置请求信息", required = true)
+            @RequestBody EnterpriseCreditLimitRequest request) {
         try {
             TransactionReceipt receipt = enterpriseContractService.setCreditLimit(
                     request.getEnterpriseAddress(),
@@ -149,14 +162,18 @@ public class BlockchainDomainController {
             return Result.success(receipt != null ? receipt.getTransactionHash() : null);
         } catch (Exception e) {
             logger.error("设置企业授信额度上链失败", e);
-            return Result.error(500, "操作失败: " + e.getMessage());
+            String errMsg = e.getMessage();
+            if (errMsg == null || errMsg.isEmpty()) {
+                errMsg = "区块链交易失败，请检查：1.企业是否已注册 2.调用者是否为合约admin 3.额度值是否大于0";
+            }
+            return Result.error(500, "操作失败: " + errMsg);
         }
     }
 
     @Operation(summary = "获取企业信息", description = "根据企业区块链地址查询企业信息。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "查询成功"),
+        @ApiResponse(responseCode = "200", description = "查询成功", content = @Content(schema = @Schema(implementation = Map.class))),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @GetMapping("/enterprise/{address}")
@@ -178,7 +195,7 @@ public class BlockchainDomainController {
     @Operation(summary = "根据信用代码获取企业地址", description = "根据企业信用代码查询对应的区块链地址。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "查询成功"),
+        @ApiResponse(responseCode = "200", description = "查询成功", content = @Content(schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @GetMapping("/enterprise/by-credit-code/{creditCode}")
@@ -195,7 +212,7 @@ public class BlockchainDomainController {
     @Operation(summary = "获取企业列表", description = "查询区块链上所有注册企业的地址列表。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "查询成功"),
+        @ApiResponse(responseCode = "200", description = "查询成功", content = @Content(schema = @Schema(implementation = List.class))),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @GetMapping("/enterprise/list")
@@ -212,7 +229,7 @@ public class BlockchainDomainController {
     @Operation(summary = "验证企业有效性", description = "验证企业在区块链上是否有效注册。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "查询成功"),
+        @ApiResponse(responseCode = "200", description = "查询成功", content = @Content(schema = @Schema(implementation = Boolean.class))),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @GetMapping("/enterprise/valid/{address}")
@@ -231,21 +248,31 @@ public class BlockchainDomainController {
     @Operation(summary = "签发仓单", description = "将仓单信息签发上链。需要ADMIN或WAREHOUSE角色。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "签发成功，返回交易哈希"),
+        @ApiResponse(responseCode = "200", description = "签发成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "400", description = "参数错误"),
         @ApiResponse(responseCode = "403", description = "无权限"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @RequireRole(value = {"ADMIN", "WAREHOUSE"}, adminBypass = true)
     @PostMapping("/receipt/issue")
-    public Result<String> issueReceipt(@RequestBody ReceiptIssueRequest request) {
+    public Result<String> issueReceipt(
+            @Parameter(description = "仓单签发请求信息", required = true)
+            @RequestBody ReceiptIssueRequest request) {
         try {
+            // 【诊断】记录接收到的原始字符串值
+            logger.info("【网关接收】issueReceipt: receiptId={}, ownerHash='{}', warehouseHash='{}', weight={}",
+                request.getReceiptId(), request.getOwnerHash(), request.getWarehouseHash(), request.getWeight());
             // 【YX-01修复】ownerHash和warehouseHash是entity ID（decimal数字），应使用entityIdToBytes32
             // 其他hash字段（goodsDetailHash, locationPhotoHash, contractHash）是真正的哈希值，使用hexStringToBytes
+            byte[] ownerHashBytes = entityIdToBytes32(request.getOwnerHash());
+            byte[] warehouseHashBytes = entityIdToBytes32(request.getWarehouseHash());
+            // 【诊断】转换后的bytes32值（显示全部32字节）
+            logger.info("【转换诊断】ownerHashBytes.length={}, 十六进制={}", ownerHashBytes.length, bytesToHexFull(ownerHashBytes));
+            logger.info("【转换诊断】warehouseHashBytes.length={}, 十六进制={}", warehouseHashBytes.length, bytesToHexFull(warehouseHashBytes));
             TransactionReceipt receipt = warehouseReceiptContractService.issueReceipt(
                     request.getReceiptId(),
-                    entityIdToBytes32(request.getOwnerHash()),
-                    entityIdToBytes32(request.getWarehouseHash()),
+                    ownerHashBytes,
+                    warehouseHashBytes,
                     hexStringToBytes(request.getGoodsDetailHash()),
                     hexStringToBytes(request.getLocationPhotoHash()),
                     hexStringToBytes(request.getContractHash()),
@@ -262,15 +289,29 @@ public class BlockchainDomainController {
         }
     }
 
+    /**
+     * 将 byte[] 转换为完整的十六进制字符串（显示所有字节）
+     */
+    private String bytesToHexFull(byte[] bytes) {
+        if (bytes == null) return "null";
+        StringBuilder sb = new StringBuilder();
+        for (byte b : bytes) {
+            sb.append(String.format("%02x", b));
+        }
+        return "0x" + sb.toString();
+    }
+
     @Operation(summary = "发起仓单背书", description = "发起仓单背书转让上链操作。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "发起成功，返回交易哈希"),
+        @ApiResponse(responseCode = "200", description = "发起成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "400", description = "参数错误"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @PostMapping("/receipt/launch-endorsement")
-    public Result<String> launchEndorsement(@RequestBody EndorsementRequest request) {
+    public Result<String> launchEndorsement(
+            @Parameter(description = "仓单背书发起请求信息", required = true)
+            @RequestBody EndorsementRequest request) {
         try {
             // 【YX-01修复】fromHash和toHash是entity ID（企业ID），应使用entityIdToBytes32
             TransactionReceipt receipt = warehouseReceiptContractService.launchEndorsement(
@@ -288,12 +329,14 @@ public class BlockchainDomainController {
     @Operation(summary = "确认仓单背书", description = "确认仓单背书转让上链操作。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "确认成功，返回交易哈希"),
+        @ApiResponse(responseCode = "200", description = "确认成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "400", description = "参数错误"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @PostMapping("/receipt/confirm-endorsement")
-    public Result<String> confirmEndorsement(@RequestBody EndorsementRequest request) {
+    public Result<String> confirmEndorsement(
+            @Parameter(description = "仓单背书确认请求信息", required = true)
+            @RequestBody EndorsementRequest request) {
         try {
             // 【YX-01修复】fromHash和toHash是entity ID（企业ID），应使用entityIdToBytes32
             TransactionReceipt receipt = warehouseReceiptContractService.confirmEndorsement(
@@ -311,12 +354,14 @@ public class BlockchainDomainController {
     @Operation(summary = "拆分仓单", description = "将一个仓单拆分为多个子仓单上链。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "拆分成功，返回交易哈希"),
+        @ApiResponse(responseCode = "200", description = "拆分成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "400", description = "参数错误"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @PostMapping("/receipt/split")
-    public Result<String> splitReceipt(@RequestBody SplitReceiptRequest request) {
+    public Result<String> splitReceipt(
+            @Parameter(description = "仓单拆分请求信息", required = true)
+            @RequestBody SplitReceiptRequest request) {
         try {
             // 【YX-01修复】ownerHashes是entity ID列表，应使用entityIdToBytes32
             List<byte[]> ownerHashes = null;
@@ -341,12 +386,14 @@ public class BlockchainDomainController {
     @Operation(summary = "合并仓单", description = "将多个仓单合并为一个新仓单上链。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "合并成功，返回交易哈希"),
+        @ApiResponse(responseCode = "200", description = "合并成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "400", description = "参数错误"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @PostMapping("/receipt/merge")
-    public Result<String> mergeReceipts(@RequestBody MergeReceiptRequest request) {
+    public Result<String> mergeReceipts(
+            @Parameter(description = "仓单合并请求信息", required = true)
+            @RequestBody MergeReceiptRequest request) {
         try {
             // 【YX-01修复】targetOwnerHash是entity ID，应使用entityIdToBytes32
             TransactionReceipt receipt = warehouseReceiptContractService.mergeReceipts(
@@ -363,15 +410,61 @@ public class BlockchainDomainController {
         }
     }
 
+    @Operation(summary = "查询仓单链上状态", description = "查询仓单在区块链上的当前状态，用于诊断链上/链下状态一致性。")
+    @SecurityRequirement(name = "bearerAuth")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "查询成功"),
+        @ApiResponse(responseCode = "400", description = "参数错误"),
+        @ApiResponse(responseCode = "500", description = "服务端异常")
+    })
+    @GetMapping("/receipt/info/{receiptId}")
+    public Result<?> getReceiptOnChainStatus(@PathVariable String receiptId) {
+        try {
+            WarehouseReceiptContractService.ReceiptInfo info =
+                    warehouseReceiptContractService.getReceipt(receiptId);
+            if (info == null) {
+                return Result.error(404, "仓单不存在");
+            }
+            // status: 1=InStorage(在库), 6=Pledged(已质押)
+            return Result.success(java.util.Map.of(
+                    "receiptId", info.getReceiptId() != null ? info.getReceiptId() : "",
+                    "status", info.getStatus() != null ? info.getStatus().intValue() : 0,
+                    "statusDesc", statusDesc(info.getStatus()),
+                    "warehouse", info.getWarehouse() != null ? info.getWarehouse() : "",
+                    "weight", info.getWeight() != null ? info.getWeight().intValue() : 0
+            ));
+        } catch (Exception e) {
+            logger.error("查询仓单链上状态失败: receiptId={}", receiptId, e);
+            return Result.error(500, "查询失败: " + e.getMessage());
+        }
+    }
+
+    private String statusDesc(java.math.BigInteger status) {
+        if (status == null) return "未知";
+        int s = status.intValue();
+        switch (s) {
+            case 0: return "None";
+            case 1: return "InStorage(在库)";
+            case 2: return "PendingTransfer(待转让)";
+            case 3: return "SplitMerged(已拆分合并)";
+            case 4: return "Burned(已核销)";
+            case 5: return "InTransit(物流转运中)";
+            case 6: return "Pledged(已质押)";
+            default: return "未知(" + s + ")";
+        }
+    }
+
     @Operation(summary = "锁定仓单", description = "将仓单锁定上链（作为贷款质押）。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "锁定成功，返回交易哈希"),
+        @ApiResponse(responseCode = "200", description = "锁定成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "400", description = "参数错误"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @PostMapping("/receipt/lock")
-    public Result<String> lockReceipt(@RequestBody ReceiptOperationRequest request) {
+    public Result<String> lockReceipt(
+            @Parameter(description = "仓单锁定请求信息", required = true)
+            @RequestBody ReceiptOperationRequest request) {
         try {
             TransactionReceipt receipt = warehouseReceiptContractService.lockReceipt(request.getReceiptId());
             return Result.success(receipt != null ? receipt.getTransactionHash() : null);
@@ -384,12 +477,14 @@ public class BlockchainDomainController {
     @Operation(summary = "解锁仓单", description = "将仓单解除锁定上链（还款后解除质押）。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "解锁成功，返回交易哈希"),
+        @ApiResponse(responseCode = "200", description = "解锁成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "400", description = "参数错误"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @PostMapping("/receipt/unlock")
-    public Result<String> unlockReceipt(@RequestBody ReceiptOperationRequest request) {
+    public Result<String> unlockReceipt(
+            @Parameter(description = "仓单解锁请求信息", required = true)
+            @RequestBody ReceiptOperationRequest request) {
         try {
             TransactionReceipt receipt = warehouseReceiptContractService.unlockReceipt(request.getReceiptId());
             return Result.success(receipt != null ? receipt.getTransactionHash() : null);
@@ -402,12 +497,14 @@ public class BlockchainDomainController {
     @Operation(summary = "核销仓单", description = "将仓单核销上链，完成出库操作。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "核销成功，返回交易哈希"),
+        @ApiResponse(responseCode = "200", description = "核销成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "400", description = "参数错误"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @PostMapping("/receipt/burn")
-    public Result<String> burnReceipt(@RequestBody BurnReceiptRequest request) {
+    public Result<String> burnReceipt(
+            @Parameter(description = "仓单核销请求信息", required = true)
+            @RequestBody BurnReceiptRequest request) {
         try {
             // 【QS-05修复】合约burnReceipt的signatureHash参数未被使用（合约只有owner/admin/javaBackend授权校验）
             // 由于合约未实现签名验证，传入占位符值（空bytes32）
@@ -431,12 +528,14 @@ public class BlockchainDomainController {
     @Operation(summary = "创建物流委托单", description = "将物流委托单信息创建上链。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "创建成功，返回交易哈希"),
+        @ApiResponse(responseCode = "200", description = "创建成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "400", description = "参数错误"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @PostMapping("/logistics/create")
-    public Result<String> createLogisticsDelegate(@RequestBody LogisticsCreateRequest request) {
+    public Result<String> createLogisticsDelegate(
+            @Parameter(description = "物流委派单创建请求信息", required = true)
+            @RequestBody LogisticsCreateRequest request) {
         try {
             // 【YX-01修复】ownerHash, carrierHash, sourceWhHash, targetWhHash是entity ID，应使用entityIdToBytes32
             TransactionReceipt receipt = logisticsContractService.createLogisticsDelegate(
@@ -461,12 +560,14 @@ public class BlockchainDomainController {
     @Operation(summary = "提货确认", description = "物流提货确认上链。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "确认成功，返回交易哈希"),
+        @ApiResponse(responseCode = "200", description = "确认成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "400", description = "参数错误"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @PostMapping("/logistics/pickup")
-    public Result<String> pickup(@RequestBody LogisticsPickupRequest request) {
+    public Result<String> pickup(
+            @Parameter(description = "物流提货请求信息", required = true)
+            @RequestBody LogisticsPickupRequest request) {
         try {
             TransactionReceipt receipt = logisticsContractService.pickup(
                     request.getVoucherNo(),
@@ -482,12 +583,14 @@ public class BlockchainDomainController {
     @Operation(summary = "到货增加数量", description = "物流到货增加数量上链。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "操作成功，返回交易哈希"),
+        @ApiResponse(responseCode = "200", description = "操作成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "400", description = "参数错误"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @PostMapping("/logistics/arrive-add")
-    public Result<String> arriveAndAddQuantity(@RequestBody LogisticsArriveAddRequest request) {
+    public Result<String> arriveAndAddQuantity(
+            @Parameter(description = "物流到达新增请求信息", required = true)
+            @RequestBody LogisticsArriveAddRequest request) {
         try {
             TransactionReceipt receipt = logisticsContractService.arriveAndAddQuantity(
                     request.getVoucherNo(),
@@ -501,15 +604,50 @@ public class BlockchainDomainController {
         }
     }
 
+    @Operation(summary = "到货创建仓单", description = "物流到货后创建新仓单上链。")
+    @SecurityRequirement(name = "bearerAuth")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "操作成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
+        @ApiResponse(responseCode = "400", description = "参数错误"),
+        @ApiResponse(responseCode = "500", description = "服务端异常")
+    })
+    @PostMapping("/logistics/arrive-create")
+    public Result<String> arriveAndCreateReceipt(
+            @Parameter(description = "物流到达创建仓单请求信息", required = true)
+            @RequestBody LogisticsArriveCreateRequest request) {
+        try {
+            // 【修复】ownerHash/warehouseHash 为 null 时使用 "0" 占位
+            String ownerHash = request.getOwnerHash() != null && !request.getOwnerHash().isEmpty()
+                ? request.getOwnerHash() : "0";
+            String warehouseHash = request.getWarehouseHash() != null && !request.getWarehouseHash().isEmpty()
+                ? request.getWarehouseHash() : "0";
+
+            TransactionReceipt receipt = logisticsContractService.arriveAndCreateReceipt(
+                    request.getVoucherNo(),
+                    request.getNewReceiptId() != null ? request.getNewReceiptId() : "0",
+                    request.getWeight() != null ? BigInteger.valueOf(request.getWeight()) : null,
+                    request.getUnit(),
+                    entityIdToBytes32(ownerHash),
+                    entityIdToBytes32(warehouseHash)
+            );
+            return Result.success(receipt != null ? receipt.getTransactionHash() : null);
+        } catch (Exception e) {
+            logger.error("到货创建仓单失败", e);
+            return Result.error(500, "操作失败: " + e.getMessage());
+        }
+    }
+
     @Operation(summary = "分配承运人", description = "为物流委托单分配承运人上链。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "分配成功，返回交易哈希"),
+        @ApiResponse(responseCode = "200", description = "分配成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "400", description = "参数错误"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @PostMapping("/logistics/assign-carrier")
-    public Result<String> assignCarrier(@RequestBody LogisticsAssignCarrierRequest request) {
+    public Result<String> assignCarrier(
+            @Parameter(description = "物流承运方指派请求信息", required = true)
+            @RequestBody LogisticsAssignCarrierRequest request) {
         try {
             // 【YX-01修复】carrierHash是entity ID，应使用entityIdToBytes32
             TransactionReceipt receipt = logisticsContractService.assignCarrier(
@@ -526,12 +664,14 @@ public class BlockchainDomainController {
     @Operation(summary = "确认交付", description = "确认物流交付上链。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "确认成功，返回交易哈希"),
+        @ApiResponse(responseCode = "200", description = "确认成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "400", description = "参数错误"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @PostMapping("/logistics/confirm-delivery")
-    public Result<String> confirmDelivery(@RequestBody LogisticsConfirmDeliveryRequest request) {
+    public Result<String> confirmDelivery(
+            @Parameter(description = "物流交付确认请求信息", required = true)
+            @RequestBody LogisticsConfirmDeliveryRequest request) {
         try {
             TransactionReceipt receipt = logisticsContractService.confirmDelivery(
                     request.getVoucherNo(),
@@ -548,12 +688,14 @@ public class BlockchainDomainController {
     @Operation(summary = "更新物流状态", description = "更新物流委托单状态上链。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "更新成功，返回交易哈希"),
+        @ApiResponse(responseCode = "200", description = "更新成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "400", description = "参数错误"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @PostMapping("/logistics/update-status")
-    public Result<String> updateLogisticsStatus(@RequestBody LogisticsUpdateStatusRequest request) {
+    public Result<String> updateLogisticsStatus(
+            @Parameter(description = "物流状态更新请求信息", required = true)
+            @RequestBody LogisticsUpdateStatusRequest request) {
         try {
             TransactionReceipt receipt = logisticsContractService.updateStatus(
                     request.getVoucherNo(),
@@ -569,7 +711,7 @@ public class BlockchainDomainController {
     @Operation(summary = "获取物流轨迹", description = "查询物流委托单的区块链轨迹记录。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "查询成功"),
+        @ApiResponse(responseCode = "200", description = "查询成功", content = @Content(schema = @Schema(implementation = List.class))),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @GetMapping("/logistics/track/{voucherNo}")
@@ -586,7 +728,7 @@ public class BlockchainDomainController {
     @Operation(summary = "验证物流委托", description = "验证物流委托单在区块链上是否有效。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "查询成功"),
+        @ApiResponse(responseCode = "200", description = "查询成功", content = @Content(schema = @Schema(implementation = Boolean.class))),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @GetMapping("/logistics/valid/{voucherNo}")
@@ -603,12 +745,14 @@ public class BlockchainDomainController {
     @Operation(summary = "使物流委托单失效", description = "使物流委托单失效上链。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "操作成功，返回交易哈希"),
+        @ApiResponse(responseCode = "200", description = "操作成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "400", description = "参数错误"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @PostMapping("/logistics/invalidate")
-    public Result<String> invalidateLogistics(@RequestBody LogisticsInvalidateRequest request) {
+    public Result<String> invalidateLogistics(
+            @Parameter(description = "物流委派单作废请求信息", required = true)
+            @RequestBody LogisticsInvalidateRequest request) {
         try {
             TransactionReceipt receipt = logisticsContractService.invalidate(request.getVoucherNo());
             return Result.success(receipt != null ? receipt.getTransactionHash() : null);
@@ -623,12 +767,14 @@ public class BlockchainDomainController {
     @Operation(summary = "创建贷款", description = "在区块链上创建贷款记录。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "创建成功，返回交易哈希"),
+        @ApiResponse(responseCode = "200", description = "创建成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "400", description = "参数错误"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @PostMapping("/loan/create")
-    public Result<String> createLoan(@RequestBody LoanCreateRequest request) {
+    public Result<String> createLoan(
+            @Parameter(description = "贷款创建请求信息", required = true)
+            @RequestBody LoanCreateRequest request) {
         try {
             // Handle null pledgeAmount - it's not used in blockchain contract, only in DB
             BigInteger pledgeAmount = request.getPledgeAmount() != null
@@ -655,12 +801,14 @@ public class BlockchainDomainController {
     @Operation(summary = "审批贷款", description = "在区块链上审批贷款，记录审批金额、利率和期限。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "审批成功，返回交易哈希"),
+        @ApiResponse(responseCode = "200", description = "审批成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "400", description = "参数错误"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @PostMapping("/loan/approve")
-    public Result<String> approveLoan(@RequestBody LoanApproveRequest request) {
+    public Result<String> approveLoan(
+            @Parameter(description = "贷款审批请求信息", required = true)
+            @RequestBody LoanApproveRequest request) {
         try {
             TransactionReceipt receipt = loanContractService.approveLoan(
                     request.getLoanNo(),
@@ -678,12 +826,14 @@ public class BlockchainDomainController {
     @Operation(summary = "取消贷款", description = "在区块链上取消贷款记录。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "取消成功，返回交易哈希"),
+        @ApiResponse(responseCode = "200", description = "取消成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "400", description = "参数错误"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @PostMapping("/loan/cancel")
-    public Result<String> cancelLoan(@RequestBody LoanCancelRequest request) {
+    public Result<String> cancelLoan(
+            @Parameter(description = "贷款取消请求信息", required = true)
+            @RequestBody LoanCancelRequest request) {
         try {
             TransactionReceipt receipt = loanContractService.cancelLoan(
                     request.getLoanNo(),
@@ -699,12 +849,14 @@ public class BlockchainDomainController {
     @Operation(summary = "放款", description = "在区块链上执行放款操作，记录仓单与贷款的关联。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "放款成功，返回交易哈希"),
+        @ApiResponse(responseCode = "200", description = "放款成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "400", description = "参数错误"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @PostMapping("/loan/disburse")
-    public Result<String> disburseLoan(@RequestBody LoanDisburseRequest request) {
+    public Result<String> disburseLoan(
+            @Parameter(description = "贷款放款请求信息", required = true)
+            @RequestBody LoanDisburseRequest request) {
         try {
             TransactionReceipt receipt = loanContractService.disburseLoan(
                     request.getLoanNo(),
@@ -720,12 +872,14 @@ public class BlockchainDomainController {
     @Operation(summary = "记录还款", description = "在区块链上记录贷款还款信息。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "记录成功，返回交易哈希"),
+        @ApiResponse(responseCode = "200", description = "记录成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "400", description = "参数错误"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @PostMapping("/loan/repay")
-    public Result<String> recordLoanRepayment(@RequestBody LoanRepayRequest request) {
+    public Result<String> recordLoanRepayment(
+            @Parameter(description = "贷款还款请求信息", required = true)
+            @RequestBody LoanRepayRequest request) {
         try {
             // 处理 null 的 interestAmount（向后兼容）
             BigInteger interestAmount = request.getInterestAmount() != null
@@ -748,12 +902,14 @@ public class BlockchainDomainController {
     @Operation(summary = "标记逾期", description = "在区块链上标记贷款逾期信息。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "标记成功，返回交易哈希"),
+        @ApiResponse(responseCode = "200", description = "标记成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "400", description = "参数错误"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @PostMapping("/loan/mark-overdue")
-    public Result<String> markOverdue(@RequestBody LoanMarkOverdueRequest request) {
+    public Result<String> markOverdue(
+            @Parameter(description = "贷款标记逾期请求信息", required = true)
+            @RequestBody LoanMarkOverdueRequest request) {
         try {
             TransactionReceipt receipt = loanContractService.markOverdue(
                     request.getLoanNo(),
@@ -771,12 +927,14 @@ public class BlockchainDomainController {
     @Operation(summary = "标记违约", description = "在区块链上标记贷款违约信息及处置方式。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "标记成功，返回交易哈希"),
+        @ApiResponse(responseCode = "200", description = "标记成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "400", description = "参数错误"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @PostMapping("/loan/mark-defaulted")
-    public Result<String> markDefaulted(@RequestBody LoanMarkDefaultedRequest request) {
+    public Result<String> markDefaulted(
+            @Parameter(description = "贷款标记违约请求信息", required = true)
+            @RequestBody LoanMarkDefaultedRequest request) {
         try {
             TransactionReceipt receipt = loanContractService.markDefaulted(
                     request.getLoanNo(),
@@ -793,12 +951,14 @@ public class BlockchainDomainController {
     @Operation(summary = "设置仓单-贷款关联", description = "在区块链上设置仓单与贷款的关联关系。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "设置成功，返回交易哈希"),
+        @ApiResponse(responseCode = "200", description = "设置成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "400", description = "参数错误"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @PostMapping("/loan/set-receipt")
-    public Result<String> setReceiptLoanId(@RequestBody LoanSetReceiptRequest request) {
+    public Result<String> setReceiptLoanId(
+            @Parameter(description = "贷款设置仓单请求信息", required = true)
+            @RequestBody LoanSetReceiptRequest request) {
         try {
             TransactionReceipt receipt = loanContractService.setReceiptLoanId(
                     request.getReceiptId(),
@@ -815,12 +975,14 @@ public class BlockchainDomainController {
     @Operation(summary = "更新仓单-贷款关联", description = "在区块链上更新仓单与贷款的关联关系。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "更新成功，返回交易哈希"),
+        @ApiResponse(responseCode = "200", description = "更新成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "400", description = "参数错误"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @PostMapping("/loan/update-receipt")
-    public Result<String> updateReceiptLoanId(@RequestBody LoanUpdateReceiptRequest request) {
+    public Result<String> updateReceiptLoanId(
+            @Parameter(description = "贷款更新仓单请求信息", required = true)
+            @RequestBody LoanUpdateReceiptRequest request) {
         try {
             TransactionReceipt receipt = loanContractService.updateReceiptLoanId(
                     request.getReceiptId(),
@@ -836,7 +998,7 @@ public class BlockchainDomainController {
     @Operation(summary = "获取贷款核心信息", description = "根据贷款编号查询区块链上的贷款核心信息。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "查询成功"),
+        @ApiResponse(responseCode = "200", description = "查询成功", content = @Content(schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @GetMapping("/loan/core/{loanNo}")
@@ -853,7 +1015,7 @@ public class BlockchainDomainController {
     @Operation(summary = "获取贷款状态", description = "根据贷款编号查询区块链上的贷款状态。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "查询成功"),
+        @ApiResponse(responseCode = "200", description = "查询成功", content = @Content(schema = @Schema(implementation = Integer.class))),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @GetMapping("/loan/status/{loanNo}")
@@ -870,7 +1032,7 @@ public class BlockchainDomainController {
     @Operation(summary = "获取仓单关联的贷款", description = "根据仓单ID查询关联的贷款编号。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "查询成功"),
+        @ApiResponse(responseCode = "200", description = "查询成功", content = @Content(schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @GetMapping("/loan/by-receipt/{receiptId}")
@@ -887,7 +1049,7 @@ public class BlockchainDomainController {
     @Operation(summary = "检查贷款是否存在", description = "检查指定贷款编号在区块链上是否存在。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "查询成功"),
+        @ApiResponse(responseCode = "200", description = "查询成功", content = @Content(schema = @Schema(implementation = Boolean.class))),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @GetMapping("/loan/exists/{loanNo}")
@@ -906,12 +1068,14 @@ public class BlockchainDomainController {
     @Operation(summary = "创建应收款", description = "在区块链上创建应收账款记录。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "创建成功，返回交易哈希"),
+        @ApiResponse(responseCode = "200", description = "创建成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "400", description = "参数错误"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @PostMapping("/receivable/create")
-    public Result<String> createReceivable(@RequestBody ReceivableCreateRequest request) {
+    public Result<String> createReceivable(
+            @Parameter(description = "应收账款创建请求信息", required = true)
+            @RequestBody ReceivableCreateRequest request) {
         try {
             TransactionReceipt receipt = receivableContractService.createReceivable(
                     request.getReceivableId(),
@@ -933,12 +1097,14 @@ public class BlockchainDomainController {
     @Operation(summary = "确认应收款", description = "在区块链上确认应收账款。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "确认成功，返回交易哈希"),
+        @ApiResponse(responseCode = "200", description = "确认成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "400", description = "参数错误"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @PostMapping("/receivable/confirm")
-    public Result<String> confirmReceivable(@RequestBody ReceivableConfirmRequest request) {
+    public Result<String> confirmReceivable(
+            @Parameter(description = "应收账款确认请求信息", required = true)
+            @RequestBody ReceivableConfirmRequest request) {
         try {
             TransactionReceipt receipt = receivableContractService.confirmReceivable(
                     request.getReceivableId(),
@@ -954,17 +1120,19 @@ public class BlockchainDomainController {
     @Operation(summary = "调整应收款", description = "在区块链上调整应收账款金额。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "调整成功，返回交易哈希"),
+        @ApiResponse(responseCode = "200", description = "调整成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "400", description = "参数错误"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @PostMapping("/receivable/adjust")
-    public Result<String> adjustReceivable(@RequestBody ReceivableAdjustRequest request) {
+    public Result<String> adjustReceivable(
+            @Parameter(description = "应收账款调整请求信息", required = true)
+            @RequestBody ReceivableAdjustRequest request) {
         try {
             TransactionReceipt receipt = receivableContractService.adjustReceivable(
                     request.getReceivableId(),
                     BigInteger.valueOf(request.getAdjustedAmount()),
-                    BigInteger.valueOf(request.getAdjustType())
+                    request.getReason()
             );
             return Result.success(receipt != null ? receipt.getTransactionHash() : null);
         } catch (Exception e) {
@@ -976,12 +1144,14 @@ public class BlockchainDomainController {
     @Operation(summary = "应收款融资", description = "在区块链上执行应收账款融资操作。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "融资成功，返回交易哈希"),
+        @ApiResponse(responseCode = "200", description = "融资成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "400", description = "参数错误"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @PostMapping("/receivable/finance")
-    public Result<String> financeReceivable(@RequestBody ReceivableFinanceRequest request) {
+    public Result<String> financeReceivable(
+            @Parameter(description = "应收账款融资请求信息", required = true)
+            @RequestBody ReceivableFinanceRequest request) {
         try {
             TransactionReceipt receipt = receivableContractService.financeReceivable(
                     request.getReceivableId(),
@@ -998,12 +1168,14 @@ public class BlockchainDomainController {
     @Operation(summary = "应收款结算", description = "在区块链上执行应收账款结算操作。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "结算成功，返回交易哈希"),
+        @ApiResponse(responseCode = "200", description = "结算成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "400", description = "参数错误"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @PostMapping("/receivable/settle")
-    public Result<String> settleReceivable(@RequestBody ReceivableSettleRequest request) {
+    public Result<String> settleReceivable(
+            @Parameter(description = "应收账款结清请求信息", required = true)
+            @RequestBody ReceivableSettleRequest request) {
         try {
             TransactionReceipt receipt = receivableContractService.settleReceivable(request.getReceivableId());
             return Result.success(receipt != null ? receipt.getTransactionHash() : null);
@@ -1013,10 +1185,34 @@ public class BlockchainDomainController {
         }
     }
 
+    @Operation(summary = "更新应收款余额", description = "扣减应收款余额，用于还款操作。")
+    @SecurityRequirement(name = "bearerAuth")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "更新成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
+        @ApiResponse(responseCode = "400", description = "参数错误"),
+        @ApiResponse(responseCode = "500", description = "服务端异常")
+    })
+    @PostMapping("/receivable/update-balance")
+    public Result<String> updateBalance(
+            @Parameter(description = "应收账款余额更新请求信息", required = true)
+            @RequestBody UpdateBalanceRequest request) {
+        try {
+            TransactionReceipt receipt = receivableContractService.updateBalance(
+                    request.getReceivableId(),
+                    BigInteger.valueOf(request.getAmount()),
+                    request.getIsFull()
+            );
+            return Result.success(receipt != null ? receipt.getTransactionHash() : null);
+        } catch (Exception e) {
+            logger.error("应收款余额更新失败", e);
+            return Result.error(500, "操作失败: " + e.getMessage());
+        }
+    }
+
     @Operation(summary = "获取应收款状态", description = "根据应收款ID查询区块链上的应收账款状态。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "查询成功"),
+        @ApiResponse(responseCode = "200", description = "查询成功", content = @Content(schema = @Schema(implementation = Integer.class))),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @GetMapping("/receivable/status/{receivableId}")
@@ -1030,20 +1226,39 @@ public class BlockchainDomainController {
         }
     }
 
+    @Operation(summary = "获取应收款链上余额", description = "查询区块链上应收款的实际未还余额")
+    @SecurityRequirement(name = "bearerAuth")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "查询成功", content = @Content(schema = @Schema(implementation = Long.class))),
+        @ApiResponse(responseCode = "500", description = "服务端异常")
+    })
+    @GetMapping("/receivable/balance/{receivableId}")
+    public Result<Long> getBalanceUnpaid(@PathVariable String receivableId) {
+        try {
+            BigInteger balance = receivableContractService.getBalanceUnpaid(receivableId);
+            return Result.success(balance != null ? balance.longValue() : 0L);
+        } catch (Exception e) {
+            logger.error("获取应收款余额失败", e);
+            return Result.error(500, "操作失败: " + e.getMessage());
+        }
+    }
+
     @Operation(summary = "记录还款", description = "在区块链上记录应收账款还款信息。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "记录成功，返回交易哈希"),
+        @ApiResponse(responseCode = "200", description = "记录成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "400", description = "参数错误"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @PostMapping("/receivable/record-repayment")
-    public Result<String> recordReceivableRepayment(@RequestBody ReceivableRecordRepaymentRequest request) {
+    public Result<String> recordReceivableRepayment(
+            @Parameter(description = "应收账款还款记录请求信息", required = true)
+            @RequestBody ReceivableRecordRepaymentRequest request) {
         try {
             TransactionReceipt receipt = receivableContractService.recordRepayment(
                     request.getReceivableId(),
                     BigInteger.valueOf(request.getRepaymentAmount()),
-                    BigInteger.valueOf(request.getRepaymentType())
+                    request.getPaymentMethod()
             );
             return Result.success(receipt != null ? receipt.getTransactionHash() : null);
         } catch (Exception e) {
@@ -1055,12 +1270,14 @@ public class BlockchainDomainController {
     @Operation(summary = "记录全额还款", description = "在区块链上记录应收账款全额还款。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "记录成功，返回交易哈希"),
+        @ApiResponse(responseCode = "200", description = "记录成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "400", description = "参数错误"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @PostMapping("/receivable/record-full-repayment")
-    public Result<String> recordFullRepayment(@RequestBody ReceivableFullRepaymentRequest request) {
+    public Result<String> recordFullRepayment(
+            @Parameter(description = "应收账款全额还款请求信息", required = true)
+            @RequestBody ReceivableFullRepaymentRequest request) {
         try {
             TransactionReceipt receipt = receivableContractService.recordFullRepayment(request.getReceivableId());
             return Result.success(receipt != null ? receipt.getTransactionHash() : null);
@@ -1073,22 +1290,51 @@ public class BlockchainDomainController {
     @Operation(summary = "以物抵债", description = "在区块链上执行以物抵债操作。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "操作成功，返回交易哈希"),
+        @ApiResponse(responseCode = "200", description = "操作成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "400", description = "参数错误"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @PostMapping("/receivable/offset-debt")
-    public Result<String> offsetDebtWithCollateral(@RequestBody OffsetDebtRequest request) {
+    public Result<String> offsetDebtWithCollateral(
+            @Parameter(description = "债务抵消请求信息", required = true)
+            @RequestBody OffsetDebtRequest request) {
         try {
             TransactionReceipt receipt = receivableContractService.offsetDebtWithCollateral(
                     request.getReceivableId(),
                     request.getReceiptId(),
                     BigInteger.valueOf(request.getOffsetAmount()),
-                    hexStringToBytes(request.getSignatureHash())
+                    request.getSignatureHash() != null && !request.getSignatureHash().isEmpty()
+                        ? hexStringToBytes(request.getSignatureHash())
+                        : new byte[32]
             );
             return Result.success(receipt != null ? receipt.getTransactionHash() : null);
         } catch (Exception e) {
             logger.error("以物抵债失败", e);
+            return Result.error(500, "操作失败: " + e.getMessage());
+        }
+    }
+
+    @Operation(summary = "仓单抵债", description = "用仓单作为抵押物抵消应收款债务。仓单必须处于已质押(Pledged)状态。")
+    @SecurityRequirement(name = "bearerAuth")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "抵债成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
+        @ApiResponse(responseCode = "400", description = "参数错误或仓单未质押"),
+        @ApiResponse(responseCode = "500", description = "服务端异常")
+    })
+    @PostMapping("/receivable/offset-debt-with-receipt")
+    public Result<String> offsetDebtWithWarehouseReceipt(
+            @Parameter(description = "仓单抵债请求信息", required = true)
+            @RequestBody OffsetDebtWithReceiptRequest request) {
+        try {
+            TransactionReceipt receipt = receivableContractService.offsetDebtWithWarehouseReceipt(
+                    request.getReceivableId(),
+                    request.getReceiptId(),
+                    BigInteger.valueOf(request.getOffsetAmount()),
+                    request.getReason() != null ? request.getReason() : "warehouse_offset"
+            );
+            return Result.success(receipt != null ? receipt.getTransactionHash() : null);
+        } catch (Exception e) {
+            logger.error("仓单抵债失败", e);
             return Result.error(500, "操作失败: " + e.getMessage());
         }
     }
@@ -1111,6 +1357,9 @@ public class BlockchainDomainController {
             java.math.BigInteger bigInt = new java.math.BigInteger(entityId);
             byte[] valueBytes = bigInt.toByteArray();
             byte[] result = new byte[32];
+            // 【诊断】调试日志
+            logger.info("【entityIdToBytes32诊断】input='{}', valueBytes长度={}, valueBytes[0]={}, bigInt={}",
+                entityId, valueBytes.length, valueBytes[0], bigInt);
             // BigInteger.toByteArray() returns sign+magnitude
             // If the first byte is 0, it means the actual data starts from index 1
             int start = (valueBytes[0] == 0) ? 1 : 0;
@@ -1119,8 +1368,15 @@ public class BlockchainDomainController {
             if (len > 0) {
                 System.arraycopy(valueBytes, start, result, 32 - len, len);
             }
+            // 【诊断】调试日志
+            logger.info("【entityIdToBytes32诊断】start={}, len={}, result首字节={}, result末字节={}",
+                start, len, result[0], result[31]);
             return result;
         } catch (NumberFormatException e) {
+            // entityId 不是有效数字，再次检查是否为空（防止空字符串）
+            if (entityId.trim().isEmpty()) {
+                throw new IllegalArgumentException("entity ID 不能为空");
+            }
             // If not a valid decimal number, treat as hex string
             return hexStringToBytes(entityId);
         }
@@ -1132,20 +1388,43 @@ public class BlockchainDomainController {
             // 修复：抛出异常而非静默返回全零
             throw new IllegalArgumentException("hex 字符串不能为空");
         }
-        if (hex.startsWith("0x")) {
-            hex = hex.substring(2);
+
+        // 检查是否是有效的十六进制字符串
+        boolean isValidHex = hex.startsWith("0x")
+            ? hex.substring(2).chars().allMatch(c -> Character.isDigit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'))
+            : hex.chars().allMatch(c -> Character.isDigit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'));
+
+        byte[] data;
+        if (isValidHex && (hex.startsWith("0x") ? hex.length() > 2 : hex.length() > 0)) {
+            // 作为十六进制字符串解析
+            if (hex.startsWith("0x")) {
+                hex = hex.substring(2);
+            }
+            int len = hex.length();
+            if (len % 2 != 0) {
+                // 奇数长度的 hex 字符串，说明格式错误，抛出异常
+                throw new IllegalArgumentException("hex 字符串长度必须为偶数");
+            }
+            data = new byte[len / 2];
+            for (int i = 0; i < len; i += 2) {
+                data[i / 2] = (byte) ((Character.digit(hex.charAt(i), 16) << 4)
+                        + Character.digit(hex.charAt(i + 1), 16));
+            }
+        } else {
+            // 非十六进制字符串（如中文货物名称），直接用 UTF-8 编码
+            data = hex.getBytes(java.nio.charset.StandardCharsets.UTF_8);
         }
-        int len = hex.length();
-        byte[] data = new byte[len / 2];
-        for (int i = 0; i < len; i += 2) {
-            data[i / 2] = (byte) ((Character.digit(hex.charAt(i), 16) << 4)
-                    + Character.digit(hex.charAt(i + 1), 16));
-        }
+
         // FISCO SDK v3 Bytes32 要求恰好 32 字节，左侧补 0 至 32 字节
         if (data.length < 32) {
             byte[] padded = new byte[32];
             System.arraycopy(data, 0, padded, 32 - data.length, data.length);
             return padded;
+        } else if (data.length > 32) {
+            // 超过 32 字节，截断前面的数据（保留右侧 32 字节）
+            byte[] truncated = new byte[32];
+            System.arraycopy(data, data.length - 32, truncated, 0, 32);
+            return truncated;
         }
         return data;
     }
@@ -1711,15 +1990,15 @@ public class BlockchainDomainController {
         private String receivableId;
         @io.swagger.v3.oas.annotations.media.Schema(description = "调整后金额", example = "900000")
         private Long adjustedAmount;
-        @io.swagger.v3.oas.annotations.media.Schema(description = "调整类型 0-增加 1-减少", example = "0")
-        private Integer adjustType;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "调整原因", example = "adjust")
+        private String reason;
 
         public String getReceivableId() { return receivableId; }
         public void setReceivableId(String v) { this.receivableId = v; }
         public Long getAdjustedAmount() { return adjustedAmount; }
         public void setAdjustedAmount(Long v) { this.adjustedAmount = v; }
-        public Integer getAdjustType() { return adjustType; }
-        public void setAdjustType(Integer v) { this.adjustType = v; }
+        public String getReason() { return reason; }
+        public void setReason(String v) { this.reason = v; }
     }
 
     @io.swagger.v3.oas.annotations.media.Schema(description = "应收账款融资请求")
@@ -1754,15 +2033,15 @@ public class BlockchainDomainController {
         private String receivableId;
         @io.swagger.v3.oas.annotations.media.Schema(description = "还款金额", example = "100000")
         private Long repaymentAmount;
-        @io.swagger.v3.oas.annotations.media.Schema(description = "还款类型 0-部分 1-全额", example = "0")
-        private Integer repaymentType;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "还款方式", example = "CASH")
+        private String paymentMethod;
 
         public String getReceivableId() { return receivableId; }
         public void setReceivableId(String v) { this.receivableId = v; }
         public Long getRepaymentAmount() { return repaymentAmount; }
         public void setRepaymentAmount(Long v) { this.repaymentAmount = v; }
-        public Integer getRepaymentType() { return repaymentType; }
-        public void setRepaymentType(Integer v) { this.repaymentType = v; }
+        public String getPaymentMethod() { return paymentMethod; }
+        public void setPaymentMethod(String v) { this.paymentMethod = v; }
     }
 
     @io.swagger.v3.oas.annotations.media.Schema(description = "应收账款全额还款请求")
@@ -1793,5 +2072,26 @@ public class BlockchainDomainController {
         public void setOffsetAmount(Long v) { this.offsetAmount = v; }
         public String getSignatureHash() { return signatureHash; }
         public void setSignatureHash(String v) { this.signatureHash = v; }
+    }
+
+    @io.swagger.v3.oas.annotations.media.Schema(description = "仓单抵债请求")
+    public static class OffsetDebtWithReceiptRequest {
+        @io.swagger.v3.oas.annotations.media.Schema(description = "源应收款编号", example = "AR202603270001")
+        private String receivableId;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "仓单编号", example = "WH202603270001")
+        private String receiptId;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "抵消金额", example = "500000")
+        private Long offsetAmount;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "抵债原因", example = "warehouse_offset")
+        private String reason;
+
+        public String getReceivableId() { return receivableId; }
+        public void setReceivableId(String v) { this.receivableId = v; }
+        public String getReceiptId() { return receiptId; }
+        public void setReceiptId(String v) { this.receiptId = v; }
+        public Long getOffsetAmount() { return offsetAmount; }
+        public void setOffsetAmount(Long v) { this.offsetAmount = v; }
+        public String getReason() { return reason; }
+        public void setReason(String v) { this.reason = v; }
     }
 }

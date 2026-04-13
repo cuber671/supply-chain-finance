@@ -18,26 +18,31 @@ import lombok.Data;
 @TableName("blockchain_transaction_record")
 public class BlockchainTransactionRecord {
 
-    @TableId(type = IdType.AUTO)
+    @TableId(value = "record_id", type = IdType.AUTO)
     private Long id;
 
     private String txHash;
 
-    private String jti;
+    private String contractName;
 
+    private String methodName;
+
+    private String fromAddress;
+
+    private String toAddress;
+
+    private String inputData;
+
+    private Long blockNumber;
+
+    private Integer status;
+
+    private LocalDateTime createTime;
+
+    // 新增字段：关联用户/企业/JTI
     private Long userId;
 
     private Long entId;
 
-    private String blockchainAddress;
-
-    private String operation;
-
-    private String contractName;
-
-    private String chainId;
-
-    private String groupId;
-
-    private LocalDateTime createTime;
+    private String jti;
 }

@@ -46,6 +46,7 @@ com/fisco/app/dto/RegisterRequestDTO.class
 com/fisco/app/feign/BlockchainFeignClient$LoanCancelRequest.class
 com/fisco/app/feign/BlockchainFeignClient$LoanSetReceiptRequest.class
 com/fisco/app/enums/InvitationTypeEnum.class
+com/fisco/app/feign/BlockchainFeignClient$OffsetDebtWithReceiptRequest.class
 com/fisco/app/dto/TokenResponseDTO$SnakeToCamelDeserializer.class
 com/fisco/app/enums/UserStatusEnum.class
 com/fisco/app/util/JwtUtil.class
@@ -64,6 +65,7 @@ com/fisco/app/enums/LoanStatus.class
 com/fisco/app/feign/AuthFeignClient.class
 com/fisco/app/feign/BlockchainFeignClient$LogisticsArriveAddRequest.class
 com/fisco/app/feign/BlockchainFeignClient$LoanMarkOverdueRequest.class
+com/fisco/app/feign/BlockchainFeignClient$UpdateBalanceRequest.class
 com/fisco/app/feign/BlockchainFeignClient$LoanCreateRequest.class
 com/fisco/app/feign/BlockchainFeignClient$ReceivableFinanceRequest.class
 com/fisco/app/util/Result.class

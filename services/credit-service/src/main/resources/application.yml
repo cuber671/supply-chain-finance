@@ -39,6 +39,11 @@ contract:
   credit-core: ${CONTRACT_CREDIT_CORE:0x0000000000000000000000000000000000000000}
   credit-score: ${CONTRACT_CREDIT_SCORE:0x0000000000000000000000000000000000000001}
 
+# MyBatis Plus
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+
 # JWT配置
 jwt:
   secret: ${JWT_SECRET:default-secret-key-for-dev-only}

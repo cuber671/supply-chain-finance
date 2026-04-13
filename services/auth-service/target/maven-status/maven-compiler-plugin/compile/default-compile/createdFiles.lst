@@ -11,6 +11,7 @@ com/fisco/app/dto/LoginRequestDTO.class
 com/fisco/app/mapper/UserMapper.class
 com/fisco/app/feign/EnterpriseFeignClientFallback.class
 com/fisco/app/AuthServiceApplication.class
+com/fisco/app/controller/GlobalExceptionHandler.class
 com/fisco/app/controller/HealthController.class
 com/fisco/app/config/SecurityConfig.class
 com/fisco/app/feign/EnterpriseFeignClient.class

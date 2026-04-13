@@ -22,7 +22,7 @@ import lombok.Data;
 @TableName("t_logistics_track")
 public class LogisticsTrack {
 
-    @TableId(type = IdType.ASSIGN_ID)
+    @TableId(type = IdType.AUTO)
     private Long id;
 
     @TableField("voucher_no")

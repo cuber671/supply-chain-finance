@@ -51,24 +51,6 @@ interface IWarehouseReceiptCore {
      */
     function mergeReceipts(MergeInput calldata input) external returns (bool success);
 
-    // ==================== 状态操作 ====================
-
-    /**
-     * @dev 更新仓单所有者
-     * @param receiptId 仓单ID
-     * @param newOwnerHash 新所有者哈希
-     * @return success 是否成功
-     */
-    function updateOwner(string calldata receiptId, bytes32 newOwnerHash) external returns (bool success);
-
-    /**
-     * @dev 更新仓单状态
-     * @param receiptId 仓单ID
-     * @param newStatus 新状态
-     * @return success 是否成功
-     */
-    function updateReceiptStatus(string calldata receiptId, uint8 newStatus) external returns (bool success);
-
     // ==================== 查询操作 ====================
 
     /**
@@ -98,4 +80,39 @@ interface IWarehouseReceiptCore {
      * @return ownerHash 仓单所有者哈希
      */
     function getOwnerHash(string calldata receiptId) external view returns (bytes32 ownerHash);
+
+    /**
+     * @dev 获取仓单状态
+     * @param receiptId 仓单ID
+     * @return status 仓单状态 (0=None, 1=InStorage, 6=Pledged)
+     */
+    function getReceiptStatus(string calldata receiptId) external view returns (uint8 status);
+
+    /**
+     * @dev 检查仓单是否已质押（Pledged）
+     * @param receiptId 仓单ID
+     * @return isPledged 是否已质押
+     */
+    function isPledgedByReceiptId(string calldata receiptId) external view returns (bool isPledged);
+
+    /**
+     * @dev 获取仓单详情
+     * @param receiptId 仓单ID
+     * @return _receiptId 仓单ID
+     * @return ownerHash 所有者哈希
+     * @return warehouseHash 仓库哈希
+     * @return weight 重量
+     * @return unit 单位
+     * @return quantity 数量
+     * @return status 状态
+     */
+    function getReceipt(string calldata receiptId) external view returns (
+        string memory _receiptId,
+        bytes32 ownerHash,
+        bytes32 warehouseHash,
+        uint256 weight,
+        string memory unit,
+        uint256 quantity,
+        uint8 status
+    );
 }

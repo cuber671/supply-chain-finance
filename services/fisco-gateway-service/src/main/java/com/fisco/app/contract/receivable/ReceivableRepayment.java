@@ -69,6 +69,8 @@ public class ReceivableRepayment extends Contract {
 
     public static final String FUNC_OFFSETDEBTWITHCOLLATERAL = "offsetDebtWithCollateral";
 
+    public static final String FUNC_OFFSETDEBTWITHWAREHOUSERECEIPT = "offsetDebtWithWarehouseReceipt";
+
     public static final String FUNC_RECEIVABLECORE = "receivableCore";
 
     public static final String FUNC_RECORDFULLREPAYMENT = "recordFullRepayment";
@@ -80,6 +82,10 @@ public class ReceivableRepayment extends Contract {
     public static final String FUNC_SETADMIN = "setAdmin";
 
     public static final String FUNC_SETRECEIVABLECORE = "setReceivableCore";
+
+    public static final String FUNC_SETWAREHOUSERECEIPTCORE = "setWarehouseReceiptCore";
+
+    public static final String FUNC_WAREHOUSERECEIPTCORE = "warehouseReceiptCore";
 
     public static final String FUNC_EXISTS = "exists";
 
@@ -591,6 +597,61 @@ public class ReceivableRepayment extends Contract {
                 );
     }
 
+    /**
+     * 仓单抵债
+     * @param sourceReceivableId 源应收款ID（被减少）
+     * @param receiptId 仓单ID（抵押物）
+     * @param offsetAmount 抵消金额
+     * @param reason 抵消原因
+     * @return TransactionReceipt Get more transaction info (e.g. txhash, block) from TransactionReceipt
+     */
+    public TransactionReceipt offsetDebtWithWarehouseReceipt(String sourceReceivableId,
+            String receiptId, BigInteger offsetAmount, String reason) {
+        @SuppressWarnings("rawtypes")
+        final Function function = new Function(
+                FUNC_OFFSETDEBTWITHWAREHOUSERECEIPT,
+                Arrays.<Type>asList(new org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String(sourceReceivableId),
+                new org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String(receiptId),
+                new org.fisco.bcos.sdk.v3.codec.datatypes.generated.Uint256(offsetAmount),
+                new org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String(reason)),
+                Collections.<TypeReference<?>>emptyList(), 0);
+        return executeTransaction(function);
+    }
+
+    /**
+     * 仓单抵债 (async)
+     * @param sourceReceivableId 源应收款ID（被减少）
+     * @param receiptId 仓单ID（抵押物）
+     * @param offsetAmount 抵消金额
+     * @param reason 抵消原因
+     * @param callback 回调函数
+     * @return txHash Transaction hash
+     */
+    public String offsetDebtWithWarehouseReceipt(String sourceReceivableId, String receiptId,
+            BigInteger offsetAmount, String reason, TransactionCallback callback) {
+        @SuppressWarnings("rawtypes")
+        final Function function = new Function(
+                FUNC_OFFSETDEBTWITHWAREHOUSERECEIPT,
+                Arrays.<Type>asList(new org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String(sourceReceivableId),
+                new org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String(receiptId),
+                new org.fisco.bcos.sdk.v3.codec.datatypes.generated.Uint256(offsetAmount),
+                new org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String(reason)),
+                Collections.<TypeReference<?>>emptyList(), 0);
+        return asyncExecuteTransaction(function, callback);
+    }
+
+    public Tuple1<Boolean> getOffsetDebtWithWarehouseReceiptOutput(
+            TransactionReceipt transactionReceipt) {
+        String data = transactionReceipt.getOutput();
+        @SuppressWarnings("rawtypes")
+        final Function function = new Function(FUNC_OFFSETDEBTWITHWAREHOUSERECEIPT,
+                Arrays.<Type>asList(),
+                Arrays.<TypeReference<?>>asList(new TypeReference<Bool>() {}));
+        @SuppressWarnings("rawtypes")
+        List<Type> results = this.functionReturnDecoder.decode(data, function.getOutputParameters());
+        return new Tuple1<Boolean>((Boolean) results.get(0).getValue());
+    }
+
     public String receivableCore() throws ContractException {
         @SuppressWarnings("rawtypes")
         final Function function = new Function(FUNC_RECEIVABLECORE, 
@@ -951,6 +1012,80 @@ public class ReceivableRepayment extends Contract {
 
                 (Boolean) results.get(0).getValue()
                 );
+    }
+
+    /**
+     * 获取仓单核心合约地址
+     * @return WarehouseReceiptCore 地址
+     */
+    public String warehouseReceiptCore() throws ContractException {
+        @SuppressWarnings("rawtypes")
+        final Function function = new Function(FUNC_WAREHOUSERECEIPTCORE,
+                Arrays.<Type>asList(),
+                Arrays.<TypeReference<?>>asList(new TypeReference<Address>() {}));
+        return executeCallWithSingleValueReturn(function, String.class);
+    }
+
+    public Function getMethodWarehouseReceiptCoreRawFunction() throws ContractException {
+        @SuppressWarnings("rawtypes")
+        final Function function = new Function(FUNC_WAREHOUSERECEIPTCORE,
+                Arrays.<Type>asList(),
+                Arrays.<TypeReference<?>>asList(new TypeReference<Address>() {}));
+        return function;
+    }
+
+    /**
+     * 设置仓单核心合约地址
+     * @param newWarehouseReceiptCore 新仓单核心合约地址
+     * @return TransactionReceipt
+     */
+    public TransactionReceipt setWarehouseReceiptCore(String newWarehouseReceiptCore) {
+        @SuppressWarnings("rawtypes")
+        final Function function = new Function(
+                FUNC_SETWAREHOUSERECEIPTCORE,
+                Arrays.<Type>asList(new org.fisco.bcos.sdk.v3.codec.datatypes.Address(newWarehouseReceiptCore)),
+                Collections.<TypeReference<?>>emptyList(), 0);
+        return executeTransaction(function);
+    }
+
+    public String getSignedTransactionForSetWarehouseReceiptCore(String newWarehouseReceiptCore) {
+        @SuppressWarnings("rawtypes")
+        final Function function = new Function(
+                FUNC_SETWAREHOUSERECEIPTCORE,
+                Arrays.<Type>asList(new org.fisco.bcos.sdk.v3.codec.datatypes.Address(newWarehouseReceiptCore)),
+                Collections.<TypeReference<?>>emptyList(), 0);
+        return createSignedTransaction(function);
+    }
+
+    public String setWarehouseReceiptCore(String newWarehouseReceiptCore, TransactionCallback callback) {
+        @SuppressWarnings("rawtypes")
+        final Function function = new Function(
+                FUNC_SETWAREHOUSERECEIPTCORE,
+                Arrays.<Type>asList(new org.fisco.bcos.sdk.v3.codec.datatypes.Address(newWarehouseReceiptCore)),
+                Collections.<TypeReference<?>>emptyList(), 0);
+        return asyncExecuteTransaction(function, callback);
+    }
+
+    public Tuple1<String> getSetWarehouseReceiptCoreInput(TransactionReceipt transactionReceipt) {
+        String data = transactionReceipt.getInput().substring(10);
+        @SuppressWarnings("rawtypes")
+        final Function function = new Function(FUNC_SETWAREHOUSERECEIPTCORE,
+                Arrays.<Type>asList(),
+                Arrays.<TypeReference<?>>asList(new TypeReference<Address>() {}));
+        @SuppressWarnings("rawtypes")
+        List<Type> results = this.functionReturnDecoder.decode(data, function.getOutputParameters());
+        return new Tuple1<String>((String) results.get(0).getValue());
+    }
+
+    public Tuple1<Boolean> getSetWarehouseReceiptCoreOutput(TransactionReceipt transactionReceipt) {
+        String data = transactionReceipt.getOutput();
+        @SuppressWarnings("rawtypes")
+        final Function function = new Function(FUNC_SETWAREHOUSERECEIPTCORE,
+                Arrays.<Type>asList(),
+                Arrays.<TypeReference<?>>asList(new TypeReference<Bool>() {}));
+        @SuppressWarnings("rawtypes")
+        List<Type> results = this.functionReturnDecoder.decode(data, function.getOutputParameters());
+        return new Tuple1<Boolean>((Boolean) results.get(0).getValue());
     }
 
     public Boolean exists(String receivableId) throws ContractException {

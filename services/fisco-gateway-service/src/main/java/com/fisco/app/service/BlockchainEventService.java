@@ -23,13 +23,6 @@ import java.util.Map;
  * - 需要配置事件过滤器（fromBlock, toBlock, addresses, events）
  * - 事件处理应幂等，防止重复处理
  *
- * TODO: 实现完整的事件监听机制
- * 1. 创建事件订阅配置类
- * 2. 实现事件解析器（将原始事件转换为业务对象）
- * 3. 实现事件处理器（处理业务逻辑）
- * 4. 配置事件重试机制（网络异常时重试）
- * 5. 添加事件审计日志
- *
  * @author FISCO BCOS Supply Chain Finance Team
  */
 public interface BlockchainEventService {

@@ -79,6 +79,7 @@ com/fisco/app/contract/warehouse/WarehouseReceiptHistory$55.class
 com/fisco/app/contract/receivable/ReceivableRepayment$1.class
 com/fisco/app/controller/BlockchainDomainController$ReceivableSettleRequest.class
 com/fisco/app/contract/warehouse/WarehouseReceiptCore$30.class
+com/fisco/app/contract/receivable/ReceivableRepayment$83.class
 com/fisco/app/contract/credit/CreditLimitScore$14.class
 com/fisco/app/contract/loan/LoanRepayment$46.class
 com/fisco/app/contract/warehouse/WarehouseReceiptCore$48.class
@@ -116,6 +117,7 @@ com/fisco/app/contract/loan/LoanCore$145.class
 com/fisco/app/contract/loan/LoanCore$153.class
 com/fisco/app/contract/warehouse/WarehouseReceiptOps$EndorsementInput.class
 com/fisco/app/contract/logistics/LogisticsOps$43.class
+com/fisco/app/contract/logistics/LogisticsCore$50.class
 com/fisco/app/contract/warehouse/WarehouseReceiptHistory$HistoryRecordedEventResponse.class
 com/fisco/app/contract/loan/LoanRepayment$33.class
 com/fisco/app/contract/logistics/LogisticsCore$25.class
@@ -135,6 +137,7 @@ com/fisco/app/contract/credit/CreditLimitCore$12.class
 com/fisco/app/contract/loan/LoanRepayment$54.class
 com/fisco/app/contract/logistics/LogisticsOps$6.class
 com/fisco/app/contract/loan/LoanRepayment$84.class
+com/fisco/app/contract/logistics/LogisticsCore$46.class
 com/fisco/app/contract/credit/CreditLimitCore$33.class
 com/fisco/app/contract/enterprise/EnterpriseRegistryV2$45.class
 com/fisco/app/contract/loan/LoanCore$87.class
@@ -177,6 +180,7 @@ com/fisco/app/contract/bill/BillCore$29.class
 com/fisco/app/contract/loan/LoanCore$123.class
 com/fisco/app/contract/logistics/LogisticsOps$65.class
 com/fisco/app/contract/warehouse/WarehouseReceiptOps$SplitInput.class
+com/fisco/app/contract/logistics/LogisticsCore$47.class
 com/fisco/app/contract/warehouse/WarehouseReceiptCore$73.class
 com/fisco/app/contract/receivable/ReceivableCore$35.class
 com/fisco/app/contract/loan/LoanCore$79.class
@@ -186,6 +190,7 @@ com/fisco/app/contract/logistics/LogisticsCore$LogisticsDelegateCreatedEventResp
 com/fisco/app/contract/logistics/LogisticsOps$52.class
 com/fisco/app/contract/bill/BillCore$10.class
 com/fisco/app/contract/warehouse/WarehouseReceiptHistory$12.class
+com/fisco/app/contract/logistics/LogisticsCore$41.class
 com/fisco/app/contract/loan/LoanRepayment$42.class
 com/fisco/app/contract/loan/LoanCore$157.class
 com/fisco/app/contract/credit/CreditLimitScore$10.class
@@ -216,6 +221,7 @@ com/fisco/app/contract/credit/CreditLimitScore$7.class
 com/fisco/app/contract/credit/CreditLimitScore$36.class
 com/fisco/app/contract/warehouse/WarehouseReceiptCore$ReceiptInput.class
 com/fisco/app/contract/loan/WarehouseReceiptCoreExt$49.class
+com/fisco/app/contract/logistics/LogisticsCore$34.class
 com/fisco/app/contract/warehouse/WarehouseReceiptHistory$25.class
 com/fisco/app/contract/receivable/ReceivableRepayment$25.class
 com/fisco/app/contract/enterprise/EnterpriseRegistryV2$52.class
@@ -247,6 +253,8 @@ com/fisco/app/contract/loan/LoanCore$14.class
 com/fisco/app/contract/warehouse/WarehouseReceiptOps$70.class
 com/fisco/app/contract/warehouse/WarehouseReceiptCore$77.class
 com/fisco/app/contract/loan/LoanRepayment$100.class
+com/fisco/app/contract/logistics/LogisticsCore$33.class
+com/fisco/app/contract/receivable/ReceivableRepayment$84.class
 com/fisco/app/contract/receivable/ReceivableCore$89.class
 com/fisco/app/contract/enterprise/EnterpriseRegistryV2$49.class
 com/fisco/app/contract/bill/BillCore$5.class
@@ -262,6 +270,7 @@ com/fisco/app/contract/bill/BillOps$26.class
 com/fisco/app/contract/bill/BillCore$49.class
 com/fisco/app/contract/warehouse/WarehouseReceiptHistory$20.class
 com/fisco/app/contract/enterprise/EnterpriseRegistryV2$65.class
+com/fisco/app/contract/logistics/LogisticsCore$39.class
 com/fisco/app/contract/loan/WarehouseReceiptCoreExt$64.class
 com/fisco/app/contract/credit/CreditLimitCore$37.class
 com/fisco/app/contract/loan/LoanCore$103.class
@@ -287,6 +296,7 @@ com/fisco/app/contract/warehouse/WarehouseReceiptHistory$26.class
 com/fisco/app/contract/logistics/LogisticsOps$49.class
 com/fisco/app/controller/BlockchainDomainController$LoanCreateRequest.class
 com/fisco/app/contract/credit/CreditLimitScore$8.class
+com/fisco/app/contract/logistics/LogisticsCore$38.class
 com/fisco/app/contract/loan/LoanRepayment$93.class
 com/fisco/app/contract/logistics/LogisticsOps$51.class
 com/fisco/app/contract/warehouse/WarehouseReceiptOps$54.class
@@ -309,6 +319,7 @@ com/fisco/app/contract/credit/CreditLimitScore$44.class
 com/fisco/app/contract/loan/LoanRepayment$39.class
 com/fisco/app/contract/loan/WarehouseReceiptCoreExt$PledgeInfoUpdatedEventResponse.class
 com/fisco/app/contract/bill/BillOps$30.class
+com/fisco/app/contract/logistics/LogisticsCore$42.class
 com/fisco/app/contract/receivable/ReceivableRepayment$6.class
 com/fisco/app/contract/receivable/ReceivableCore$ReceivableAdjustedEventResponse.class
 com/fisco/app/contract/loan/LoanRepayment$41.class
@@ -382,6 +393,7 @@ com/fisco/app/contract/warehouse/WarehouseReceiptOps$EndorsementConfirmedEventRe
 com/fisco/app/contract/receivable/ReceivableCore$78.class
 com/fisco/app/contract/loan/LoanCore$114.class
 com/fisco/app/contract/warehouse/WarehouseReceiptCore$ReceiptIssuedEventResponse.class
+com/fisco/app/contract/logistics/LogisticsCore$51.class
 com/fisco/app/contract/warehouse/WarehouseReceiptCore$15.class
 com/fisco/app/contract/loan/LoanCore$154.class
 com/fisco/app/contract/receivable/ReceivableRepayment$DebtOffsetEventResponse.class
@@ -413,6 +425,7 @@ com/fisco/app/contract/credit/CreditLimitCore$47.class
 com/fisco/app/contract/bill/BillCore$33.class
 com/fisco/app/controller/BlockchainDomainController$LogisticsAssignCarrierRequest.class
 com/fisco/app/contract/enterprise/EnterpriseRegistryV2$67.class
+com/fisco/app/contract/logistics/LogisticsCore$37.class
 com/fisco/app/contract/warehouse/WarehouseReceiptCore$63.class
 com/fisco/app/contract/loan/WarehouseReceiptCoreExt$26.class
 com/fisco/app/contract/credit/CreditLimitScore$39.class
@@ -433,6 +446,7 @@ com/fisco/app/contract/bill/BillCore$65.class
 com/fisco/app/contract/enterprise/EnterpriseRegistryV2$AdminSetEventResponse.class
 com/fisco/app/contract/enterprise/EnterpriseRegistryV2$81.class
 com/fisco/app/contract/receivable/ReceivableRepayment$61.class
+com/fisco/app/contract/logistics/LogisticsCore$56.class
 com/fisco/app/contract/loan/LoanRepayment$24.class
 com/fisco/app/contract/bill/BillOps$25.class
 com/fisco/app/contract/logistics/LogisticsOps$BatchStatusUpdatedEventResponse.class
@@ -535,6 +549,7 @@ com/fisco/app/contract/warehouse/WarehouseReceiptOps$EndorsementLaunchedEventRes
 com/fisco/app/contract/warehouse/WarehouseReceiptOps$20.class
 com/fisco/app/contract/bill/BillCore$12.class
 com/fisco/app/contract/receivable/ReceivableCore$90.class
+com/fisco/app/contract/logistics/LogisticsCore$53.class
 com/fisco/app/contract/warehouse/WarehouseReceiptCore$123.class
 com/fisco/app/contract/warehouse/WarehouseReceiptCore$97.class
 com/fisco/app/contract/bill/BillOps$2.class
@@ -560,6 +575,7 @@ com/fisco/app/contract/credit/CreditLimitScore$11.class
 com/fisco/app/contract/loan/WarehouseReceiptCoreExt$21.class
 com/fisco/app/service/impl/WarehouseReceiptContractService.class
 com/fisco/app/contract/bill/BillCore$30.class
+com/fisco/app/contract/logistics/LogisticsCore$54.class
 com/fisco/app/contract/loan/WarehouseReceiptCoreExt$29.class
 com/fisco/app/contract/bill/BillCore$83.class
 com/fisco/app/contract/warehouse/WarehouseReceiptCore$121.class
@@ -635,6 +651,7 @@ com/fisco/app/contract/loan/LoanCore$132.class
 com/fisco/app/contract/loan/WarehouseReceiptCoreExt$76.class
 com/fisco/app/contract/logistics/LogisticsCore$20.class
 com/fisco/app/contract/loan/LoanCore$LoanApprovedEventResponse.class
+com/fisco/app/contract/logistics/LogisticsCore$55.class
 com/fisco/app/contract/receivable/ReceivableRepayment$49.class
 com/fisco/app/contract/bill/BillCore$31.class
 com/fisco/app/contract/warehouse/WarehouseReceiptCore$120.class
@@ -675,6 +692,7 @@ com/fisco/app/contract/loan/WarehouseReceiptCoreExt$25.class
 com/fisco/app/contract/receivable/ReceivableRepayment$46.class
 com/fisco/app/contract/logistics/LogisticsOps$79.class
 com/fisco/app/contract/enterprise/EnterpriseRegistryV2$36.class
+com/fisco/app/contract/logistics/LogisticsCore$58.class
 com/fisco/app/contract/logistics/LogisticsOps$26.class
 com/fisco/app/contract/warehouse/WarehouseReceiptCore$ReceiptUnlockedEventResponse.class
 com/fisco/app/contract/warehouse/WarehouseReceiptHistory$46.class
@@ -716,6 +734,7 @@ com/fisco/app/contract/bill/BillCore$19.class
 com/fisco/app/contract/enterprise/EnterpriseRegistryV2$35.class
 com/fisco/app/contract/warehouse/WarehouseReceiptHistory$47.class
 com/fisco/app/contract/bill/BillCore$BillEndorsementConfirmedEventResponse.class
+com/fisco/app/contract/logistics/LogisticsCore$59.class
 com/fisco/app/contract/logistics/LogisticsOps$77.class
 com/fisco/app/contract/warehouse/WarehouseReceiptOps$27.class
 com/fisco/app/contract/receivable/ReceivableCore$23.class
@@ -735,7 +754,6 @@ com/fisco/app/controller/BlockchainDomainController.class
 com/fisco/app/contract/credit/CreditLimitCore$69.class
 com/fisco/app/contract/credit/CreditLimitScore$18.class
 com/fisco/app/contract/loan/LoanCore$135.class
-com/fisco/app/contract/logistics/LogisticsCore$CreateLogisticsDelegateInput.class
 com/fisco/app/contract/receivable/ReceivableCore$74.class
 com/fisco/app/contract/loan/LoanRepayment$20.class
 com/fisco/app/contract/bill/BillOps$9.class
@@ -757,7 +775,9 @@ com/fisco/app/contract/logistics/LogisticsOps$25.class
 com/fisco/app/contract/warehouse/WarehouseReceiptOps$8.class
 com/fisco/app/contract/credit/CreditLimitCore$81.class
 com/fisco/app/contract/warehouse/WarehouseReceiptCore$88.class
+com/fisco/app/contract/logistics/LogisticsCore$44.class
 com/fisco/app/contract/warehouse/WarehouseReceiptCore$124.class
+com/fisco/app/contract/logistics/LogisticsCore$31.class
 com/fisco/app/contract/logistics/LogisticsOps$62.class
 com/fisco/app/contract/bill/BillCore$80.class
 com/fisco/app/contract/enterprise/EnterpriseRegistryV2$CreditRatingUpdatedEventResponse.class
@@ -797,10 +817,12 @@ com/fisco/app/contract/loan/WarehouseReceiptCoreExt$54.class
 com/fisco/app/contract/bill/BillOps$45.class
 com/fisco/app/contract/loan/LoanCore$121.class
 com/fisco/app/contract/enterprise/EnterpriseRegistryV2$55.class
+com/fisco/app/contract/logistics/LogisticsCore$49.class
 com/fisco/app/contract/bill/BillCore$39.class
 com/fisco/app/contract/loan/WarehouseReceiptCoreExt$46.class
 com/fisco/app/contract/logistics/LogisticsOps$4.class
 com/fisco/app/contract/enterprise/EnterpriseRegistryV2$47.class
+com/fisco/app/contract/logistics/LogisticsCore$57.class
 com/fisco/app/controller/HealthController.class
 com/fisco/app/contract/loan/LoanCore$LoanSettledEventResponse.class
 com/fisco/app/contract/loan/LoanCore$50.class
@@ -849,6 +871,7 @@ com/fisco/app/contract/bill/BillCore$26.class
 com/fisco/app/contract/receivable/ReceivableRepayment$43.class
 com/fisco/app/contract/loan/LoanRepayment$99.class
 com/fisco/app/contract/credit/CreditLimitCore$78.class
+com/fisco/app/contract/receivable/ReceivableRepayment$86.class
 com/fisco/app/contract/credit/CreditLimitScore$5.class
 com/fisco/app/contract/bill/BillOps$66.class
 com/fisco/app/contract/loan/LoanCore$42.class
@@ -929,6 +952,7 @@ com/fisco/app/contract/warehouse/WarehouseReceiptOps$21.class
 com/fisco/app/contract/logistics/LogisticsCore$19.class
 com/fisco/app/contract/loan/LoanRepayment$49.class
 com/fisco/app/contract/bill/BillOps$40.class
+com/fisco/app/contract/logistics/LogisticsCore$52.class
 com/fisco/app/contract/credit/CreditLimitCore$57.class
 com/fisco/app/contract/receivable/ReceivableCore$91.class
 com/fisco/app/contract/receivable/ReceivableRepayment$35.class
@@ -977,6 +1001,7 @@ com/fisco/app/contract/receivable/ReceivableRepayment$65.class
 com/fisco/app/contract/loan/WarehouseReceiptCoreExt$63.class
 com/fisco/app/contract/warehouse/WarehouseReceiptHistory$65.class
 com/fisco/app/contract/loan/LoanCore$13.class
+com/fisco/app/contract/receivable/ReceivableRepayment$85.class
 com/fisco/app/contract/warehouse/WarehouseReceiptCore$38.class
 com/fisco/app/contract/receivable/ReceivableCore$ReceivableSettledEventResponse.class
 com/fisco/app/contract/loan/WarehouseReceiptCoreExt$11.class
@@ -1013,6 +1038,7 @@ com/fisco/app/contract/warehouse/WarehouseReceiptCore$24.class
 com/fisco/app/contract/receivable/ReceivableCore$54.class
 com/fisco/app/contract/bill/BillOps$67.class
 com/fisco/app/contract/loan/LoanRepayment$35.class
+com/fisco/app/controller/BlockchainDomainController$OffsetDebtWithReceiptRequest.class
 com/fisco/app/contract/bill/BillCore$89.class
 com/fisco/app/contract/warehouse/WarehouseReceiptHistory$66.class
 com/fisco/app/contract/credit/CreditLimitScore$6.class
@@ -1077,6 +1103,7 @@ com/fisco/app/contract/loan/LoanCore$156.class
 com/fisco/app/contract/credit/CreditLimitCore$52.class
 com/fisco/app/contract/receivable/ReceivableRepayment$30.class
 com/fisco/app/FiscoGatewayServiceApplication.class
+com/fisco/app/contract/logistics/LogisticsCore$36.class
 com/fisco/app/contract/receivable/ReceivableCore$7.class
 com/fisco/app/contract/loan/LoanRepayment$44.class
 com/fisco/app/contract/warehouse/WarehouseReceiptHistory$24.class
@@ -1099,6 +1126,7 @@ com/fisco/app/contract/receivable/ReceivableRepayment$4.class
 com/fisco/app/controller/BlockchainDomainController$EnterpriseRegisterRequest.class
 com/fisco/app/entity/BlockchainTransactionRecord.class
 com/fisco/app/contract/warehouse/WarehouseReceiptHistory$23.class
+com/fisco/app/contract/logistics/LogisticsCore$40.class
 com/fisco/app/contract/credit/CreditLimitScore$9.class
 com/fisco/app/contract/receivable/ReceivableCore$46.class
 com/fisco/app/contract/credit/CreditLimitScore$46.class
@@ -1106,6 +1134,7 @@ com/fisco/app/contract/loan/LoanRepayment$43.class
 com/fisco/app/contract/bill/BillOps$75.class
 com/fisco/app/contract/warehouse/WarehouseReceiptCore$79.class
 com/fisco/app/contract/logistics/LogisticsOps$53.class
+com/fisco/app/contract/logistics/LogisticsCore$35.class
 com/fisco/app/contract/loan/LoanCore$18.class
 com/fisco/app/contract/warehouse/WarehouseReceiptOps$MergeInput.class
 com/fisco/app/contract/loan/LoanCore$75.class
@@ -1151,6 +1180,7 @@ com/fisco/app/contract/loan/LoanCore$96.class
 com/fisco/app/contract/credit/CreditLimitScore$53.class
 com/fisco/app/contract/credit/CreditLimitCore$79.class
 com/fisco/app/contract/receivable/ReceivableRepayment$2.class
+com/fisco/app/contract/receivable/ReceivableRepayment$82.class
 com/fisco/app/contract/loan/LoanCore$141.class
 com/fisco/app/contract/enterprise/EnterpriseRegistryV2$27.class
 com/fisco/app/contract/enterprise/EnterpriseRegistryV2$75.class
@@ -1183,6 +1213,7 @@ com/fisco/app/contract/receivable/ReceivableRepayment$21.class
 com/fisco/app/contract/warehouse/WarehouseReceiptHistory$54.class
 com/fisco/app/contract/warehouse/WarehouseReceiptOps$7.class
 com/fisco/app/contract/credit/CreditLimitCore$26.class
+com/fisco/app/contract/logistics/LogisticsCore$43.class
 com/fisco/app/contract/receivable/ReceivableCore$60.class
 com/fisco/app/contract/receivable/ReceivableRepayment$39.class
 com/fisco/app/contract/bill/BillCore$94.class
@@ -1205,6 +1236,7 @@ com/fisco/app/contract/logistics/LogisticsOps$10.class
 com/fisco/app/contract/receivable/ReceivableRepayment$55.class
 com/fisco/app/contract/credit/CreditLimitScore$26.class
 com/fisco/app/contract/bill/BillOps$20.class
+com/fisco/app/contract/logistics/LogisticsCore$32.class
 com/fisco/app/controller/BlockchainDomainController$LoanCancelRequest.class
 com/fisco/app/contract/warehouse/WarehouseReceiptOps$19.class
 com/fisco/app/contract/logistics/LogisticsOps$50.class
@@ -1227,6 +1259,7 @@ com/fisco/app/contract/enterprise/EnterpriseRegistryV2$20.class
 com/fisco/app/contract/warehouse/WarehouseReceiptCore$21.class
 com/fisco/app/contract/loan/LoanCore$LoanRepaymentEventResponse.class
 com/fisco/app/contract/enterprise/EnterpriseRegistryV2$46.class
+com/fisco/app/contract/logistics/LogisticsCore$48.class
 com/fisco/app/contract/receivable/ReceivableRepayment$36.class
 com/fisco/app/contract/warehouse/WarehouseReceiptCore$74.class
 com/fisco/app/contract/loan/WarehouseReceiptCoreExt$15.class
@@ -1238,6 +1271,7 @@ com/fisco/app/contract/logistics/LogisticsOps$39.class
 com/fisco/app/contract/logistics/LogisticsOps$5.class
 com/fisco/app/contract/warehouse/WarehouseReceiptHistory$59.class
 com/fisco/app/contract/loan/LoanCore$125.class
+com/fisco/app/contract/logistics/LogisticsCore$45.class
 com/fisco/app/contract/warehouse/WarehouseReceiptHistory$33.class
 com/fisco/app/contract/loan/LoanRepayment$30.class
 com/fisco/app/contract/warehouse/WarehouseReceiptOps$14.class
@@ -1311,6 +1345,7 @@ com/fisco/app/contract/bill/BillCore$70.class
 com/fisco/app/contract/loan/LoanCore$46.class
 com/fisco/app/contract/loan/LoanCore$124.class
 com/fisco/app/contract/logistics/LogisticsOps$CreateLogisticsDelegateInput.class
+com/fisco/app/contract/logistics/LogisticsCore$61.class
 com/fisco/app/contract/receivable/ReceivableRepayment$37.class
 com/fisco/app/contract/loan/LoanRepayment$62.class
 com/fisco/app/contract/bill/BillCore$90.class
@@ -1367,6 +1402,7 @@ com/fisco/app/contract/loan/LoanCore$143.class
 com/fisco/app/contract/warehouse/WarehouseReceiptHistory$38.class
 com/fisco/app/contract/logistics/LogisticsCore$15.class
 com/fisco/app/contract/logistics/LogisticsOps$33.class
+com/fisco/app/contract/logistics/LogisticsCore$60.class
 com/fisco/app/contract/loan/LoanRepayment$ReceivableOffsetRecord.class
 com/fisco/app/contract/credit/CreditLimitCore$70.class
 com/fisco/app/contract/receivable/ReceivableCore$82.class
@@ -1416,6 +1452,7 @@ com/fisco/app/contract/bill/BillCore$24.class
 com/fisco/app/contract/enterprise/EnterpriseRegistryV2$40.class
 com/fisco/app/contract/warehouse/WarehouseReceiptOps$31.class
 com/fisco/app/contract/receivable/ReceivableCore$19.class
+com/fisco/app/contract/logistics/LogisticsCore$62.class
 com/fisco/app/contract/loan/LoanCore$48.class
 com/fisco/app/contract/credit/CreditLimitCore$75.class
 com/fisco/app/contract/bill/BillOps$50.class

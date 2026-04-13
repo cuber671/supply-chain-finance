@@ -41,6 +41,10 @@ public class EnterpriseServiceImpl implements EnterpriseService {
     private static final Logger logger = LoggerFactory.getLogger(EnterpriseServiceImpl.class);
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
+    // ==================== Java-Solidity 枚举转换 ====================
+
+    // ==================== 注入 ====================
+
     @Autowired
     private EnterpriseMapper enterpriseMapper;
 
@@ -773,7 +777,7 @@ public class EnterpriseServiceImpl implements EnterpriseService {
             request.setEnterpriseAddress(enterprise.getBlockchainAddress());
             request.setCreditCode(enterprise.getOrgCode());
             request.setRole(enterprise.getEntRole());
-            request.setMetadataHash("");
+            request.setMetadataHash("0x" + String.format("%064x", entId));
             var result = blockchainFeignClient.registerEnterprise(request);
             // 【P2-7修复】区块链响应码检查，失败时抛出异常保持一致性
             if (result == null || result.getCode() != 0) {

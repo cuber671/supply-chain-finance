@@ -39,6 +39,12 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
 
     private static final Logger logger = LoggerFactory.getLogger(WarehouseReceiptServiceImpl.class);
 
+    /**
+     * bytes32 类型的空值（全零 32 字节）
+     * 用于区块链调用中暂无实际数据时的占位参数
+     */
+    private static final String EMPTY_BYTES32 = "0x0000000000000000000000000000000000000000000000000000000000000000";
+
     @Autowired
     private WarehouseReceiptMapper warehouseReceiptMapper;
 
@@ -201,16 +207,28 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
         logger.info("签发仓单成功: receiptId={}, onChainStatus=PENDING", receipt.getId());
 
         // 区块链上链
-        if (blockchainFeignClient != null && onChainId != null) {
+        if (blockchainFeignClient != null) {
             try {
                 BlockchainFeignClient.ReceiptIssueRequest request = new BlockchainFeignClient.ReceiptIssueRequest();
-                request.setReceiptId(onChainId);
-                request.setOwnerHash(receipt.getOwnerEntId().toString());
-                request.setWarehouseHash(warehouse.getId().toString());
-                request.setGoodsDetailHash(stockOrder.getGoodsName());
+                // 【诊断】记录传递给区块链的原始值
+                logger.info("【诊断】仓单上链参数: receiptId={}, ownerEntId={}, warehouseId={}, warehouse.getId()={}",
+                    receipt.getId(), receipt.getOwnerEntId(), stockOrder.getWarehouseId(), warehouse.getId());
+                // 如果未提供 onChainId，则使用本地仓单ID作为链上ID
+                String actualOnChainId = (onChainId != null) ? onChainId : String.valueOf(receipt.getId());
+                request.setReceiptId(actualOnChainId);
+                receipt.setOnChainId(actualOnChainId);
+                request.setOwnerHash(receipt.getOwnerEntId() != null ? receipt.getOwnerEntId().toString() : "null");
+                request.setWarehouseHash(warehouse.getId() != null ? warehouse.getId().toString() : "null");
+                request.setGoodsDetailHash(stockOrder.getGoodsName() != null ? stockOrder.getGoodsName() : EMPTY_BYTES32);
+                request.setLocationPhotoHash(EMPTY_BYTES32);  // 暂无照片，使用占位值
+                request.setContractHash(EMPTY_BYTES32);      // 暂无合同，使用占位值
                 request.setWeight(stockOrder.getWeight().longValue());
                 request.setUnit(stockOrder.getUnit());
                 request.setQuantity(1L);
+                // 设置存储日期和到期日期（StockOrder无对应字段，使用默认值）
+                // 【FIX】时间单位：Solidity 使用秒，而 Java System.currentTimeMillis() 返回毫秒
+                request.setStorageDate(System.currentTimeMillis() / 1000);
+                request.setExpiryDate((System.currentTimeMillis() + 30L * 24 * 60 * 60 * 1000) / 1000);
                 // 【P2-3修复】检查区块链响应码确保调用成功
                 var result = blockchainFeignClient.issueReceipt(request);
                 if (result == null || result.getCode() != 0) {
@@ -219,6 +237,10 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
                     logger.error(errMsg);
                     throw new RuntimeException(errMsg);
                 }
+
+                // 【方案B修复】使用区块链返回的 txHash 作为 onChainId
+                String txHash = result.getData();
+                receipt.setOnChainId(txHash);
 
                 // FIX: 区块链成功后更新onChainStatus为SYNCED
                 receipt.setOnChainStatus(WarehouseReceipt.ON_CHAIN_STATUS_SYNCED);
@@ -294,6 +316,12 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
                 request.setWeight(weight.longValue());
                 request.setUnit(unit);
                 request.setQuantity(1L);
+                // 【修复】设置缺失的 hash 字段为占位值
+                request.setGoodsDetailHash(goodsName != null ? goodsName : EMPTY_BYTES32);
+                request.setLocationPhotoHash(EMPTY_BYTES32);
+                request.setContractHash(EMPTY_BYTES32);
+                request.setStorageDate(System.currentTimeMillis() / 1000);
+                request.setExpiryDate((System.currentTimeMillis() + 30L * 24 * 60 * 60 * 1000) / 1000);
                 // 【P2-3修复】检查区块链响应码确保调用成功
                 var result = blockchainFeignClient.issueReceipt(request);
                 if (result == null || result.getCode() != 0) {
@@ -1021,19 +1049,8 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
 
         receipt.setIsLocked(true);
         receipt.setLoanId(loanId);
-        // FIX: 使用乐观锁，@Version注解会在更新时自动检查version
-        try {
-            warehouseReceiptMapper.updateById(receipt);
-        } catch (Exception e) {
-            // MyBatis Plus乐观锁失败抛出MyBatisPlusException，包装了ObjectOptimisticLockingFailureException
-            if (e.getClass().getName().contains("OptimisticLock") || e.getMessage() != null && e.getMessage().contains("version")) {
-                throw new IllegalStateException("仓单已被其他请求修改，请重试");
-            }
-            throw e;
-        }
-        logger.info("质押锁定仓单成功: receiptId={}, loanId={}", receiptId, loanId);
 
-        // FIX: 区块链锁定失败时应记录异常而非吞掉，让调用方知道链上未锁定
+        // 【修复B040】区块链调用优先于数据库更新：链上成功后才更新数据库，避免链上失败但DB已更新的不一致状态
         // 【P2-2修复】添加区块链响应码校验
         if (blockchainFeignClient != null && receipt.getOnChainId() != null) {
             try {
@@ -1047,11 +1064,22 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
             } catch (RuntimeException e) {
                 throw e;
             } catch (Exception e) {
-                // 链上锁定失败，但DB已锁定，抛出异常让调用方处理
-                logger.error("仓单区块链锁定失败: receiptId={}, DB已锁定但链上未锁定", receiptId, e);
+                logger.error("仓单区块链锁定失败: receiptId={}", receiptId, e);
                 throw new RuntimeException("仓单区块链锁定失败: " + e.getMessage());
             }
         }
+
+        // FIX: 使用乐观锁，@Version注解会在更新时自动检查version
+        try {
+            warehouseReceiptMapper.updateById(receipt);
+        } catch (Exception e) {
+            // MyBatis Plus乐观锁失败抛出MyBatisPlusException，包装了ObjectOptimisticLockingFailureException
+            if (e.getClass().getName().contains("OptimisticLock") || e.getMessage() != null && e.getMessage().contains("version")) {
+                throw new IllegalStateException("仓单已被其他请求修改，请重试");
+            }
+            throw e;
+        }
+        logger.info("质押锁定仓单成功: receiptId={}, loanId={}", receiptId, loanId);
 
         return true;
     }
@@ -1069,10 +1097,8 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
 
         receipt.setIsLocked(false);
         receipt.setLoanId(null);
-        warehouseReceiptMapper.updateById(receipt);
-        logger.info("还款解押仓单成功: receiptId={}", receiptId);
 
-        // FIX: 区块链解锁失败时应抛出异常，让调用方知道链上未解锁
+        // 【修复B041】区块链调用优先于数据库更新：链上成功后才更新数据库，避免链上失败但DB已更新的不一致状态
         // 【P2-2修复】添加区块链响应码校验
         if (blockchainFeignClient != null && receipt.getOnChainId() != null) {
             try {
@@ -1086,10 +1112,13 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
             } catch (RuntimeException e) {
                 throw e;
             } catch (Exception e) {
-                logger.error("仓单区块链解锁失败: receiptId={}, DB已解锁但链上未解锁", receiptId, e);
+                logger.error("仓单区块链解锁失败: receiptId={}", receiptId, e);
                 throw new RuntimeException("仓单区块链解锁失败: " + e.getMessage());
             }
         }
+
+        warehouseReceiptMapper.updateById(receipt);
+        logger.info("还款解押仓单成功: receiptId={}", receiptId);
 
         return true;
     }
@@ -1336,7 +1365,7 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
             throw new IllegalArgumentException("关联的仓单不存在");
         }
 
-        // 【P1-3修复】仓单核销确认应由金融机构发起，需验证FI身份
+        // ���P1-3修复】仓单核销确认应由金融机构发起，需验证FI身份
         Long currentEntId = CurrentUser.getEntId();
         if (enterpriseFeignClient != null && currentEntId != null) {
             try {
@@ -1356,7 +1385,7 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
             } catch (Exception e) {
                 logger.warn("金融机构身份校验异常: stockOrderId={}, entId={}, error={}",
                         stockOrderId, currentEntId, e.getMessage());
-                throw new IllegalStateException("金融机构身份校验失败，无法执行仓单核销确认");
+                throw new IllegalStateException("金融机构身份校验��败，无法执行仓单核销确认");
             }
         }
 
@@ -1451,6 +1480,9 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
         TraceInfo traceInfo = new TraceInfo();
 
         WarehouseReceipt current = warehouseReceiptMapper.selectById(receiptId);
+        if (current == null) {
+            throw new IllegalArgumentException("仓单不存在");
+        }
         traceInfo.setCurrentReceipt(current);
 
         // 查询历史记录

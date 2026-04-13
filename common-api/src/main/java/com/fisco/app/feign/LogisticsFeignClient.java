@@ -12,13 +12,13 @@ import org.springframework.web.bind.annotation.PathVariable;
 @FeignClient(name = "logistics-service", contextId = "logisticsFeignClient")
 public interface LogisticsFeignClient {
 
-    // FIX: Path changed from /{id} to /{voucherNo}, parameter from Long to String to match LogisticsController
-    @GetMapping("/api/v1/logistics/delegate/{voucherNo}")
-    Result<Object> getDelegateById(@PathVariable("voucherNo") String voucherNo);
-
-    // NEW: Typed alias following WarehouseFeignClient pattern
+    // 根据凭证号查询委派单
     @GetMapping("/api/v1/logistics/delegate/{voucherNo}")
     Result<Object> getDelegateByVoucherNo(@PathVariable("voucherNo") String voucherNo);
+
+    // 根据物流单ID查询委派单（解决 FinanceServiceImpl 传入数字 ID 的问题）
+    @GetMapping("/api/v1/logistics/delegate/by-id/{id}")
+    Result<Object> getDelegateById(@PathVariable("id") Long id);
 
     @GetMapping("/api/v1/logistics/delegate/by-receipt/{receiptId}")
     Result<Object> getDelegateByReceiptId(@PathVariable("receiptId") Long receiptId);

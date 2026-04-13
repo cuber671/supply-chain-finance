@@ -113,9 +113,9 @@ public class LogisticsContractService extends BaseContractService {
 
         // 直接调用合约的三数组参数方法
         TransactionReceipt receipt = logisticsCore.createLogisticsDelegate(
-                new String[] { voucherNo, receiptId, unit },
-                new BigInteger[] { BigInteger.valueOf(businessScene), transportQuantity, validUntil },
-                new byte[][] { ownerHash, carrierHash, sourceWhHash, targetWhHash }
+                Arrays.asList(voucherNo, receiptId, unit),
+                Arrays.asList(BigInteger.valueOf(businessScene), transportQuantity, validUntil),
+                Arrays.asList(ownerHash, carrierHash, sourceWhHash, targetWhHash)
         );
 
         if (!isTransactionSuccess(receipt)) {

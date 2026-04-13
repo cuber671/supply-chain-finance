@@ -22,7 +22,7 @@ import lombok.Data;
 @TableName("t_stock_order")
 public class StockOrder {
 
-    @TableId(type = IdType.ASSIGN_ID)
+    @TableId(type = IdType.AUTO)
     private Long id;
 
     @TableField("warehouse_id")

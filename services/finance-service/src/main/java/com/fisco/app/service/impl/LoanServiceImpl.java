@@ -613,7 +613,11 @@ public class LoanServiceImpl implements LoanService {
     @Override
     public List<LoanRepayment> listRepayments(Long loanId) {
         if (loanId == null) {
-            return List.of();
+            throw new IllegalArgumentException("贷款ID不能为空");
+        }
+        Loan loan = getLoanById(loanId);
+        if (loan == null) {
+            throw new IllegalArgumentException("贷款不存在");
         }
         return loanRepaymentMapper.selectByLoanId(loanId);
     }

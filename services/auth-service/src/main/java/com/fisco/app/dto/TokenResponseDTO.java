@@ -13,10 +13,10 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @Schema(description = "认证令牌响应")
 public class TokenResponseDTO {
-    @Schema(description = "访问令牌（JWT）")
+    @Schema(description = "访问令牌（JWT）", example = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...")
     private String accessToken;
 
-    @Schema(description = "刷新令牌（用于刷新访问令牌）")
+    @Schema(description = "刷新令牌（用于刷新访问令牌）", example = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...")
     private String refreshToken;
 
     @Schema(description = "访问令牌过期时间（秒）", example = "7200")

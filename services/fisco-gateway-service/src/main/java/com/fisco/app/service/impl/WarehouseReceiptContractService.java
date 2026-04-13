@@ -67,6 +67,37 @@ public class WarehouseReceiptContractService extends BaseContractService {
         } else {
             logger.warn("仓单运营合约地址未配置");
         }
+
+        // 【诊断】检查合约的 admin 和 javaBackend 设置
+        initializeContractSettings();
+    }
+
+    private void initializeContractSettings() {
+        if (warehouseCoreContract == null) {
+            logger.warn("仓单核心合约未初始化，跳过配置检查");
+            return;
+        }
+
+        try {
+            // 查询当前 admin 设置
+            String currentAdmin = warehouseCoreContract.admin();
+            String gatewayAddress = cryptoKeyPair.getAddress();
+            logger.info("========================================");
+            logger.info("仓单合约诊断信息:");
+            logger.info("  合约地址: {}", warehouseCoreAddress);
+            logger.info("  当前 admin: {}", currentAdmin);
+            logger.info("  网关地址: {}", gatewayAddress);
+            logger.info("  admin == 网关: {}", gatewayAddress.equalsIgnoreCase(currentAdmin));
+            logger.info("========================================");
+
+            // 如果 admin 不匹配网关地址，记录警告
+            if (!gatewayAddress.equalsIgnoreCase(currentAdmin)) {
+                logger.warn("admin 与网关地址不匹配！只有 admin 才能执行 issueReceipt 等管理操作");
+                logger.warn("请使用控制台调用 setAdmin 解决这个问题");
+            }
+        } catch (ContractException e) {
+            logger.error("查询仓单合约配置失败: {}", e.getMessage());
+        }
     }
 
     private void checkCoreContract() {
@@ -79,6 +110,19 @@ public class WarehouseReceiptContractService extends BaseContractService {
         if (warehouseOpsContract == null) {
             throw new RuntimeException("仓单运营合约未初始化，请检查区块链连接");
         }
+    }
+
+    /**
+     * 将 byte[] 转换为十六进制字符串，用于日志输出
+     */
+    private String bytesToHexString(byte[] bytes) {
+        if (bytes == null) return "null";
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < Math.min(bytes.length, 8); i++) {
+            sb.append(String.format("%02x", bytes[i]));
+        }
+        if (bytes.length > 8) sb.append("...");
+        return "0x" + sb.toString();
     }
 
     @Override
@@ -135,10 +179,27 @@ public class WarehouseReceiptContractService extends BaseContractService {
                 expiryDate != null ? expiryDate : BigInteger.ZERO
         );
 
-        logger.info("签发仓单: receiptId={}, warehouseHash={}, weight={}", receiptId, warehouseHash, weight);
+        // 【诊断】详细日志
+        logger.info("签发仓单参数: receiptId={}, ownerHash={}, warehouseHash={}",
+            receiptId,
+            ownerHash != null ? bytesToHexString(ownerHash) : "null",
+            warehouseHash != null ? bytesToHexString(warehouseHash) : "null");
+        logger.info("签发仓单参数: weight={}, unit={}, quantity={}, storageDate={}, expiryDate={}",
+            weight, unit, quantity, storageDate, expiryDate);
+        logger.info("签发仓单参数: goodsDetailHash={}, locationPhotoHash={}, contractHash={}",
+            goodsDetailHash != null ? bytesToHexString(goodsDetailHash) : "null",
+            locationPhotoHash != null ? bytesToHexString(locationPhotoHash) : "null",
+            contractHash != null ? bytesToHexString(contractHash) : "null");
 
         // Call contract method directly
         TransactionReceipt receipt = warehouseCoreContract.issueReceipt(input);
+
+        // 【诊断】详细记录交易收据信息
+        logger.info("【交易诊断】issueReceipt 交易完成: hash={}, status={}, block={}",
+            receipt.getTransactionHash(), receipt.getStatus(), receipt.getBlockNumber());
+        logger.info("【交易诊断】receipt.getMessage()={}, isStatusOK={}",
+            receipt.getMessage(), receipt.isStatusOK());
+        logger.info("【交易诊断】receipt.getOutput()={}", receipt.getOutput());
 
         if (!isTransactionSuccess(receipt)) {
             String errorMsg = getTransactionErrorMessage(receipt);

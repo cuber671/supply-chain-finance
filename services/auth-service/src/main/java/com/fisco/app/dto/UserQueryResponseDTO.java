@@ -8,31 +8,31 @@ import java.time.LocalDateTime;
 @Data
 @Schema(description = "用户信息响应")
 public class UserQueryResponseDTO {
-    @Schema(description = "用户ID")
+    @Schema(description = "用户ID", example = "1")
     private Long userId;
 
-    @Schema(description = "用户名")
+    @Schema(description = "用户名", example = "zhangsan")
     private String username;
 
-    @Schema(description = "真实姓名")
+    @Schema(description = "真实姓名", example = "张三")
     private String realName;
 
-    @Schema(description = "手机号")
+    @Schema(description = "手机号", example = "13800138000")
     private String phone;
 
-    @Schema(description = "邮箱")
+    @Schema(description = "邮箱", example = "zhangsan@example.com")
     private String email;
 
-    @Schema(description = "企业ID")
+    @Schema(description = "企业ID", example = "1")
     private Long enterpriseId;
 
-    @Schema(description = "用户角色：ADMIN-管理员, FINANCE-财务, OPERATOR-操作员")
+    @Schema(description = "用户角色", example = "OPERATOR", allowableValues = {"ADMIN", "FINANCE", "OPERATOR"})
     private String userRole;
 
-    @Schema(description = "状态：0-待审核, 1-正常, 2-冻结, 3-注销中, 4-已注销")
+    @Schema(description = "状态", example = "1", allowableValues = {"0", "1", "2", "3", "4"})
     private Integer status;
 
-    @Schema(description = "创建时间")
+    @Schema(description = "创建时间", example = "2026-01-01T10:00:00")
     private LocalDateTime createTime;
 
     public static UserQueryResponseDTO fromUser(User user) {

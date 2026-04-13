@@ -38,7 +38,7 @@ public class SecurityConfig {
             // 配置拦截规则
             .authorizeRequests(auth -> auth
                 // 允许访问认证接口（登录、刷新Token等）
-                .antMatchers("/api/v1/auth/login", "/api/v1/auth/admin/login", "/api/v1/auth/refresh", "/api/v1/auth/validate").permitAll()
+                .antMatchers("/api/v1/auth/login", "/api/v1/auth/admin/login", "/api/v1/auth/refresh", "/api/v1/auth/validate", "/api/v1/auth/users/register").permitAll()
                 // 用户管理接口需要认证
                 .antMatchers("/api/v1/auth/users/**").authenticated()
                 // 允许访问Swagger

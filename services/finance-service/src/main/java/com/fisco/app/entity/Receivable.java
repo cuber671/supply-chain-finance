@@ -52,7 +52,7 @@ public class Receivable {
     /**
      * 账款记录唯一主键ID - 雪花算法生成
      */
-    @TableId(type = IdType.ASSIGN_ID)
+    @TableId(type = IdType.AUTO)
     private Long id;
 
     /**

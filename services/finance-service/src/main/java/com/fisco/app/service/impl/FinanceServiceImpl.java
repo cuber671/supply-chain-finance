@@ -1,6 +1,9 @@
 package com.fisco.app.service.impl;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -29,6 +32,36 @@ import com.fisco.app.util.CurrentUser;
 public class FinanceServiceImpl implements FinanceService {
 
     private static final Logger logger = LoggerFactory.getLogger(FinanceServiceImpl.class);
+
+    // 【修复】空的 bytes32 十六进制字符串，用于占位
+    private static final String EMPTY_BYTES32 = "0x0000000000000000000000000000000000000000000000000000000000000000";
+
+    /**
+     * 计算买卖双方对的哈希值
+     * 使用 SHA-256 计算 creditorEntId 和 debtorEntId 拼接后的哈希
+     * @param creditorEntId 债权人企业ID
+     * @param debtorEntId 债务人企业ID
+     * @return 32字节十六进制字符串（带0x前缀）
+     */
+    private String calculateBuyerSellerPairHash(Long creditorEntId, Long debtorEntId) {
+        try {
+            String pair = creditorEntId.toString() + ":" + debtorEntId.toString();
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(pair.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hexString = new StringBuilder("0x");
+            for (byte b : hash) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1) {
+                    hexString.append('0');
+                }
+                hexString.append(hex);
+            }
+            return hexString.toString();
+        } catch (NoSuchAlgorithmException e) {
+            logger.error("计算 buyerSellerPairHash 失败，使用占位符", e);
+            return "0x1111111111111111111111111111111111111111111111111111111111111111";
+        }
+    }
 
     @Autowired
     private ReceivableMapper receivableMapper;
@@ -64,8 +97,8 @@ public class FinanceServiceImpl implements FinanceService {
         Long debtorEntIdFromLogistics = null;
         if (logisticsFeignClient != null) {
             try {
-                Result<?> result = logisticsFeignClient.getDelegateById(voucherId.toString());
-                if (result != null && result.getCode() == 200 && result.getData() != null) {
+                Result<?> result = logisticsFeignClient.getDelegateById(voucherId);
+                if (result != null && result.getCode() == 0 && result.getData() != null) {
                     // 解析物流单数据 - Result.data is LinkedHashMap when JSON serialized
                     Object data = result.getData();
                     if (data instanceof Map) {
@@ -86,6 +119,9 @@ public class FinanceServiceImpl implements FinanceService {
                             throw new IllegalStateException("物流单已失效: voucherId=" + voucherId);
                         }
                         Object qty = delegateMap.get("transportQuantity");
+                        if (qty == null) {
+                            qty = delegateMap.get("transport_quantity");  // 兼容 snake_case
+                        }
                         if (qty != null) {
                             transportQuantity = new BigDecimal(qty.toString());
                         }
@@ -150,6 +186,12 @@ public class FinanceServiceImpl implements FinanceService {
                 request.setInitialAmount(initialAmount.longValue());
                 request.setDueDate(receivable.getDueDate().toLocalDate().toEpochDay());
                 request.setBusinessScene(receivable.getBusinessScene() != null ? receivable.getBusinessScene() : Receivable.SCENE_STOCK_IN);
+                // 【修复FAULT-004】计算真实的 buyerSellerPairHash（不能为全0）
+                String buyerSellerPairHash = calculateBuyerSellerPairHash(creditorEntId, debtorEntIdFromLogistics);
+                request.setBuyerSellerPairHash(buyerSellerPairHash);
+                request.setInvoiceHash(EMPTY_BYTES32);
+                request.setContractHash(EMPTY_BYTES32);
+                request.setGoodsDetailHash(EMPTY_BYTES32);
                 Result<String> result = blockchainFeignClient.createReceivable(request);
                 // 【新问题修复】检查响应码确保区块链调用真正成功
                 if (result == null || result.getCode() != 0) {
@@ -228,6 +270,8 @@ public class FinanceServiceImpl implements FinanceService {
             try {
                 BlockchainFeignClient.ReceivableConfirmRequest request = new BlockchainFeignClient.ReceivableConfirmRequest();
                 request.setReceivableId(receivable.getReceivableNo());
+                // 【修复】设置 signature
+                request.setSignature(signature != null && !signature.isEmpty() ? signature : EMPTY_BYTES32);
                 // 【新问题修复】检查响应码确保区块链调用真正成功
                 Result<String> result = blockchainFeignClient.confirmReceivable(request);
                 if (result == null || result.getCode() != 0) {
@@ -293,7 +337,9 @@ public class FinanceServiceImpl implements FinanceService {
                     new BlockchainFeignClient.ReceivableAdjustRequest();
                 request.setReceivableId(receivable.getReceivableNo());
                 request.setAdjustedAmount(newAdjustedAmount.longValue());
-                request.setAdjustType(adjustType);
+                // 【F013修复】合约期望reason字符串，将adjustType转为reason描述
+                String reason = (adjustType != null && adjustType == 1) ? "decrease" : "increase";
+                request.setReason(reason);
                 Result<String> result = blockchainFeignClient.adjustReceivable(request);
                 if (result == null || result.getCode() != 0) {
                     String errMsg = "应收款调整区块链失败: receivableNo=" + receivable.getReceivableNo() + ", result=" + result;
@@ -361,21 +407,55 @@ public class FinanceServiceImpl implements FinanceService {
         // H6: 现金还款上链
         if (blockchainFeignClient != null) {
             try {
-                BlockchainFeignClient.ReceivableSettleRequest request = new BlockchainFeignClient.ReceivableSettleRequest();
-                request.setReceivableId(receivable.getReceivableNo());
-                // 【新问题修复】添加result.getCode()检查
-                Result<String> result = blockchainFeignClient.settleReceivable(request);
-                if (result == null || result.getCode() != 0) {
-                    String errMsg = "现金还款区块链结算失败: receivableNo=" + receivable.getReceivableNo()
-                        + ", result=" + result;
+                // 【修复】先查询链上实际余额，确保还款金额不超过链上余额
+                Result<Long> chainBalanceResult = blockchainFeignClient.getBalanceUnpaid(receivable.getReceivableNo());
+                long chainBalance = (chainBalanceResult != null && chainBalanceResult.getCode() == 0)
+                    ? chainBalanceResult.getData() : 0L;
+                logger.info("查询链上余额: receivableNo={}, chainBalance={}", receivable.getReceivableNo(), chainBalance);
+
+                // 将请求金额转换为分
+                long requestAmountFen = amount.multiply(BigDecimal.valueOf(100)).longValue();
+
+                // 确定实际还款金额：不超过链上余额
+                long actualRepaymentAmount = Math.min(requestAmountFen, chainBalance);
+                if (actualRepaymentAmount <= 0) {
+                    throw new RuntimeException("链上余额不足，无法还款");
+                }
+
+                // 1. 调用 recordRepayment 经由 ReceivableRepayment 合约扣减余额
+                // 注意：不能直接调用 updateBalance，因为 ReceivableCore.updateBalance 有 onlyRepaymentContract 修饰符
+                BlockchainFeignClient.ReceivableRecordRepaymentRequest repaymentRequest =
+                    new BlockchainFeignClient.ReceivableRecordRepaymentRequest();
+                repaymentRequest.setReceivableId(receivable.getReceivableNo());
+                repaymentRequest.setRepaymentAmount(actualRepaymentAmount);
+                repaymentRequest.setPaymentMethod("CASH");
+                Result<String> repaymentResult = blockchainFeignClient.recordReceivableRepayment(repaymentRequest);
+                if (repaymentResult == null || repaymentResult.getCode() != 0) {
+                    String errMsg = "现金还款区块链记录失败: receivableNo=" + receivable.getReceivableNo()
+                        + ", result=" + repaymentResult;
                     logger.error(errMsg);
                     throw new RuntimeException(errMsg);
                 }
-                if (result.getData() != null) {
-                    record.setChainTxHash(result.getData());
-                    repaymentRecordMapper.updateById(record);
-                    logger.info("现金还款上链成功: receivableNo={}, amount={}, chainTxHash={}",
-                        receivable.getReceivableNo(), amount, result.getData());
+                logger.info("现金还款区块链记录成功: receivableNo={}, amount={}, chainTxHash={}",
+                    receivable.getReceivableNo(), amount, repaymentResult.getData());
+
+                // 2. 只有余额清零时才调用 settleReceivable
+                if (newBalance.compareTo(BigDecimal.ZERO) == 0) {
+                    BlockchainFeignClient.ReceivableSettleRequest settleRequest = new BlockchainFeignClient.ReceivableSettleRequest();
+                    settleRequest.setReceivableId(receivable.getReceivableNo());
+                    Result<String> settleResult = blockchainFeignClient.settleReceivable(settleRequest);
+                    if (settleResult == null || settleResult.getCode() != 0) {
+                        String errMsg = "现金还款区块链结算失败: receivableNo=" + receivable.getReceivableNo()
+                            + ", result=" + settleResult;
+                        logger.error(errMsg);
+                        throw new RuntimeException(errMsg);
+                    }
+                    logger.info("现金还款区块链结算成功: receivableNo={}, chainTxHash={}",
+                        receivable.getReceivableNo(), settleResult.getData());
+                    if (settleResult.getData() != null) {
+                        record.setChainTxHash(settleResult.getData());
+                        repaymentRecordMapper.updateById(record);
+                    }
                 }
             } catch (RuntimeException e) {
                 throw e;
@@ -443,12 +523,14 @@ public class FinanceServiceImpl implements FinanceService {
         // 区块链上链 - 仓单抵债需要上链记录
         if (blockchainFeignClient != null) {
             try {
-                BlockchainFeignClient.OffsetDebtRequest request = new BlockchainFeignClient.OffsetDebtRequest();
+                // 【F016修复】使用新的仓单抵债接口 offsetDebtWithWarehouseReceipt
+                BlockchainFeignClient.OffsetDebtWithReceiptRequest request =
+                        new BlockchainFeignClient.OffsetDebtWithReceiptRequest();
                 request.setReceivableId(receivable.getReceivableNo());
                 request.setReceiptId(receiptId != null ? receiptId.toString() : null);
                 request.setOffsetAmount(offsetPrice != null ? offsetPrice.longValue() : 0L);
-                // 【新问题修复】检查响应码确保区块链调用真正成功
-                Result<String> result = blockchainFeignClient.offsetDebtWithCollateral(request);
+                request.setReason("warehouse_offset");
+                Result<String> result = blockchainFeignClient.offsetDebtWithWarehouseReceipt(request);
                 if (result == null || result.getCode() != 0) {
                     String errMsg = "仓单抵债区块链失败: receivableNo=" + receivable.getReceivableNo() + ", result=" + result;
                     logger.error(errMsg);
@@ -473,7 +555,11 @@ public class FinanceServiceImpl implements FinanceService {
     @Override
     public List<RepaymentRecord> listRepayments(Long receivableId) {
         if (receivableId == null) {
-            return List.of();
+            throw new IllegalArgumentException("应收款ID不能为空");
+        }
+        Receivable receivable = getReceivableById(receivableId);
+        if (receivable == null) {
+            throw new IllegalArgumentException("应收款不存在");
         }
         return repaymentRecordMapper.selectByReceivableId(receivableId);
     }

@@ -37,7 +37,7 @@
         <springdoc.version>1.7.0</springdoc.version>
         <fisco-bcos.version>3.8.0</fisco-bcos.version>
         <mysql.version>8.4.0</mysql.version>
-        <caffeine.version>3.1.8</caffeine.version>
+        <caffeine.version>3.2.0</caffeine.version>
     </properties>
 
     <!-- 依赖版本管理 -->

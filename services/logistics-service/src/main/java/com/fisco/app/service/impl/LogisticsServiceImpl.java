@@ -110,7 +110,8 @@ public class LogisticsServiceImpl implements LogisticsService {
             BlockchainFeignClient.LogisticsCreateRequest request = new BlockchainFeignClient.LogisticsCreateRequest();
                 request.setVoucherNo(voucherNo);
                 request.setBusinessScene(delegate.getBusinessScene());
-                request.setReceiptId(delegate.getReceiptId() != null ? delegate.getReceiptId().toString() : null);
+                // scene=3 发货入库场景没有关联仓单，使用 "0" 作为占位符，避免 SDK 编码 null 时 NPE
+                request.setReceiptId(delegate.getReceiptId() != null ? delegate.getReceiptId().toString() : "0");
                 request.setTransportQuantity(delegate.getTransportQuantity() != null ? delegate.getTransportQuantity().longValue() : 0L);
                 request.setUnit(delegate.getUnit());
                 request.setOwnerHash(delegate.getOwnerEntId() != null ? delegate.getOwnerEntId().toString() : null);
@@ -276,6 +277,10 @@ public class LogisticsServiceImpl implements LogisticsService {
     private void handleSceneDeliveryToWarehouse(LogisticsDelegate delegate) {
         if (delegate.getTargetWhId() == null) {
             throw new IllegalArgumentException("发货入库场景必须指定入库仓库");
+        }
+        // 发货入库场景没有源仓库，设置默认值为0
+        if (delegate.getSourceWhId() == null) {
+            delegate.setSourceWhId(0L);
         }
         logger.info("发货入库-创建委派单: voucherNo={}, targetWhId={}",
             delegate.getVoucherNo(), delegate.getTargetWhId());
@@ -656,6 +661,14 @@ public class LogisticsServiceImpl implements LogisticsService {
                 }
                 logger.info("到货生成新仓单: voucherNo={}, targetWhId={}, result={}",
                     voucherNo, delegate.getTargetWhId(), mintResult);
+
+                // 【P0-新问题修复】提取 mintResult 中的 receiptId 并设置到 delegate
+                Object receiptIdObj = mintResult.get("data");
+                if (receiptIdObj != null) {
+                    Long newReceiptId = Long.parseLong(receiptIdObj.toString());
+                    delegate.setReceiptId(newReceiptId);
+                    logger.info("到货生成新仓单ID: receiptId={}", newReceiptId);
+                }
             } catch (Exception e) {
                 logger.error("到货创建仓单失败: voucherNo={}", voucherNo, e);
                 throw new RuntimeException("创建仓单失败: " + e.getMessage(), e);
@@ -707,13 +720,16 @@ public class LogisticsServiceImpl implements LogisticsService {
                 BlockchainFeignClient.LogisticsArriveCreateRequest request =
                     new BlockchainFeignClient.LogisticsArriveCreateRequest();
                 request.setVoucherNo(voucherNo);
+                // 【修复】设置 newReceiptId（合约参数虽不使用，但需非空）
+                request.setNewReceiptId("NEW_" + voucherNo);
                 request.setWeight(delegate.getTransportQuantity() != null
                     ? delegate.getTransportQuantity().longValue() : 0L);
                 request.setUnit(delegate.getUnit());
+                // 【修复】提供默认值而非 null，防止 entityIdToBytes32 抛异常
                 request.setOwnerHash(delegate.getOwnerEntId() != null
-                    ? delegate.getOwnerEntId().toString() : null);
+                    ? delegate.getOwnerEntId().toString() : "0");
                 request.setWarehouseHash(delegate.getTargetWhId() != null
-                    ? delegate.getTargetWhId().toString() : null);
+                    ? delegate.getTargetWhId().toString() : "0");
 
                 // 【新问题修复】添加result.getCode()检查
                 var result = blockchainFeignClient.arriveAndCreateReceipt(request);

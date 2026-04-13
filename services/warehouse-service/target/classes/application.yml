@@ -20,13 +20,36 @@ spring:
     enabled: false
   cloud:
     loadbalancer:
-      enabled: false
+      enabled: true
+    discovery:
+      client:
+        simple:
+          instances:
+            warehouse-service:
+              - uri: http://warehouse-service:8083
+            enterprise-service:
+              - uri: http://enterprise-service:8082
+            fisco-gateway-service:
+              - uri: http://fisco-gateway-service:8087
+            logistics-service:
+              - uri: http://logistics-service:8084
+            auth-service:
+              - uri: http://auth-service:8081
+            credit-service:
+              - uri: http://credit-service:8086
+            finance-service:
+              - uri: http://finance-service:8085
 
 fisco:
   enabled: ${FISCO_ENABLED:true}
   group: ${FISCO_GROUP:group0}
   crypto-type: ${FISCO_CRYPTO_TYPE:0}
   config-file: ${FISCO_CONFIG_FILE:/app/sdk/config.toml}
+
+# MyBatis Plus
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
 
 # JWT配置
 jwt:

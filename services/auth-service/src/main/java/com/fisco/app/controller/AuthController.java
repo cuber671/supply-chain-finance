@@ -71,7 +71,8 @@ public class AuthController {
         @ApiResponse(responseCode = "500", description = "服务端异常", content = @Content)
     })
     @PostMapping("/login")
-    public ResponseEntity<Map<String, Object>> login(@Valid @RequestBody LoginRequestDTO loginRequest) {
+    public ResponseEntity<Map<String, Object>> login(
+            @Valid @RequestBody LoginRequestDTO loginRequest) {
         try {
             String username = loginRequest.getUsername();
             String password = loginRequest.getPassword();
@@ -200,7 +201,8 @@ public class AuthController {
         @ApiResponse(responseCode = "500", description = "服务端异常", content = @Content)
     })
     @PostMapping("/admin/login")
-    public ResponseEntity<Map<String, Object>> adminLogin(@Valid @RequestBody LoginRequestDTO loginRequest) {
+    public ResponseEntity<Map<String, Object>> adminLogin(
+            @Valid @RequestBody LoginRequestDTO loginRequest) {
         try {
             String username = loginRequest.getUsername();
             String password = loginRequest.getPassword();
@@ -254,7 +256,8 @@ public class AuthController {
         @ApiResponse(responseCode = "500", description = "服务端异常", content = @Content)
     })
     @PostMapping("/refresh")
-    public ResponseEntity<Map<String, Object>> refreshToken(@Valid @RequestBody RefreshTokenRequestDTO request) {
+    public ResponseEntity<Map<String, Object>> refreshToken(
+            @Valid @RequestBody RefreshTokenRequestDTO request) {
         try {
             if (!request.isValid()) {
                 Map<String, Object> error = new HashMap<>();
@@ -308,7 +311,8 @@ public class AuthController {
         @ApiResponse(responseCode = "500", description = "服务端异常", content = @Content)
     })
     @PostMapping("/validate")
-    public ResponseEntity<Map<String, Object>> validateToken(@RequestBody Map<String, String> request) {
+    public ResponseEntity<Map<String, Object>> validateToken(
+            @RequestBody Map<String, String> request) {
         try {
             String accessToken = request.get("accessToken");
             if (accessToken == null || accessToken.isEmpty()) {
@@ -351,7 +355,8 @@ public class AuthController {
         @ApiResponse(responseCode = "500", description = "服务端异常", content = @Content)
     })
     @PostMapping("/login/status")
-    public ResponseEntity<Map<String, Object>> queryLoginStatus(@RequestBody Map<String, String> request) {
+    public ResponseEntity<Map<String, Object>> queryLoginStatus(
+            @RequestBody Map<String, String> request) {
         String txUuid = request.get("txUuid");
         if (txUuid == null || txUuid.isEmpty()) {
             Map<String, Object> error = new HashMap<>();

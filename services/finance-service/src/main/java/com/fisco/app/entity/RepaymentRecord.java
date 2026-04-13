@@ -20,7 +20,7 @@ import lombok.Data;
 @TableName("t_repayment_record")
 public class RepaymentRecord {
 
-    @TableId(type = IdType.ASSIGN_ID)
+    @TableId(type = IdType.AUTO)
     private Long id;
 
     @TableField("receivable_id")

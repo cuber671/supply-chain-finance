@@ -22,7 +22,7 @@ import lombok.Data;
 @TableName("t_receipt_operation_log")
 public class ReceiptOperationLog {
 
-    @TableId(type = IdType.ASSIGN_ID)
+    @TableId(type = IdType.AUTO)
     private Long id;
 
     private Integer opType;

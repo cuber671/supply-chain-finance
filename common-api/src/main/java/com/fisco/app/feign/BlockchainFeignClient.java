@@ -69,7 +69,7 @@ public interface BlockchainFeignClient {
     @PostMapping("/api/v1/blockchain/receipt/issue")
     Result<String> issueReceipt(@RequestBody ReceiptIssueRequest request);
 
-    @GetMapping("/api/v1/blockchain/receipt/{receiptId}")
+    @GetMapping("/api/v1/blockchain/receipt/status/{receiptId}")
     Result<Map<String, Object>> getReceipt(@PathVariable("receiptId") String receiptId);
 
     @GetMapping("/api/v1/blockchain/receipt/owner/{owner}")
@@ -198,6 +198,9 @@ public interface BlockchainFeignClient {
     @GetMapping("/api/v1/blockchain/receivable/status/{receivableId}")
     Result<Integer> getReceivableStatus(@PathVariable("receivableId") String receivableId);
 
+    @GetMapping("/api/v1/blockchain/receivable/balance/{receivableId}")
+    Result<Long> getBalanceUnpaid(@PathVariable("receivableId") String receivableId);
+
     @PostMapping("/api/v1/blockchain/receivable/record-repayment")
     Result<String> recordReceivableRepayment(@RequestBody ReceivableRecordRepaymentRequest request);
 
@@ -206,6 +209,12 @@ public interface BlockchainFeignClient {
 
     @PostMapping("/api/v1/blockchain/receivable/offset-debt")
     Result<String> offsetDebtWithCollateral(@RequestBody OffsetDebtRequest request);
+
+    @PostMapping("/api/v1/blockchain/receivable/offset-debt-with-receipt")
+    Result<String> offsetDebtWithWarehouseReceipt(@RequestBody OffsetDebtWithReceiptRequest request);
+
+    @PostMapping("/api/v1/blockchain/receivable/update-balance")
+    Result<String> updateBalance(@RequestBody UpdateBalanceRequest request);
 
     // ==================== 请求 DTO ====================
 
@@ -680,14 +689,14 @@ public interface BlockchainFeignClient {
     class ReceivableAdjustRequest {
         private String receivableId;
         private Long adjustedAmount;
-        private Integer adjustType;
+        private String reason;
 
         public String getReceivableId() { return receivableId; }
         public void setReceivableId(String v) { this.receivableId = v; }
         public Long getAdjustedAmount() { return adjustedAmount; }
         public void setAdjustedAmount(Long v) { this.adjustedAmount = v; }
-        public Integer getAdjustType() { return adjustType; }
-        public void setAdjustType(Integer v) { this.adjustType = v; }
+        public String getReason() { return reason; }
+        public void setReason(String v) { this.reason = v; }
     }
 
     class ReceivableFinanceRequest {
@@ -713,14 +722,14 @@ public interface BlockchainFeignClient {
     class ReceivableRecordRepaymentRequest {
         private String receivableId;
         private Long repaymentAmount;
-        private Integer repaymentType;
+        private String paymentMethod;
 
         public String getReceivableId() { return receivableId; }
         public void setReceivableId(String v) { this.receivableId = v; }
         public Long getRepaymentAmount() { return repaymentAmount; }
         public void setRepaymentAmount(Long v) { this.repaymentAmount = v; }
-        public Integer getRepaymentType() { return repaymentType; }
-        public void setRepaymentType(Integer v) { this.repaymentType = v; }
+        public String getPaymentMethod() { return paymentMethod; }
+        public void setPaymentMethod(String v) { this.paymentMethod = v; }
     }
 
     class ReceivableFullRepaymentRequest {
@@ -744,5 +753,34 @@ public interface BlockchainFeignClient {
         public void setOffsetAmount(Long v) { this.offsetAmount = v; }
         public String getSignatureHash() { return signatureHash; }
         public void setSignatureHash(String v) { this.signatureHash = v; }
+    }
+
+    class UpdateBalanceRequest {
+        private String receivableId;
+        private Long amount;
+        private Boolean isFull;
+
+        public String getReceivableId() { return receivableId; }
+        public void setReceivableId(String v) { this.receivableId = v; }
+        public Long getAmount() { return amount; }
+        public void setAmount(Long v) { this.amount = v; }
+        public Boolean getIsFull() { return isFull; }
+        public void setIsFull(Boolean v) { this.isFull = v; }
+    }
+
+    class OffsetDebtWithReceiptRequest {
+        private String receivableId;
+        private String receiptId;
+        private Long offsetAmount;
+        private String reason;
+
+        public String getReceivableId() { return receivableId; }
+        public void setReceivableId(String v) { this.receivableId = v; }
+        public String getReceiptId() { return receiptId; }
+        public void setReceiptId(String v) { this.receiptId = v; }
+        public Long getOffsetAmount() { return offsetAmount; }
+        public void setOffsetAmount(Long v) { this.offsetAmount = v; }
+        public String getReason() { return reason; }
+        public void setReason(String v) { this.reason = v; }
     }
 }

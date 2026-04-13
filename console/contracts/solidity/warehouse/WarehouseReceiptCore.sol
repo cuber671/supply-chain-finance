@@ -34,7 +34,6 @@ contract WarehouseReceiptCore is IWarehouseReceiptCore {
     // ==================== 状态变量 ====================
 
     address public admin;
-    address public javaBackend;
     uint256 public receiptCount;
     uint256 public constant VERSION = 2;
 
@@ -186,11 +185,6 @@ contract WarehouseReceiptCore is IWarehouseReceiptCore {
         _;
     }
 
-    modifier onlyJavaBackend() {
-        require(msg.sender == javaBackend, "Only Java backend");
-        _;
-    }
-
     modifier onlyValidReceipt(string memory receiptId) {
         require(receiptIdExists[receiptId], "Receipt not found");
         _;
@@ -198,7 +192,7 @@ contract WarehouseReceiptCore is IWarehouseReceiptCore {
 
     modifier onlyActiveReceipt(string memory receiptId) {
         Receipt storage r = receipts[receiptId];
-        require(r.core.status == ReceiptStatus.InStorage || r.core.status == ReceiptStatus.InStorage, "Receipt not active");
+        require(r.core.status == ReceiptStatus.InStorage, "Receipt not active");
         require(!r.core.frozen, "Receipt is frozen");
         _;
     }
@@ -221,7 +215,6 @@ contract WarehouseReceiptCore is IWarehouseReceiptCore {
     constructor(address _initialAdmin) {
         require(_initialAdmin != address(0), "Admin cannot be zero");
         admin = _initialAdmin;
-        javaBackend = _initialAdmin;
     }
 
     // ==================== 核心功能 ====================
@@ -232,7 +225,7 @@ contract WarehouseReceiptCore is IWarehouseReceiptCore {
      * @return success 是否成功
      */
     function issueReceipt(ReceiptInput calldata input)
-        external onlyJavaBackend returns (bool success)
+        external onlyAdmin returns (bool success)
     {
         // 参数验证
         require(!receiptIdExists[input.receiptId], "Receipt ID exists");
@@ -352,24 +345,6 @@ contract WarehouseReceiptCore is IWarehouseReceiptCore {
     }
 
     /**
-     * @dev 冻结/解冻仓单
-     * @param receiptId 仓单ID
-     * @param frozen 是否冻结
-     * @return success 是否成功
-     */
-    function setFrozen(string calldata receiptId, bool frozen)
-        external onlyAdmin onlyValidReceipt(receiptId) returns (bool success)
-    {
-        Receipt storage r = receipts[receiptId];
-        r.core.frozen = frozen;
-        r.core.updatedAt = block.timestamp;
-
-        emit ReceiptFrozen(receiptId, frozen, block.timestamp);
-
-        return true;
-    }
-
-    /**
      * @dev 注销仓单
      * @param receiptId 仓单ID
      * @param reason 注销原因
@@ -382,9 +357,9 @@ contract WarehouseReceiptCore is IWarehouseReceiptCore {
         require(r.core.status != ReceiptStatus.Burned, "Already cancelled");
         require(r.core.status != ReceiptStatus.InStorage, "Already delivered");
 
-        // 只有所有者、管理员或仓库可注销
+        // 只有所有者或管理员可注销
         address owner = receiptIdToOwner[receiptId];
-        require(msg.sender == owner || msg.sender == admin || msg.sender == javaBackend, "Not authorized");
+        require(msg.sender == owner || msg.sender == admin, "Not authorized");
 
         r.core.status = ReceiptStatus.Burned;
         r.core.updatedAt = block.timestamp;
@@ -397,19 +372,18 @@ contract WarehouseReceiptCore is IWarehouseReceiptCore {
     /**
      * @dev 核销仓单（提货出库）
      * @param receiptId 仓单ID
-     * @param signatureHash 提货签名哈希
      * @return success 是否成功
      */
-    function burnReceipt(string calldata receiptId, bytes32 signatureHash)
+    function burnReceipt(string calldata receiptId)
         external onlyValidReceipt(receiptId) returns (bool success)
     {
         Receipt storage r = receipts[receiptId];
         require(r.core.status != ReceiptStatus.Burned, "Already burned");
         require(r.core.status != ReceiptStatus.InTransit, "In transit");
 
-        // 只有所有者、管理员或仓库可核销
+        // 只有所有者或管理员可核销
         address owner = receiptIdToOwner[receiptId];
-        require(msg.sender == owner || msg.sender == admin || msg.sender == javaBackend, "Not authorized");
+        require(msg.sender == owner || msg.sender == admin, "Not authorized");
 
         // 更新状态为已核销
         r.core.status = ReceiptStatus.Burned;
@@ -453,31 +427,6 @@ contract WarehouseReceiptCore is IWarehouseReceiptCore {
     }
 
     /**
-     * @dev 获取仓单核心信息（简化版）
-     * @param receiptId 仓单ID
-     * @return _receiptId 仓单ID
-     * @return weight 重量
-     * @return unit 单位
-     * @return status 状态
-     */
-    function getReceiptCore(string calldata receiptId)
-        external view onlyValidReceipt(receiptId) returns (
-            string memory _receiptId,
-            uint256 weight,
-            string memory unit,
-            uint8 status
-        )
-    {
-        Receipt storage r = receipts[receiptId];
-        return (
-            r.core.receiptId,
-            r.core.weight,
-            r.core.unit,
-            uint8(r.core.status)
-        );
-    }
-
-    /**
      * @dev 批量获取仓单ID列表
      * @param owner 所有者地址
      * @param offset 起始索引
@@ -514,17 +463,6 @@ contract WarehouseReceiptCore is IWarehouseReceiptCore {
      */
     function exists(string calldata receiptId) external view returns (bool) {
         return receiptIdExists[receiptId];
-    }
-
-    /**
-     * @dev 检查仓单是否有效（在库且未冻结）
-     * @param receiptId 仓单ID
-     * @return 是否有效
-     */
-    function isValid(string calldata receiptId) external view returns (bool) {
-        if (!receiptIdExists[receiptId]) return false;
-        Receipt storage r = receipts[receiptId];
-        return (r.core.status == ReceiptStatus.InStorage || r.core.status == ReceiptStatus.InStorage) && !r.core.frozen;
     }
 
     // ==================== 拆分合并操作 ====================
@@ -570,7 +508,7 @@ contract WarehouseReceiptCore is IWarehouseReceiptCore {
      * 注意：此函数仅在链上记录合并事件，实际合并由应用层处理
      */
     function mergeReceipts(IWarehouseReceiptCore.MergeInput calldata input)
-        external onlyJavaBackend returns (bool success)
+        external onlyAdmin returns (bool success)
     {
         // 验证合并数量
         require(input.sourceReceiptIds.length > 1 && input.sourceReceiptIds.length <= MAX_SPLIT_COUNT, "Invalid merge count");
@@ -586,54 +524,6 @@ contract WarehouseReceiptCore is IWarehouseReceiptCore {
 
         // 记录合并事件（链上存证）
         emit ReceiptMerged(input.sourceReceiptIds, input.targetReceiptId, input.totalWeight, block.timestamp);
-
-        return true;
-    }
-
-    /**
-     * @dev 更新仓单所有者
-     * @param receiptId 仓单ID
-     * @param newOwnerHash 新所有者哈希
-     * @return success 是否成功
-     */
-    function updateOwner(string calldata receiptId, bytes32 newOwnerHash)
-        external onlyValidReceipt(receiptId) onlyReceiptOwner(receiptId) onlyUnlocked(receiptId) returns (bool success)
-    {
-        require(newOwnerHash != bytes32(0), "Invalid owner hash");
-
-        Receipt storage r = receipts[receiptId];
-        require(r.core.status == ReceiptStatus.InStorage, "Receipt not in storage");
-        require(!r.core.frozen, "Receipt is frozen");
-
-        r.hashData.ownerHash = newOwnerHash;
-        r.core.updatedAt = block.timestamp;
-
-        emit ReceiptTransferred(
-            receiptId,
-            receiptIdToOwner[receiptId],
-            address(0),
-            newOwnerHash,
-            block.timestamp
-        );
-
-        return true;
-    }
-
-    /**
-     * @dev 更新仓单状态
-     * @param receiptId 仓单ID
-     * @param newStatus 新状态
-     * @return success 是否成功
-     */
-    function updateReceiptStatus(string calldata receiptId, uint8 newStatus)
-        external onlyValidReceipt(receiptId) onlyReceiptOwner(receiptId) returns (bool success)
-    {
-        Receipt storage r = receipts[receiptId];
-        uint8 oldStatus = uint8(r.core.status);
-        r.core.status = ReceiptStatus(newStatus);
-        r.core.updatedAt = block.timestamp;
-
-        emit ReceiptStatusChanged(receiptId, oldStatus, newStatus, msg.sender, block.timestamp);
 
         return true;
     }
@@ -705,9 +595,27 @@ contract WarehouseReceiptCore is IWarehouseReceiptCore {
         return true;
     }
 
-    function setJavaBackend(address newBackend) external onlyAdmin returns (bool) {
-        require(newBackend != address(0), "Invalid address");
-        javaBackend = newBackend;
-        return true;
+    // ==================== 仓单抵债辅助函数 ====================
+
+    /**
+     * @dev 获取仓单状态
+     * @param receiptId 仓单ID
+     * @return status 仓单状态
+     */
+    function getReceiptStatus(string calldata receiptId)
+        external view onlyValidReceipt(receiptId) returns (uint8 status)
+    {
+        return uint8(receipts[receiptId].core.status);
+    }
+
+    /**
+     * @dev 检查仓单是否已质押
+     * @param receiptId 仓单ID
+     * @return isPledged 是否已质押
+     */
+    function isPledgedByReceiptId(string calldata receiptId)
+        external view onlyValidReceipt(receiptId) returns (bool isPledged)
+    {
+        return receipts[receiptId].core.status == ReceiptStatus.Pledged;
     }
 }

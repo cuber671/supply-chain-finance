@@ -1,13 +1,15 @@
 package com.fisco.app.controller;
 
+import java.util.HashMap;
+import java.util.Map;
+
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.fisco.app.service.TokenService;
-import com.fisco.app.util.Result;
-
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -50,32 +52,43 @@ public class LogoutController {
         @ApiResponse(responseCode = "500", description = "登出失败，服务暂时不可用", content = @Content)
     })
     @PostMapping("/logout")
-    public Result<?> logout(@Parameter(description = "Bearer Token", required = true) @RequestHeader(value = "Authorization", required = false) String authHeader) {
+    public ResponseEntity<Map<String, Object>> logout(@Parameter(description = "Bearer Token", required = true) @RequestHeader(value = "Authorization", required = false) String authHeader) {
         if (authHeader == null || !authHeader.startsWith(BEARER_PREFIX)) {
             log.warn("登出失败：未提供有效的Authorization头");
-            return Result.error(401, "Invalid authorization header");
+            Map<String, Object> error = new HashMap<>();
+            error.put("code", 401);
+            error.put("message", "Invalid authorization header");
+            return ResponseEntity.status(401).body(error);
         }
 
         String token = authHeader.substring(BEARER_PREFIX.length());
 
         try {
             boolean revoked = tokenService.revokeToken(token);
+            Map<String, Object> response = new HashMap<>();
+            response.put("code", 200);
+            response.put("message", "Logout successful");
             if (revoked) {
                 log.info("Token吊销成功");
-                return Result.success("Logout successful");
             } else {
                 // Token无效（格式错误或已过期），业务上视为登出成功
                 log.info("Token无效或已过期，视为登出成功");
-                return Result.success("Logout successful");
             }
+            return ResponseEntity.ok(response);
         } catch (IllegalArgumentException e) {
             // 业务预期内异常（Token格式错误等），视为登出成功
             log.warn("Token格式错误: {}", e.getMessage());
-            return Result.success("Logout successful");
+            Map<String, Object> response = new HashMap<>();
+            response.put("code", 200);
+            response.put("message", "Logout successful");
+            return ResponseEntity.ok(response);
         } catch (Exception e) {
             // 系统异常（Redis连接失败等），不应返回成功
             log.error("Token吊销系统异常: {}", e.getMessage(), e);
-            return Result.error(500, "登出失败，服务暂时不可用");
+            Map<String, Object> error = new HashMap<>();
+            error.put("code", 500);
+            error.put("message", "登出失败，服务暂时不可用");
+            return ResponseEntity.status(500).body(error);
         }
     }
 }

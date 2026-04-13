@@ -24,6 +24,8 @@ import com.fisco.app.service.BlockchainService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -56,7 +58,7 @@ public class BlockchainController {
     @Operation(summary = "获取区块链状态", description = "查询区块链网络连接状态、当前块高、链ID等信息。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "查询成功"),
+        @ApiResponse(responseCode = "200", description = "查询成功", content = @Content(schema = @Schema(implementation = Map.class))),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @GetMapping("/status")
@@ -84,7 +86,7 @@ public class BlockchainController {
     @Operation(summary = "健康检查", description = "检查区块链网关服务健康状态。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "查询成功")
+        @ApiResponse(responseCode = "200", description = "查询成功", content = @Content(schema = @Schema(implementation = Map.class)))
     })
     @GetMapping("/health")
     public Result<Map<String, Object>> health() {
@@ -96,7 +98,7 @@ public class BlockchainController {
     @Operation(summary = "获取当前块高", description = "查询区块链当前区块高度。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "查询成功"),
+        @ApiResponse(responseCode = "200", description = "查询成功", content = @Content(schema = @Schema(implementation = BigInteger.class))),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @GetMapping("/blockNumber")
@@ -113,7 +115,7 @@ public class BlockchainController {
     @Operation(summary = "根据块号获取区块信息", description = "根据区块号查询对应区块的详细信息。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "查询成功"),
+        @ApiResponse(responseCode = "200", description = "查询成功", content = @Content(schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "400", description = "参数无效"),
         @ApiResponse(responseCode = "404", description = "区块不存在"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
@@ -139,7 +141,7 @@ public class BlockchainController {
     @Operation(summary = "根据块号获取区块哈希", description = "根据区块号查询对应区块的哈希值。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "查询成功"),
+        @ApiResponse(responseCode = "200", description = "查询成功", content = @Content(schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @GetMapping("/blockHash/{blockNumber}")
@@ -158,7 +160,7 @@ public class BlockchainController {
     @Operation(summary = "根据交易哈希获取交易收据", description = "根据交易哈希查询对应交易的收据信息。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "查询成功"),
+        @ApiResponse(responseCode = "200", description = "查询成功", content = @Content(schema = @Schema(implementation = TransactionReceipt.class))),
         @ApiResponse(responseCode = "400", description = "参数无效"),
         @ApiResponse(responseCode = "404", description = "交易收据不存在或交易未确认"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
@@ -184,7 +186,7 @@ public class BlockchainController {
     @Operation(summary = "获取当前系统账户地址", description = "获取FISCO区块链SDK当前使用的系统账户地址。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "查询成功"),
+        @ApiResponse(responseCode = "200", description = "查询成功", content = @Content(schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @GetMapping("/account")
@@ -201,7 +203,7 @@ public class BlockchainController {
     @Operation(summary = "查询账户余额", description = "查询指定账户地址的FISCO代币余额。注意：FISCO SDK 3.x不支持余额查询，会返回提示信息。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "查询成功"),
+        @ApiResponse(responseCode = "200", description = "查询成功", content = @Content(schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "400", description = "参数无效"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
@@ -229,7 +231,7 @@ public class BlockchainController {
     @Operation(summary = "调用合约只读方法", description = "调用区块链上合约的只读方法（call），不产生交易。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "调用成功"),
+        @ApiResponse(responseCode = "200", description = "调用成功", content = @Content(schema = @Schema(implementation = CallResponse.class))),
         @ApiResponse(responseCode = "400", description = "参数错误：缺少必要参数"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
@@ -263,7 +265,7 @@ public class BlockchainController {
     @Operation(summary = "发送合约交易", description = "发送区块链合约交易（transaction），产生链上记录。需要ADMIN角色。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "交易发送成功"),
+        @ApiResponse(responseCode = "200", description = "交易发送成功", content = @Content(schema = @Schema(implementation = Object.class))),
         @ApiResponse(responseCode = "400", description = "参数错误：缺少必要参数"),
         @ApiResponse(responseCode = "403", description = "无权限"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
@@ -299,7 +301,7 @@ public class BlockchainController {
     @Operation(summary = "获取群组信息", description = "获取FISCO区块链群组详细信息。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "查询成功"),
+        @ApiResponse(responseCode = "200", description = "查询成功", content = @Content(schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @GetMapping("/group")
@@ -316,7 +318,7 @@ public class BlockchainController {
     @Operation(summary = "获取群组列表", description = "获取FISCO区块链所有可用群组列表。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "查询成功"),
+        @ApiResponse(responseCode = "200", description = "查询成功", content = @Content(schema = @Schema(implementation = List.class))),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @GetMapping("/groups")

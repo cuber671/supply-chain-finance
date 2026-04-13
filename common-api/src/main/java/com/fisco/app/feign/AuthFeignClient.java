@@ -3,6 +3,8 @@ package com.fisco.app.feign;
 import com.fisco.app.dto.TokenResponseDTO;
 import com.fisco.app.util.Result;
 
+import java.util.Map;
+
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -24,4 +26,7 @@ public interface AuthFeignClient {
 
     @PostMapping("/api/v1/auth/refresh")
     Result<TokenResponseDTO> refreshToken(@RequestBody String refreshToken);
+
+    @PostMapping("/api/v1/auth/enterprise/token")
+    Result<TokenResponseDTO> generateEnterpriseToken(@RequestBody Map<String, Object> request);
 }

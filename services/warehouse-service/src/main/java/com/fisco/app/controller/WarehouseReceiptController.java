@@ -132,7 +132,9 @@ public class WarehouseReceiptController {
             if (warehouse == null) {
                 return Result.error(404, "仓库不存在");
             }
-            if (!warehouse.getEntId().equals(entId)) {
+            // 修复：安全比较企业ID，防止空指针异常
+            Long warehouseEntId = warehouse.getEntId();
+            if (warehouseEntId == null || !warehouseEntId.equals(entId)) {
                 return Result.error(403, "无权限操作：仅仓储方可以确认入库单");
             }
 
@@ -175,7 +177,9 @@ public class WarehouseReceiptController {
             if (warehouse == null) {
                 return Result.error(404, "仓库不存在");
             }
-            if (!warehouse.getEntId().equals(entId)) {
+            // 修复：安全比较企业ID，防止空指针异常
+            Long warehouseEntId = warehouse.getEntId();
+            if (warehouseEntId == null || !warehouseEntId.equals(entId)) {
                 return Result.error(403, "无权限操作：仅仓储方可以取消入库单");
             }
 
@@ -296,7 +300,9 @@ public class WarehouseReceiptController {
             if (warehouse == null) {
                 return Result.error(404, "仓库不存在");
             }
-            if (!warehouse.getEntId().equals(entId)) {
+            // 修复：安全比较企业ID，防止空指针异常
+            Long warehouseEntId = warehouse.getEntId();
+            if (warehouseEntId == null || !warehouseEntId.equals(entId)) {
                 return Result.error(403, "无权限操作：仅仓储方可签发仓单");
             }
 
@@ -362,6 +368,13 @@ public class WarehouseReceiptController {
             logger.info("物流直接签发仓单成功: receiptId={}, warehouseId={}, logisticsVoucherNo={}",
                 receiptId, warehouseId, logisticsVoucherNo);
             return Result.success(receiptId);
+        } catch (IllegalArgumentException e) {
+            // 业务参数校验异常，返回相应错误码
+            String msg = e.getMessage();
+            if (msg != null && msg.contains("不存在")) {
+                return Result.error(404, msg);
+            }
+            return Result.error(400, msg);
         } catch (Exception e) {
             logger.error("物流直接签发仓单失败", e);
             return Result.error(500, e.getMessage());
@@ -401,6 +414,9 @@ public class WarehouseReceiptController {
     public Result<WarehouseReceipt> getReceiptByOnChainId(
             @Parameter(description = "链上ID", required = true) @PathVariable String onChainId) {
         WarehouseReceipt receipt = warehouseReceiptService.getReceiptByOnChainId(onChainId);
+        if (receipt == null) {
+            return Result.error(404, "仓单不存在");
+        }
         return Result.success(receipt);
     }
 
@@ -575,7 +591,11 @@ public class WarehouseReceiptController {
             boolean success = warehouseReceiptService.confirmEndorsement(id, userId, accept);
             return Result.success(success);
         } catch (IllegalArgumentException e) {
-            return Result.error(400, e.getMessage());
+            String msg = e.getMessage();
+            if (msg != null && msg.contains("不存在")) {
+                return Result.error(404, msg);
+            }
+            return Result.error(400, msg);
         } catch (Exception e) {
             logger.error("确认背书转让失败", e);
             return Result.error(500, e.getMessage());
@@ -602,7 +622,11 @@ public class WarehouseReceiptController {
             boolean success = warehouseReceiptService.revokeEndorsement(id);
             return Result.success(success);
         } catch (IllegalArgumentException e) {
-            return Result.error(400, e.getMessage());
+            String msg = e.getMessage();
+            if (msg != null && msg.contains("不存在")) {
+                return Result.error(404, msg);
+            }
+            return Result.error(400, msg);
         } catch (Exception e) {
             logger.error("撤回背书失败", e);
             return Result.error(500, "撤回背书失败");
@@ -769,9 +793,16 @@ public class WarehouseReceiptController {
         try {
             Long id = parseId(opLogId, "操作记录ID");
             ReceiptOperationLog opLog = warehouseReceiptService.getOperationLogById(id);
+            if (opLog == null) {
+                return Result.error(404, "操作记录不存在");
+            }
             return Result.success(opLog);
         } catch (IllegalArgumentException e) {
-            return Result.error(400, e.getMessage());
+            String msg = e.getMessage();
+            if (msg != null && msg.contains("不存在")) {
+                return Result.error(404, msg);
+            }
+            return Result.error(400, msg);
         }
     }
 
@@ -839,7 +870,11 @@ public class WarehouseReceiptController {
             boolean success = warehouseReceiptService.lockReceipt(id, loanId);
             return Result.success(success);
         } catch (IllegalArgumentException e) {
-            return Result.error(400, e.getMessage());
+            String msg = e.getMessage();
+            if (msg != null && msg.contains("不存在")) {
+                return Result.error(404, msg);
+            }
+            return Result.error(400, msg);
         } catch (Exception e) {
             logger.error("质押锁定仓单失败", e);
             return Result.error(500, "质押锁定仓单失败");
@@ -862,7 +897,11 @@ public class WarehouseReceiptController {
             boolean success = warehouseReceiptService.unlockReceipt(id);
             return Result.success(success);
         } catch (IllegalArgumentException e) {
-            return Result.error(400, e.getMessage());
+            String msg = e.getMessage();
+            if (msg != null && msg.contains("不存在")) {
+                return Result.error(404, msg);
+            }
+            return Result.error(400, msg);
         } catch (Exception e) {
             logger.error("还款解押仓单失败", e);
             return Result.error(500, "还款解押仓单失败");
@@ -891,7 +930,11 @@ public class WarehouseReceiptController {
             boolean success = warehouseReceiptService.forceUnlockReceipt(id, reason);
             return Result.success(success);
         } catch (IllegalArgumentException e) {
-            return Result.error(400, e.getMessage());
+            String msg = e.getMessage();
+            if (msg != null && msg.contains("不存在")) {
+                return Result.error(404, msg);
+            }
+            return Result.error(400, msg);
         } catch (Exception e) {
             logger.error("管理员强制解锁仓单失败", e);
             return Result.error(500, "强制解锁仓单失败: " + e.getMessage());
@@ -1027,6 +1070,8 @@ public class WarehouseReceiptController {
             return Result.success(success);
         } catch (IllegalArgumentException e) {
             return Result.error(400, e.getMessage());
+        } catch (IllegalStateException e) {
+            return Result.error(403, e.getMessage());
         } catch (Exception e) {
             logger.error("确认核销出库失败", e);
             return Result.error(500, "确认核销出库失败");
@@ -1182,7 +1227,7 @@ public class WarehouseReceiptController {
         private Long stockOrderId;
         @Schema(description = "仓库用户ID（可选，已从JWT自动获取）", example = "1")
         private Long warehouseUserId;
-        @Schema(description = "链上ID（可选，上链后由系统返回）", example = "0xabc123...")
+        @Schema(description = "链上ID（可选，不填时由系统自动生成并上链）", example = "0xabc123...")
         private String onChainId;
 
         public Long getStockOrderId() { return stockOrderId; }

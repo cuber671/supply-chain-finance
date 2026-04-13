@@ -70,7 +70,7 @@ public class CreditController {
     })
     @GetMapping("/profile")
     public Result<CreditPortraitResponse> getCreditProfile(
-            @Parameter(description = "企业ID，不传则查询当前企业") @RequestParam(required = false) Long entId,
+            @Parameter(description = "企业ID，不传则查询当前企业", example = "123") @RequestParam(required = false) Long entId,
             HttpServletRequest request) {
         try {
             Long currentEntId = getCurrentEntId(request);
@@ -133,7 +133,7 @@ public class CreditController {
     })
     @GetMapping("/score")
     public Result<CreditScoreResultResponse> getCreditScore(
-            @Parameter(description = "企业ID，不传则查询当前企业") @RequestParam(required = false) Long entId,
+            @Parameter(description = "企业ID，不传则查询当前企业", example = "123") @RequestParam(required = false) Long entId,
             HttpServletRequest request) {
         try {
             Long currentEntId = getCurrentEntId(request);
@@ -307,9 +307,9 @@ public class CreditController {
     @RequireRole({"ADMIN"})
     @GetMapping("/events")
     public Result<List<CreditEventResponse>> listCreditEvents(
-            @Parameter(description = "企业ID，不传则查询当前企业")
+            @Parameter(description = "企业ID，不传则查询当前企业", example = "123")
             @RequestParam(required = false) Long entId,
-            @Parameter(description = "事件类型")
+            @Parameter(description = "事件类型", example = "LOAN_OVERDUE")
             @RequestParam(required = false) String eventType,
             HttpServletRequest request) {
         try {
@@ -468,7 +468,7 @@ public class CreditController {
     })
     @GetMapping("/limit/available")
     public Result<Map<String, Object>> getAvailableCreditLimit(
-            @Parameter(description = "企业ID，不传则查询当前企业") @RequestParam(required = false) Long entId,
+            @Parameter(description = "企业ID，不传则查询当前企业", example = "123") @RequestParam(required = false) Long entId,
             HttpServletRequest request) {
         try {
             Long currentEntId = getCurrentEntIdFromUser();
@@ -798,9 +798,9 @@ public class CreditController {
     public static class CreditEventReportRequest {
         @Schema(description = "企业ID", example = "1")
         private Long entId;
-        @Schema(description = "事件类型", example = "OVERDUE_PAYMENT")
+        @Schema(description = "事件类型", example = "OVERDUE", allowableValues = {"OVERDUE", "DEFAULTER", "EARLY_REPAY", "ON_TIME_REPAY", "GOODS_UNDAMAGED", "STABLE_STORAGE", "LOGISTICS_DEVIATION", "RECEIPT_ABNORMAL", "FREQUENT_CANCEL"})
         private String eventType;
-        @Schema(description = "事件等级：LOW/MEDIUM/HIGH", example = "HIGH")
+        @Schema(description = "事件等级", example = "HIGH", allowableValues = {"LOW", "MEDIUM", "HIGH", "SEVERE"})
         private String eventLevel;
         @Schema(description = "事件描述（可选）", example = "贷款逾期30天")
         private String eventDesc;
@@ -836,7 +836,7 @@ public class CreditController {
         private Long entId;
         @Schema(description = "物流订单ID", example = "LOG20260324001")
         private String logisticsOrderId;
-        @Schema(description = "偏航级别：1-轻度、2-中度、3-严重", example = "2")
+        @Schema(description = "偏航级别：1-轻度、2-中度、3-严重", example = "2", allowableValues = {"1", "2", "3"})
         private Integer deviationLevel;
         @Schema(description = "偏航描述（可选）", example = "偏离预定路线10公里")
         private String deviationDesc;
@@ -892,7 +892,7 @@ public class CreditController {
         private String enterpriseName;
         @Schema(description = "信用评分", example = "750")
         private Integer creditScore;
-        @Schema(description = "信用等级：AAA/AA/A/BBB/BB/B/CCC/CC/C", example = "AA")
+        @Schema(description = "信用等级", example = "AA", allowableValues = {"AAA", "AA", "A", "BBB", "BB", "B", "CCC", "CC", "C"})
         private String creditLevel;
         @Schema(description = "可用额度", example = "100000.00")
         private BigDecimal availableLimit;
@@ -938,7 +938,7 @@ public class CreditController {
         private Long entId;
         @Schema(description = "信用评分", example = "750")
         private Integer creditScore;
-        @Schema(description = "信用等级", example = "AA")
+        @Schema(description = "信用等级", example = "AA", allowableValues = {"AAA", "AA", "A", "BBB", "BB", "B", "CCC", "CC", "C"})
         private String creditLevel;
         @Schema(description = "上次评估时间", example = "2026-03-24 10:00:00")
         private String lastEvalTime;
@@ -1002,15 +1002,15 @@ public class CreditController {
         private Long id;
         @Schema(description = "企业ID", example = "1")
         private Long entId;
-        @Schema(description = "事件类型", example = "OVERDUE_PAYMENT")
+        @Schema(description = "事件类型", example = "OVERDUE", allowableValues = {"OVERDUE", "DEFAULTER", "EARLY_REPAY", "ON_TIME_REPAY", "GOODS_UNDAMAGED", "STABLE_STORAGE", "LOGISTICS_DEVIATION", "RECEIPT_ABNORMAL", "FREQUENT_CANCEL"})
         private String eventType;
-        @Schema(description = "事件等级", example = "HIGH")
+        @Schema(description = "事件等级", example = "HIGH", allowableValues = {"LOW", "MEDIUM", "HIGH", "SEVERE"})
         private String eventLevel;
         @Schema(description = "事件描述", example = "贷款逾期30天")
         private String eventDesc;
         @Schema(description = "评分变化", example = "-20")
         private Integer scoreChange;
-        @Schema(description = "关联模块", example = "LOAN")
+        @Schema(description = "关联模块", example = "FINANCE", allowableValues = {"WAREHOUSE", "LOGISTICS", "FINANCE"})
         private String relatedModule;
         @Schema(description = "关联ID", example = "100")
         private String relatedId;

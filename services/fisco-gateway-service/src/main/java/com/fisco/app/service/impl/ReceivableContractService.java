@@ -152,7 +152,7 @@ public class ReceivableContractService extends BaseContractService {
         TransactionResponse response = sendTransactionWithAudit(
                 receivableCoreContract,
                 "confirmReceivable",
-                new Object[]{receivableId, signature != null ? signature : new byte[0]},
+                new Object[]{receivableId},
                 "RECEIVABLE_CONFIRM"
         );
 
@@ -168,7 +168,7 @@ public class ReceivableContractService extends BaseContractService {
     public TransactionReceipt adjustReceivable(
             String receivableId,
             BigInteger adjustedAmount,
-            BigInteger adjustType) {
+            String reason) {
         checkCoreContract();
 
         if (receivableId == null || receivableId.isBlank()) {
@@ -178,13 +178,20 @@ public class ReceivableContractService extends BaseContractService {
             throw new IllegalArgumentException("调整金额不能为负数");
         }
 
-        logger.info("调整应收款上链: receivableId={}, adjustedAmount={}, adjustType={}",
-                receivableId, adjustedAmount, adjustType);
+        logger.info("调整应收款上链: receivableId={}, adjustedAmount={}, reason={}",
+                receivableId, adjustedAmount, reason);
+
+        // 【F013修复】合约期望 AdjustInput struct，不是三个独立参数
+        ReceivableCore.AdjustInput input = new ReceivableCore.AdjustInput(
+                receivableId,
+                adjustedAmount,
+                reason != null ? reason : "adjust"
+        );
 
         TransactionResponse response = sendTransactionWithAudit(
                 receivableCoreContract,
                 "adjustReceivable",
-                new Object[]{receivableId, adjustedAmount, adjustType},
+                new Object[]{input},
                 "RECEIVABLE_ADJUST"
         );
 
@@ -254,6 +261,34 @@ public class ReceivableContractService extends BaseContractService {
         return receipt;
     }
 
+    public TransactionReceipt updateBalance(String receivableId, BigInteger amount, Boolean isFull) {
+        checkCoreContract();
+
+        if (receivableId == null || receivableId.isBlank()) {
+            throw new IllegalArgumentException("应收款ID不能为空");
+        }
+        if (amount == null || amount.compareTo(BigInteger.ZERO) <= 0) {
+            throw new IllegalArgumentException("还款金额必须大于0");
+        }
+
+        logger.info("应收款余额更新上链: receivableId={}, amount={}, isFull={}", receivableId, amount, isFull);
+
+        TransactionResponse response = sendTransactionWithAudit(
+                receivableCoreContract,
+                "updateBalance",
+                new Object[]{receivableId, amount, isFull},
+                "RECEIVABLE_UPDATE_BALANCE"
+        );
+
+        TransactionReceipt receipt = response != null ? response.getTransactionReceipt() : null;
+        if (!isTransactionSuccess(receipt)) {
+            String errorMsg = getTransactionErrorMessage(receipt);
+            logger.error("应收款余额更新上链失败: {}", errorMsg);
+            throw new RuntimeException("操作失败，请稍后重试");
+        }
+        return receipt;
+    }
+
     public Object getReceivable(String receivableId) {
         checkCoreContract();
         try {
@@ -285,10 +320,25 @@ public class ReceivableContractService extends BaseContractService {
         }
     }
 
+    /**
+     * 获取应收款链上余额
+     * @param receivableId 应收款ID
+     * @return 链上未还余额（单位：分）
+     */
+    public BigInteger getBalanceUnpaid(String receivableId) {
+        checkCoreContract();
+        try {
+            return receivableCoreContract.getBalanceUnpaid(receivableId);
+        } catch (ContractException e) {
+            logger.warn("获取应收款链上余额失败: receivableId={}", receivableId);
+            return BigInteger.ZERO;
+        }
+    }
+
     public TransactionReceipt recordRepayment(
             String receivableId,
             BigInteger repaymentAmount,
-            BigInteger repaymentType) {
+            String paymentMethod) {
         checkRepaymentContract();
 
         if (receivableId == null || receivableId.isBlank()) {
@@ -297,14 +347,17 @@ public class ReceivableContractService extends BaseContractService {
         if (repaymentAmount == null || repaymentAmount.compareTo(BigInteger.ZERO) <= 0) {
             throw new IllegalArgumentException("还款金额必须大于0");
         }
+        if (paymentMethod == null || paymentMethod.isBlank()) {
+            throw new IllegalArgumentException("还款方式不能为空");
+        }
 
-        logger.info("记录还款上链: receivableId={}, repaymentAmount={}, repaymentType={}",
-                receivableId, repaymentAmount, repaymentType);
+        logger.info("记录还款上链: receivableId={}, repaymentAmount={}, paymentMethod={}",
+                receivableId, repaymentAmount, paymentMethod);
 
         TransactionResponse response = sendTransactionWithAudit(
                 receivableRepaymentContract,
                 "recordRepayment",
-                new Object[]{receivableId, repaymentAmount, repaymentType},
+                new Object[]{receivableId, repaymentAmount, paymentMethod},
                 "REPAYMENT_RECORD"
         );
 
@@ -371,6 +424,50 @@ public class ReceivableContractService extends BaseContractService {
         if (!isTransactionSuccess(receipt)) {
             String errorMsg = getTransactionErrorMessage(receipt);
             logger.error("以物抵债上链失败: {}", errorMsg);
+            throw new RuntimeException("操作失败，请稍后重试");
+        }
+        return receipt;
+    }
+
+    /**
+     * @dev 仓单抵债 - 用仓单作为抵押物抵消应收款
+     * @param sourceReceivableId 源应收款ID（被减少）
+     * @param receiptId 仓单ID（抵押物）
+     * @param offsetAmount 抵消金额
+     * @param reason 抵消原因
+     */
+    public TransactionReceipt offsetDebtWithWarehouseReceipt(
+            String sourceReceivableId,
+            String receiptId,
+            BigInteger offsetAmount,
+            String reason) {
+        checkRepaymentContract();
+
+        if (sourceReceivableId == null || sourceReceivableId.isBlank()) {
+            throw new IllegalArgumentException("源应收款ID不能为空");
+        }
+        if (receiptId == null || receiptId.isBlank()) {
+            throw new IllegalArgumentException("仓单ID不能为空");
+        }
+        if (offsetAmount == null || offsetAmount.compareTo(BigInteger.ZERO) <= 0) {
+            throw new IllegalArgumentException("抵消金额必须大于0");
+        }
+
+        logger.info("仓单抵债上链: sourceReceivableId={}, receiptId={}, offsetAmount={}, reason={}",
+                sourceReceivableId, receiptId, offsetAmount, reason);
+
+        TransactionResponse response = sendTransactionWithAudit(
+                receivableRepaymentContract,
+                "offsetDebtWithWarehouseReceipt",
+                new Object[]{sourceReceivableId, receiptId, offsetAmount,
+                    reason != null ? reason : "warehouse_offset"},
+                "OFFSET_DEBT_WAREHOUSE"
+        );
+
+        TransactionReceipt receipt = response != null ? response.getTransactionReceipt() : null;
+        if (!isTransactionSuccess(receipt)) {
+            String errorMsg = getTransactionErrorMessage(receipt);
+            logger.error("仓单抵债上链失败: {}", errorMsg);
             throw new RuntimeException("操作失败，请稍后重试");
         }
         return receipt;

@@ -409,7 +409,8 @@
       "/home/llm_rca/.vscode-server/data/User/globalStorage/github.copilot-chat",
       "/home/llm_rca/.claude/projects/-home-llm-rca-fisco-supply-chain-finance",
       "/home/llm_rca/fisco/supply-chain-finance/test_output",
-      "/tmp"
+      "/tmp",
+      "/home/llm_rca/fisco/supply-chain-finance/test"
     ]
   },
   "enabledPlugins": {

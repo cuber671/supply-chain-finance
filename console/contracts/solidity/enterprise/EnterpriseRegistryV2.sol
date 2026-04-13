@@ -57,15 +57,17 @@ contract EnterpriseRegistryV2 {
     }
 
     /**
-     * @dev 企业角色枚举
-     * @notice 0=Supplier, 1=CoreEnterprise, 2=FinancialInstitution, 3=Regulator, 4=WarehouseProvider
+     * @dev 企业角色枚举（与Java EntRoleConstant一一对应）
+     * @notice 0=保留, 1=核心企业, 2=现货交易平台, 3=供应商, 6=金融机构, 9=仓储方, 12=物流方
      */
     enum EnterpriseRole {
-        Supplier,            // 供应商
-        CoreEnterprise,      // 核心企业
-        FinancialInstitution, // 金融机构
-        Regulator,           // 监管机构
-        WarehouseProvider     // 仓储方
+        Spare,        // 0  (保留，不用)
+        CoreEnterprise,      // 1
+        SpotPlatform,        // 2
+        Supplier,            // 3
+        FinancialInstitution, // 6
+        Warehouse,           // 9
+        Logistics            // 12
     }
 
     /**
@@ -410,7 +412,7 @@ contract EnterpriseRegistryV2 {
         // 参数验证
         require(input.enterpriseAddress != address(0), "Invalid enterprise address");
         require(bytes(input.creditCode).length == 18, "Invalid credit code");
-        require(input.role <= EnterpriseRole.WarehouseProvider, "Invalid role");
+        require(uint256(input.role) >= 1 && uint256(input.role) <= 12, "Invalid role");
         require(input.metadataHash != bytes32(0), "Invalid metadata hash");
 
         // 存储企业信息（简化版）

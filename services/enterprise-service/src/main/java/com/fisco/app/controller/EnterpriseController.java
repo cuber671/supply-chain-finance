@@ -28,6 +28,8 @@ import com.fisco.app.service.EnterpriseService;
 import com.fisco.app.service.EnterpriseService.AssetBalance;
 import com.fisco.app.service.EnterpriseService.CancellationResult;
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.fisco.app.dto.TokenResponseDTO;
+import com.fisco.app.feign.AuthFeignClient;
 import com.fisco.app.util.CurrentUser;
 import com.fisco.app.util.Result;
 
@@ -55,6 +57,9 @@ public class EnterpriseController {
 
     @Autowired
     private EnterpriseService enterpriseService;
+
+    @Autowired(required = false)
+    private AuthFeignClient authFeignClient;
 
     // ==================== 企业注册 ====================
 
@@ -404,6 +409,29 @@ public class EnterpriseController {
             result.put("entRole", enterprise.getEntRole());
             result.put("status", enterprise.getStatus());
             result.put("blockchainAddress", enterprise.getBlockchainAddress());
+
+            // 调用 auth-service 生成 JWT Token
+            if (authFeignClient != null) {
+                try {
+                    Map<String, Object> tokenRequest = new HashMap<>();
+                    tokenRequest.put("userId", enterprise.getEntId());
+                    tokenRequest.put("entId", enterprise.getEntId());
+                    tokenRequest.put("role", "ENTERPRISE");
+                    tokenRequest.put("scope", 5);
+                    tokenRequest.put("entRole", enterprise.getEntRole());
+
+                    var tokenResult = authFeignClient.generateEnterpriseToken(tokenRequest);
+                    if (tokenResult != null && tokenResult.getCode() == 200 && tokenResult.getData() != null) {
+                        TokenResponseDTO tokenData = tokenResult.getData();
+                        result.put("accessToken", tokenData.getAccessToken());
+                        result.put("refreshToken", tokenData.getRefreshToken());
+                        result.put("expiresIn", tokenData.getExpiresIn());
+                    }
+                } catch (Exception e) {
+                    logger.warn("调用 auth-service 生成 Token 失败: {}", e.getMessage());
+                    // 不影响登录成功返回，仅不包含 token
+                }
+            }
 
             logger.info("企业登录成功: entId={}, username={}", enterprise.getEntId(), enterprise.getUsername());
             return ResponseEntity.ok(Result.success(result));
@@ -891,6 +919,9 @@ public class EnterpriseController {
         try {
             String code = request.get("code");
             if (code == null || code.isEmpty()) {
+                code = request.get("invitationCode");  // 兼容 invitationCode 字段名
+            }
+            if (code == null || code.isEmpty()) {
                 return ResponseEntity.ok(Result.error(400, "邀请码不能为空"));
             }
 
@@ -1090,15 +1121,15 @@ public class EnterpriseController {
     static class EnterpriseRegisterRequest {
         @Schema(description = "用户名（登录账号）", example = "enterprise_user")
         private String username;
-        @Schema(description = "登录密码", example = "password123")
+        @Schema(description = "登录密码", example = "********")
         private String password;
-        @Schema(description = "交易密码", example = "pay123456")
+        @Schema(description = "交易密码", example = "********")
         private String payPassword;
         @Schema(description = "企业名称", example = "某科技有限公司")
         private String enterpriseName;
         @Schema(description = "统一社会信用代码", example = "91110000XXXXXXXXXX")
         private String orgCode;
-        @Schema(description = "企业角色：1-核心企业, 2-金融机构, 3-供应商, 4-经销商", example = "1")
+        @Schema(description = "企业角色", example = "1", allowableValues = {"1", "2", "3", "4"})
         private Integer entRole;
         @Schema(description = "企业地址", example = "北京市朝阳区xxx")
         private String localAddress;
@@ -1154,7 +1185,7 @@ public class EnterpriseController {
     static class LoginRequest {
         @Schema(description = "用户名", example = "enterprise_user")
         private String username;
-        @Schema(description = "密码", example = "password123")
+        @Schema(description = "密码", example = "********")
         private String password;
 
         public String getUsername() { return username; }
@@ -1170,9 +1201,9 @@ public class EnterpriseController {
     static class PasswordUpdateRequest {
         @Schema(description = "企业ID", example = "1")
         private Long entId;
-        @Schema(description = "原密码", example = "oldPassword123")
+        @Schema(description = "原密码", example = "********")
         private String oldPassword;
-        @Schema(description = "新密码", example = "newPassword123")
+        @Schema(description = "新密码", example = "********")
         private String newPassword;
 
         public Long getEntId() { return entId; }
@@ -1188,31 +1219,31 @@ public class EnterpriseController {
      */
     @Schema(description = "企业详情响应")
     static class EnterpriseDetailResponse {
-        @Schema(description = "企业ID")
+        @Schema(description = "企业ID", example = "1")
         private Long entId;
-        @Schema(description = "用户名")
+        @Schema(description = "用户名", example = "enterprise_user")
         private String username;
-        @Schema(description = "企业名称")
+        @Schema(description = "企业名称", example = "某科技有限公司")
         private String enterpriseName;
-        @Schema(description = "统一社会信用代码")
+        @Schema(description = "统一社会信用代码", example = "91110000XXXXXXXXXX")
         private String orgCode;
-        @Schema(description = "企业地址")
+        @Schema(description = "企业地址", example = "北京市朝阳区某路123号")
         private String localAddress;
-        @Schema(description = "联系电话")
+        @Schema(description = "联系电话", example = "010-12345678")
         private String contactPhone;
-        @Schema(description = "企业角色：1-核心企业, 2-金融机构, 3-供应商, 4-经销商")
+        @Schema(description = "企业角色", example = "1", allowableValues = {"1", "2", "3", "4"})
         private Integer entRole;
-        @Schema(description = "企业角色名称")
+        @Schema(description = "企业角色名称", example = "核心企业")
         private String entRoleName;
-        @Schema(description = "状态：0-待审核, 1-正常, 2-已冻结, 3-注销中, 4-已注销")
+        @Schema(description = "状态", example = "1", allowableValues = {"0", "1", "2", "3", "4"})
         private Integer status;
-        @Schema(description = "状态名称")
+        @Schema(description = "状态名称", example = "正常")
         private String statusName;
-        @Schema(description = "区块链地址")
+        @Schema(description = "区块链地址", example = "0xabc123...")
         private String blockchainAddress;
-        @Schema(description = "创建时间")
+        @Schema(description = "创建时间", example = "2026-01-01T10:00:00")
         private java.time.LocalDateTime createTime;
-        @Schema(description = "更新时间")
+        @Schema(description = "更新时间", example = "2026-03-15T14:30:00")
         private java.time.LocalDateTime updateTime;
 
         // Getters and Setters
@@ -1251,11 +1282,11 @@ public class EnterpriseController {
     static class InvitationCodeResponse {
         @Schema(description = "邀请码", example = "INVITE123456")
         private String code;
-        @Schema(description = "最大使用次数")
+        @Schema(description = "最大使用次数", example = "10")
         private Integer maxUses;
-        @Schema(description = "过期天数")
+        @Schema(description = "过期天数", example = "30")
         private Integer expireDays;
-        @Schema(description = "备注")
+        @Schema(description = "备注", example = "仅限邀请新企业")
         private String remark;
 
         public String getCode() { return code; }
