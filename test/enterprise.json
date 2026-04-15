@@ -1,0 +1,202 @@
+[
+  {
+    "username": "core_auto_mfg",
+    "password": "Auto2024@123",
+    "payPassword": "Pay2024@123",
+    "enterpriseName": "华泰汽车制造有限公司",
+    "orgCode": "91110000123456789A",
+    "entRole": 1,
+    "localAddress": "上海市浦东新区汽车工业园88号",
+    "contactPhone": "021-88888888"
+  },
+  {
+    "username": "core_electronics",
+    "password": "Auto2024@123",
+    "payPassword": "Pay2024@123",
+    "enterpriseName": "中芯电子科技有限公司",
+    "orgCode": "91110000123456801A",
+    "entRole": 1,
+    "localAddress": "深圳市福田区深业上城C座18层",
+    "contactPhone": "0755-88881234"
+  },
+  {
+    "username": "core_new_energy",
+    "password": "Auto2024@123",
+    "payPassword": "Pay2024@123",
+    "enterpriseName": "华新能源动力有限公司",
+    "orgCode": "91110000123456804A",
+    "entRole": 1,
+    "localAddress": "广东省广州市黄埔区科学城开泰大道66号",
+    "contactPhone": "020-88880001"
+  },
+  {
+    "username": "supplier_engine",
+    "password": "Auto2024@123",
+    "payPassword": "Pay2024@123",
+    "enterpriseName": "深圳动力引擎科技有限公司",
+    "orgCode": "91110000123456790B",
+    "entRole": 3,
+    "localAddress": "深圳市南山区科技园北路45号",
+    "contactPhone": "0755-88886666"
+  },
+  {
+    "username": "supplier_steel",
+    "password": "Auto2024@123",
+    "payPassword": "Pay2024@123",
+    "enterpriseName": "华东钢铁材料有限公司",
+    "orgCode": "91110000123456791C",
+    "entRole": 3,
+    "localAddress": "江苏省南京市江宁区工业大道120号",
+    "contactPhone": "025-66668888"
+  },
+  {
+    "username": "supplier_electronics",
+    "password": "Auto2024@123",
+    "payPassword": "Pay2024@123",
+    "enterpriseName": "中科智联汽车电子有限公司",
+    "orgCode": "91110000123456792D",
+    "entRole": 3,
+    "localAddress": "北京市海淀区中关村软件园二期A座",
+    "contactPhone": "010-88889999"
+  },
+  {
+    "username": "supplier_tire",
+    "password": "Auto2024@123",
+    "payPassword": "Pay2024@123",
+    "enterpriseName": "中原橡胶工业集团有限公司",
+    "orgCode": "91110000123456793E",
+    "entRole": 3,
+    "localAddress": "河南省郑州市经开区第八大街200号",
+    "contactPhone": "0371-66667777"
+  },
+  {
+    "username": "supplier_glass",
+    "password": "Auto2024@123",
+    "payPassword": "Pay2024@123",
+    "enterpriseName": "华东特种玻璃股份有限公司",
+    "orgCode": "91110000123456805B",
+    "entRole": 3,
+    "localAddress": "山东省青岛市西海岸新区保税港区工业园",
+    "contactPhone": "0532-88880002"
+  },
+  {
+    "username": "warehouse_parts_sh",
+    "password": "Auto2024@123",
+    "payPassword": "Pay2024@123",
+    "enterpriseName": "上海华东仓储物流有限公司",
+    "orgCode": "91110000123456794F",
+    "entRole": 9,
+    "localAddress": "上海市嘉定区安亭镇国际汽车城仓库区3号库",
+    "contactPhone": "021-77778888"
+  },
+  {
+    "username": "warehouse_raw_gz",
+    "password": "Auto2024@123",
+    "payPassword": "Pay2024@123",
+    "enterpriseName": "广州华南原材料仓储中心",
+    "orgCode": "91110000123456795G",
+    "entRole": 9,
+    "localAddress": "广州市黄埔区开发大道仓库物流园B区",
+    "contactPhone": "020-66669999"
+  },
+  {
+    "username": "warehouse_central",
+    "password": "Auto2024@123",
+    "payPassword": "Pay2024@123",
+    "enterpriseName": "中部地区仓储物流配送中心",
+    "orgCode": "91110000123456806F",
+    "entRole": 9,
+    "localAddress": "湖北省武汉市东西湖区吴家山物流园",
+    "contactPhone": "027-88880003"
+  },
+  {
+    "username": "logistics_highway",
+    "password": "Auto2024@123",
+    "payPassword": "Pay2024@123",
+    "enterpriseName": "中通快运有限公司",
+    "orgCode": "91110000123456796H",
+    "entRole": 12,
+    "localAddress": "浙江省杭州市余杭区顺风物流园",
+    "contactPhone": "0571-88880000"
+  },
+  {
+    "username": "logistics_city",
+    "password": "Auto2024@123",
+    "payPassword": "Pay2024@123",
+    "enterpriseName": "快捷城市配送服务有限公司",
+    "orgCode": "91110000123456797J",
+    "entRole": 12,
+    "localAddress": "上海市松江区洞泾镇物流配送中心",
+    "contactPhone": "021-88860000"
+  },
+  {
+    "username": "logistics_rail",
+    "password": "Auto2024@123",
+    "payPassword": "Pay2024@123",
+    "enterpriseName": "中铁捷运物流有限公司",
+    "orgCode": "91110000123456807H",
+    "entRole": 12,
+    "localAddress": "四川省成都市青白江区铁路港集装箱中心站",
+    "contactPhone": "028-88880004"
+  },
+  {
+    "username": "institution_finance",
+    "password": "Auto2024@123",
+    "payPassword": "Pay2024@123",
+    "enterpriseName": "华瑞供应链金融有限公司",
+    "orgCode": "91110000123456798K",
+    "entRole": 6,
+    "localAddress": "上海市浦东新区陆家嘴金融中心A座28层",
+    "contactPhone": "021-68888888"
+  },
+  {
+    "username": "institution_bank",
+    "password": "Auto2024@123",
+    "payPassword": "Pay2024@123",
+    "enterpriseName": "华融商业保理有限公司",
+    "orgCode": "91110000123456802K",
+    "entRole": 6,
+    "localAddress": "北京市西城区金融街7号英蓝国际中心",
+    "contactPhone": "010-68868686"
+  },
+  {
+    "username": "institution_lease",
+    "password": "Auto2024@123",
+    "payPassword": "Pay2024@123",
+    "enterpriseName": "中企融资租赁有限公司",
+    "orgCode": "91110000123456808K",
+    "entRole": 6,
+    "localAddress": "天津市和平区南京路200号银河中心",
+    "contactPhone": "022-68868001"
+  },
+  {
+    "username": "trading_platform",
+    "password": "Auto2024@123",
+    "payPassword": "Pay2024@123",
+    "enterpriseName": "中国汽车零部件现货交易所有限公司",
+    "orgCode": "91110000123456799L",
+    "entRole": 2,
+    "localAddress": "天津市滨海新区于家堡金融区交易大厦",
+    "contactPhone": "022-66660000"
+  },
+  {
+    "username": "trading_market",
+    "password": "Auto2024@123",
+    "payPassword": "Pay2024@123",
+    "enterpriseName": "华东工业原材料现货交易中心",
+    "orgCode": "91110000123456803L",
+    "entRole": 2,
+    "localAddress": "江苏省苏州市工业园区星湖街328号",
+    "contactPhone": "0512-66668800"
+  },
+  {
+    "username": "trading_chem",
+    "password": "Auto2024@123",
+    "payPassword": "Pay2024@123",
+    "enterpriseName": "中国化工原料现货交易平台",
+    "orgCode": "91110000123456809L",
+    "entRole": 2,
+    "localAddress": "浙江省宁波市鄞州区南部商务区水街7号楼",
+    "contactPhone": "0574-88880005"
+  }
+]

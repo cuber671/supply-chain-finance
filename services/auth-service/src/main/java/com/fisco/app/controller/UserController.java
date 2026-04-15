@@ -20,9 +20,17 @@ import org.springframework.web.bind.annotation.RestController;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.fisco.app.config.JwtAuthenticationFilter;
+import com.fisco.app.dto.AuditCancellationRequestDTO;
+import com.fisco.app.dto.AuditUserRequestDTO;
+import com.fisco.app.dto.CancelApplyRequestDTO;
 import com.fisco.app.dto.RegisterRequestDTO;
+import com.fisco.app.dto.UpdateUserInfoRequestDTO;
+import com.fisco.app.dto.UpdatePasswordRequestDTO;
+import com.fisco.app.dto.UpdateUserRoleRequestDTO;
+import com.fisco.app.dto.UpdateUserStatusRequestDTO;
 import com.fisco.app.dto.UserQueryResponseDTO;
 import com.fisco.app.entity.User;
+import com.fisco.app.enums.UserStatusEnum;
 import com.fisco.app.mapper.UserMapper;
 import com.fisco.app.service.UserService;
 
@@ -54,14 +62,15 @@ public class UserController {
      * 用户注册接口
      */
     @Operation(summary = "用户注册", description = "新用户注册账号。注册后状态为\"待审核\"，需管理员审核通过后才能正常使用。\n\n" +
-            "**业务规则**：\n- 用户名不能重复\n- 手机号不能重复（可选）\n- 支持邀请码（可选）用于关联邀请企业")
+            "**业务规则**：\n- 用户名不能重复\n- 手机号不能重复（但审核拒绝的FROZEN用户可重新注册，会更新原账户信息并刷新状态）\n- 支持邀请码（可选）用于关联邀请企业")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "注册成功", content = @Content),
         @ApiResponse(responseCode = "400", description = "参数错误：用户名已存在或手机号已被注册", content = @Content),
         @ApiResponse(responseCode = "500", description = "服务端异常", content = @Content)
     })
     @PostMapping("/register")
-    public ResponseEntity<Map<String, Object>> register(@Valid @RequestBody RegisterRequestDTO request) {
+    public ResponseEntity<Map<String, Object>> register(
+            @Parameter(description = "注册请求", required = true) @Valid @RequestBody RegisterRequestDTO request) {
         // 检查用户名是否已存在
         LambdaQueryWrapper<User> usernameCheck = new LambdaQueryWrapper<>();
         usernameCheck.eq(User::getUsername, request.getUsername());
@@ -69,11 +78,12 @@ public class UserController {
             return buildErrorResponse(400, "用户名已存在");
         }
 
-        // 检查手机号是否已存在
+        // 检查手机号是否已存在（但 FROZEN 状态用户可重新注册）
         if (request.getPhone() != null && !request.getPhone().isEmpty()) {
             LambdaQueryWrapper<User> phoneCheck = new LambdaQueryWrapper<>();
             phoneCheck.eq(User::getPhone, request.getPhone());
-            if (userMapper.selectCount(phoneCheck) > 0) {
+            User existingPhoneUser = userMapper.selectOne(phoneCheck);
+            if (existingPhoneUser != null && existingPhoneUser.getStatus() != UserStatusEnum.FROZEN.getValue()) {
                 return buildErrorResponse(400, "手机号已被注册");
             }
         }
@@ -142,25 +152,20 @@ public class UserController {
     @PutMapping("/{userId}/status")
     public ResponseEntity<Map<String, Object>> updateUserStatus(
             @Parameter(description = "用户ID", required = true) @PathVariable Long userId,
-            @RequestBody Map<String, Object> request) {
+            @Parameter(description = "状态更新请求", required = true) @Valid @RequestBody UpdateUserStatusRequestDTO request) {
 
         User user = userMapper.selectById(userId);
         if (user == null) {
             return buildErrorResponse(404, "用户不存在");
         }
 
-        Integer newStatus = (Integer) request.get("status");
-        if (newStatus == null) {
-            return buildErrorResponse(400, "状态值不能为空");
-        }
-
         // 委托给 Service 层处理（含状态机校验）
         try {
-            userService.updateUserStatus(userId, newStatus);
+            userService.updateUserStatus(userId, request.getStatus());
         } catch (IllegalStateException e) {
             return buildErrorResponse(400, e.getMessage());
         } catch (Exception e) {
-            log.error("用户状态更新失败: userId={}, newStatus={}", userId, newStatus, e);
+            log.error("用户状态更新失败: userId={}, newStatus={}", userId, request.getStatus(), e);
             return buildErrorResponse(500, "状态更新失败: " + e.getMessage());
         }
 
@@ -189,7 +194,7 @@ public class UserController {
     @PutMapping("/{userId}/role")
     public ResponseEntity<Map<String, Object>> updateUserRole(
             @Parameter(description = "用户ID", required = true) @PathVariable Long userId,
-            @RequestBody Map<String, Object> request,
+            @Parameter(description = "角色更新请求", required = true) @Valid @RequestBody UpdateUserRoleRequestDTO request,
             javax.servlet.http.HttpServletRequest httpRequest) {
 
         User user = userMapper.selectById(userId);
@@ -207,11 +212,7 @@ public class UserController {
             }
         }
 
-        String newRole = (String) request.get("role");
-        if (newRole == null || newRole.isEmpty()) {
-            return buildErrorResponse(400, "角色不能为空");
-        }
-
+        String newRole = request.getRole();
         // 校验角色值
         if (!User.ROLE_ADMIN.equals(newRole)
                 && !User.ROLE_FINANCE.equals(newRole)
@@ -278,18 +279,14 @@ public class UserController {
     @PutMapping("/update")
     public ResponseEntity<Map<String, Object>> updateUserInfo(
             javax.servlet.http.HttpServletRequest request,
-            @RequestBody Map<String, String> body) {
+            @Parameter(description = "用户信息更新请求", required = true) @Valid @RequestBody UpdateUserInfoRequestDTO body) {
         Long userId = JwtAuthenticationFilter.getUserId(request);
         if (userId == null) {
             return buildErrorResponse(401, "未登录或Token无效");
         }
 
-        String realName = body.get("realName");
-        String phone = body.get("phone");
-        String email = body.get("email");
-
         try {
-            userService.updateUserInfo(userId, realName, phone, email);
+            userService.updateUserInfo(userId, body.getRealName(), body.getPhone(), body.getEmail());
             return buildSuccessResponse("更新成功");
         } catch (IllegalArgumentException e) {
             return buildErrorResponse(400, e.getMessage());
@@ -310,24 +307,14 @@ public class UserController {
     @PostMapping("/password")
     public ResponseEntity<Map<String, Object>> updatePassword(
             javax.servlet.http.HttpServletRequest request,
-            @RequestBody Map<String, String> body) {
+            @Parameter(description = "密码修改请求", required = true) @Valid @RequestBody UpdatePasswordRequestDTO body) {
         Long userId = JwtAuthenticationFilter.getUserId(request);
         if (userId == null) {
             return buildErrorResponse(401, "未登录或Token无效");
         }
 
-        String oldPassword = body.get("oldPassword");
-        String newPassword = body.get("newPassword");
-
-        if (oldPassword == null || oldPassword.isEmpty()) {
-            return buildErrorResponse(400, "原密码不能为空");
-        }
-        if (newPassword == null || newPassword.isEmpty()) {
-            return buildErrorResponse(400, "新密码不能为空");
-        }
-
         try {
-            userService.updatePassword(userId, oldPassword, newPassword);
+            userService.updatePassword(userId, body.getOldPassword(), body.getNewPassword());
             return buildSuccessResponse("密码修改成功");
         } catch (IllegalArgumentException e) {
             return buildErrorResponse(400, e.getMessage());
@@ -402,7 +389,8 @@ public class UserController {
     /**
      * 审核用户注册申请
      */
-    @Operation(summary = "审核用户注册申请", description = "管理员审核用户的注册申请。审核通过后用户状态变为\"正常\"，审核拒绝后用户状态不变。\n\n" +
+    @Operation(summary = "审核用户注册申请", description = "管理员审核用户的注册申请。审核通过后用户状态变为\"正常\"，审核拒绝后用户状态变为\"冻结\"。\n\n" +
+            "**请求体字段**：approved（必填），rejectReason（可选，拒绝时填写）。\n\n" +
             "**前置条件**：仅管理员可操作。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
@@ -414,23 +402,27 @@ public class UserController {
     @PostMapping("/{userId}/audit")
     public ResponseEntity<Map<String, Object>> auditUser(
             @Parameter(description = "用户ID", required = true) @PathVariable Long userId,
-            @RequestBody Map<String, Boolean> body,
+            @Valid @RequestBody AuditUserRequestDTO body,
             javax.servlet.http.HttpServletRequest request) {
         String role = JwtAuthenticationFilter.getRole(request);
         if (!User.ROLE_ADMIN.equals(role)) {
             return buildErrorResponse(403, "只有管理员可以访问此接口");
         }
 
-        Boolean approved = body.get("approved");
-        if (approved == null) {
-            return buildErrorResponse(400, "审核结果不能为空");
-        }
-
+        Boolean approved = body.getApproved();
+        String rejectReason = body.getRejectReason();
         Long auditorId = JwtAuthenticationFilter.getUserId(request);
 
         try {
-            userService.auditUser(userId, approved, auditorId);
-            return buildSuccessResponse(approved ? "审核通过" : "审核已拒绝");
+            userService.auditUser(userId, approved, auditorId, rejectReason);
+            if (approved) {
+                return buildSuccessResponse("审核通过");
+            } else {
+                String msg = rejectReason != null && !rejectReason.isEmpty()
+                        ? "审核已拒绝，原因：" + rejectReason
+                        : "审核已拒绝";
+                return buildSuccessResponse(msg);
+            }
         } catch (IllegalArgumentException e) {
             return buildErrorResponse(400, e.getMessage());
         }
@@ -453,21 +445,14 @@ public class UserController {
     @PostMapping("/cancel/apply")
     public ResponseEntity<Map<String, Object>> applyCancellation(
             javax.servlet.http.HttpServletRequest request,
-            @RequestBody Map<String, String> body) {
+            @Parameter(description = "注销申请请求", required = true) @Valid @RequestBody CancelApplyRequestDTO body) {
         Long userId = JwtAuthenticationFilter.getUserId(request);
         if (userId == null) {
             return buildErrorResponse(401, "未登录或Token无效");
         }
 
-        String reason = body.get("reason");
-        String password = body.get("password");
-
-        if (password == null || password.isEmpty()) {
-            return buildErrorResponse(400, "密码不能为空");
-        }
-
         try {
-            userService.applyCancellation(userId, reason, password);
+            userService.applyCancellation(userId, body.getReason(), body.getPassword());
             return buildSuccessResponse("注销申请已提交，等待管理员审核");
         } catch (IllegalArgumentException | IllegalStateException e) {
             return buildErrorResponse(400, e.getMessage());
@@ -546,23 +531,18 @@ public class UserController {
     @PostMapping("/{userId}/cancel/audit")
     public ResponseEntity<Map<String, Object>> auditCancellation(
             @Parameter(description = "用户ID", required = true) @PathVariable Long userId,
-            @RequestBody Map<String, Boolean> body,
+            @Parameter(description = "审核结果", required = true) @Valid @RequestBody AuditCancellationRequestDTO body,
             javax.servlet.http.HttpServletRequest request) {
         String role = JwtAuthenticationFilter.getRole(request);
         if (!User.ROLE_ADMIN.equals(role)) {
             return buildErrorResponse(403, "只有管理员可以访问此接口");
         }
 
-        Boolean approved = body.get("approved");
-        if (approved == null) {
-            return buildErrorResponse(400, "审核结果不能为空");
-        }
-
         Long auditorId = JwtAuthenticationFilter.getUserId(request);
 
         try {
-            userService.auditCancellation(userId, approved, auditorId);
-            return buildSuccessResponse(approved ? "注销审核通过" : "注销审核已拒绝");
+            userService.auditCancellation(userId, body.getApproved(), auditorId);
+            return buildSuccessResponse(body.getApproved() ? "注销审核通过" : "注销审核已拒绝");
         } catch (IllegalArgumentException e) {
             return buildErrorResponse(400, e.getMessage());
         }

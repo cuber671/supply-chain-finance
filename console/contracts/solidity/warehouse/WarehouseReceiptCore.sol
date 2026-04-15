@@ -34,6 +34,7 @@ contract WarehouseReceiptCore is IWarehouseReceiptCore {
     // ==================== 状态变量 ====================
 
     address public admin;
+    address public warehouseReceiptOps;  // Ops合约地址，用于updateOwner验证
     uint256 public receiptCount;
     uint256 public constant VERSION = 2;
 
@@ -175,6 +176,14 @@ contract WarehouseReceiptCore is IWarehouseReceiptCore {
     event ReceiptFrozen(
         string indexed receiptId,
         bool frozen,
+        uint256 timestamp
+    );
+
+    event OwnerUpdated(
+        string indexed receiptId,
+        bytes32 oldOwnerHash,
+        bytes32 newOwnerHash,
+        address operator,
         uint256 timestamp
     );
 
@@ -592,6 +601,34 @@ contract WarehouseReceiptCore is IWarehouseReceiptCore {
     function setAdmin(address newAdmin) external onlyAdmin returns (bool) {
         require(newAdmin != address(0), "Invalid address");
         admin = newAdmin;
+        return true;
+    }
+
+    function setWarehouseReceiptOps(address newOps) external onlyAdmin returns (bool) {
+        require(newOps != address(0), "Invalid address");
+        warehouseReceiptOps = newOps;
+        return true;
+    }
+
+    /**
+     * @dev 更新仓单所有者（供Ops合约调用）
+     * @param receiptId 仓单ID
+     * @param newOwnerHash 新货主哈希
+     * @return success 是否成功
+     */
+    function updateOwner(string calldata receiptId, bytes32 newOwnerHash)
+        external onlyValidReceipt(receiptId) returns (bool success)
+    {
+        // 验证调用者是 Ops 合约或管理员
+        require(msg.sender == warehouseReceiptOps || msg.sender == admin, "Not authorized");
+        require(newOwnerHash != bytes32(0), "Invalid owner hash");
+
+        Receipt storage r = receipts[receiptId];
+        bytes32 oldOwnerHash = r.hashData.ownerHash;
+        r.hashData.ownerHash = newOwnerHash;
+        r.core.updatedAt = block.timestamp;
+
+        emit OwnerUpdated(receiptId, oldOwnerHash, newOwnerHash, msg.sender, block.timestamp);
         return true;
     }
 

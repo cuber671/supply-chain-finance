@@ -113,7 +113,8 @@ public class JwtUtil {
 
         // Access Token
         Map<String, Object> accessClaims = new HashMap<>();
-        accessClaims.put(CLAIM_ENT_ID, entId);
+        // 使用String存储entId避免JavaScript Long精度丢失问题
+        accessClaims.put(CLAIM_ENT_ID, entId != null ? entId.toString() : null);
         accessClaims.put(CLAIM_ROLE, role);
         accessClaims.put(CLAIM_SCOPE, scope);
         accessClaims.put(CLAIM_TOKEN_TYPE, TOKEN_TYPE_ACCESS);
@@ -132,7 +133,8 @@ public class JwtUtil {
 
         // Refresh Token
         Map<String, Object> refreshClaims = new HashMap<>();
-        refreshClaims.put(CLAIM_ENT_ID, entId);
+        // 使用String存储entId避免JavaScript Long精度丢失问题
+        refreshClaims.put(CLAIM_ENT_ID, entId != null ? entId.toString() : null);
         refreshClaims.put(CLAIM_ROLE, role);
         refreshClaims.put(CLAIM_SCOPE, scope);
         refreshClaims.put(CLAIM_TOKEN_TYPE, TOKEN_TYPE_REFRESH);
@@ -257,6 +259,7 @@ public class JwtUtil {
         Object entId = claims.get(CLAIM_ENT_ID);
         if (entId == null) return null;
         if (entId instanceof Integer) return ((Integer) entId).longValue();
+        if (entId instanceof String) return Long.parseLong((String) entId);
         return (Long) entId;
     }
 

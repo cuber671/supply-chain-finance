@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.fisco.app.constant.EntRoleConstant;
 import com.fisco.app.entity.ReceiptEndorsement;
 import com.fisco.app.entity.ReceiptOperationLog;
 import com.fisco.app.entity.StockOrder;
@@ -53,12 +54,15 @@ public class WarehouseReceiptController {
 
     // ==================== 入库单管理 ====================
 
-    @Operation(summary = "申请入库", description = "企业用户提交入库申请，创建入库单。")
+    @Operation(summary = "申请入库", description = "供应商/货主提交入库申请，创建入库单。入库单需仓储方确认后完成。\n\n" +
+            "**业务说明**：供应商将货物送达仓库后申请入库，仓储方审核确认后货物正式入库。\n\n" +
+            "**权限要求**：企业登录或管理员（scope=1/2）可操作，普通用户无权申请。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "申请成功"),
         @ApiResponse(responseCode = "400", description = "参数错误：仓库ID、货物名称、重量、单位不能为空"),
         @ApiResponse(responseCode = "401", description = "未登录或Token无效"),
+        @ApiResponse(responseCode = "403", description = "无权限：普通用户无权申请入库"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @PostMapping("/stock-in/apply")
@@ -66,8 +70,8 @@ public class WarehouseReceiptController {
             @Parameter(description = "入库申请信息", required = true) @RequestBody StockInApplyRequest request) {
         try {
             // 参数校验
-            if (request.getWarehouseId() == null) {
-                return Result.error(400, "仓库ID不能为空");
+            if (request.getWarehouseEntId() == null) {
+                return Result.error(400, "仓储公司ID不能为空");
             }
             if (request.getGoodsName() == null || request.getGoodsName().isEmpty()) {
                 return Result.error(400, "货物名称不能为空");
@@ -82,13 +86,22 @@ public class WarehouseReceiptController {
             // 仅从JWT获取用户信息，防止越权
             Long entId = CurrentUser.getEntId();
             Long userId = CurrentUser.getUserId();
+            String role = CurrentUser.getRole();
+            Integer scope = CurrentUser.getScope();
 
             if (entId == null || userId == null) {
                 return Result.error(401, "无法获取当前用户信息，请先登录");
             }
 
+            // 权限校验：仅企业登录或管理员可申请入库
+            boolean isEnterpriseLogin = "ENTERPRISE".equals(role);
+            boolean isAdmin = scope != null && (scope == 1 || scope == 2);
+            if (!isEnterpriseLogin && !isAdmin) {
+                return Result.error(403, "普通用户无权申请入库，请以管理员或企业账号操作");
+            }
+
             Long stockOrderId = warehouseReceiptService.applyStockIn(
-                    request.getWarehouseId(),
+                    request.getWarehouseEntId(),
                     entId,
                     userId,
                     request.getGoodsName(),
@@ -103,7 +116,7 @@ public class WarehouseReceiptController {
         }
     }
 
-    @Operation(summary = "确认入库单（仓储方操作）", description = "仓储方确认入库单，完成货物入库流程。仅仓库所属企业可操作。")
+    @Operation(summary = "确认入库单（仓储方操作）", description = "仓储方确认入库单，完成货物入库流程。审核时需指定具体仓库ID。仅仓储方可以操作。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "确认成功"),
@@ -115,11 +128,16 @@ public class WarehouseReceiptController {
     })
     @PostMapping("/stock-in/{stockOrderId}/confirm")
     public Result<Boolean> confirmStockOrder(
-            @Parameter(description = "入库单ID", required = true) @PathVariable String stockOrderId) {
+            @Parameter(description = "入库单ID", required = true) @PathVariable String stockOrderId,
+            @Parameter(description = "选择的仓库ID（Warehouse.id）", required = true) @RequestParam Long warehouseId) {
         try {
             Long entId = CurrentUser.getEntId();
             if (entId == null) {
                 return Result.error(401, "无法获取当前企业信息，请先登录");
+            }
+
+            if (warehouseId == null) {
+                return Result.error(400, "仓库ID不能为空");
             }
 
             Long id = parseId(stockOrderId, "入库单ID");
@@ -127,18 +145,23 @@ public class WarehouseReceiptController {
             if (order == null) {
                 return Result.error(404, "入库单不存在");
             }
-            // FIX: 校验仓储方身份 - 用户所属企业必须是仓库所属企业
-            Warehouse warehouse = warehouseReceiptService.getWarehouseById(order.getWarehouseId());
+
+            // 校验仓储方身份 - 用户所属企业必须是申请单中指定的仓储公司
+            Long warehouseEntId = order.getWarehouseEntId();  // 这是仓储公司ID
+            if (warehouseEntId == null || !warehouseEntId.equals(entId)) {
+                return Result.error(403, "无权限操作：您不是该入库单指定的仓储方");
+            }
+
+            // 校验选择的仓库是否属于该仓储公司
+            Warehouse warehouse = warehouseReceiptService.getWarehouseById(warehouseId);
             if (warehouse == null) {
                 return Result.error(404, "仓库不存在");
             }
-            // 修复：安全比较企业ID，防止空指针异常
-            Long warehouseEntId = warehouse.getEntId();
-            if (warehouseEntId == null || !warehouseEntId.equals(entId)) {
-                return Result.error(403, "无权限操作：仅仓储方可以确认入库单");
+            if (!warehouse.getEntId().equals(entId)) {
+                return Result.error(403, "无权限操作：选择的仓库不属于您所在的企业");
             }
 
-            boolean success = warehouseReceiptService.confirmStockOrder(order.getId());
+            boolean success = warehouseReceiptService.confirmStockOrder(order.getId(), warehouseId);
             return Result.success(success);
         } catch (IllegalArgumentException e) {
             return Result.error(400, e.getMessage());
@@ -172,13 +195,8 @@ public class WarehouseReceiptController {
             if (order == null) {
                 return Result.error(404, "入库单不存在");
             }
-            // FIX: 校验仓储方身份 - 用户所属企业必须是仓库所属企业
-            Warehouse warehouse = warehouseReceiptService.getWarehouseById(order.getWarehouseId());
-            if (warehouse == null) {
-                return Result.error(404, "仓库不存在");
-            }
-            // 修复：安全比较企业ID，防止空指针异常
-            Long warehouseEntId = warehouse.getEntId();
+            // FIX: 校验仓储方身份 - 用户所属企业必须是入库单指定的仓储公司
+            Long warehouseEntId = order.getWarehouseEntId();
             if (warehouseEntId == null || !warehouseEntId.equals(entId)) {
                 return Result.error(403, "无权限操作：仅仓储方可以取消入库单");
             }
@@ -202,27 +220,14 @@ public class WarehouseReceiptController {
         @ApiResponse(responseCode = "404", description = "入库单不存在"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
-    @GetMapping("/stock-in/{stockOrderIdOrNo}")
+    @GetMapping("/stock-in/{stockOrderId}")
     public Result<StockOrder> getStockOrderById(
-            @Parameter(description = "入库单ID或入库单号", required = true) @PathVariable String stockOrderIdOrNo) {
-        try {
-            StockOrder stockOrder;
-            // FIX: 支持 ID（数字）或 stockNo（字符串）两种查询模式
-            if (stockOrderIdOrNo.matches("^\\d+$")) {
-                // 纯数字，按 ID 查询
-                Long id = Long.parseLong(stockOrderIdOrNo);
-                stockOrder = warehouseReceiptService.getStockOrderById(id);
-            } else {
-                // 非纯数字，按 stockNo 查询
-                stockOrder = warehouseReceiptService.getStockOrderByStockNo(stockOrderIdOrNo);
-            }
-            if (stockOrder == null) {
-                return Result.error(404, "入库单不存在");
-            }
-            return Result.success(stockOrder);
-        } catch (IllegalArgumentException e) {
-            return Result.error(400, e.getMessage());
+            @Parameter(description = "入库单ID", required = true) @PathVariable Long stockOrderId) {
+        StockOrder stockOrder = warehouseReceiptService.getStockOrderById(stockOrderId);
+        if (stockOrder == null) {
+            return Result.error(404, "入库单不存在");
         }
+        return Result.success(stockOrder);
     }
 
     @Operation(summary = "查询企业入库单列表", description = "查询当前企业用户的所有入库单列表（不分页）。")
@@ -284,10 +289,10 @@ public class WarehouseReceiptController {
             }
 
             // 仅从JWT获取用户信息，防止越权
-            Long userId = CurrentUser.getUserId();
+            Long operatorId = CurrentUser.getOperatorId();
             Long entId = CurrentUser.getEntId();
 
-            if (userId == null || entId == null) {
+            if (operatorId == null || entId == null) {
                 return Result.error(401, "无法获取当前用户信息，请先登录");
             }
 
@@ -296,7 +301,7 @@ public class WarehouseReceiptController {
             if (stockOrder == null) {
                 return Result.error(404, "入库单不存在");
             }
-            Warehouse warehouse = warehouseReceiptService.getWarehouseById(stockOrder.getWarehouseId());
+            Warehouse warehouse = warehouseReceiptService.getWarehouseById(stockOrder.getActualWarehouseId());
             if (warehouse == null) {
                 return Result.error(404, "仓库不存在");
             }
@@ -308,7 +313,7 @@ public class WarehouseReceiptController {
 
             Long receiptId = warehouseReceiptService.mintReceipt(
                     request.getStockOrderId(),
-                    userId,
+                    operatorId,
                     request.getOnChainId()
             );
             return Result.success(receiptId);
@@ -532,7 +537,7 @@ public class WarehouseReceiptController {
     })
     @PostMapping("/endorsement/launch")
     public Result<Long> launchEndorsement(
-            @Parameter(description = "背书转让信息", required = true) @RequestBody LaunchEndorsementRequest request) {
+            @Parameter(description = "背书转让信息", required = true) @RequestBody(required = true) LaunchEndorsementRequest request) {
         try {
             // 仅从JWT获取用户信息，防止越权
             Long userId = CurrentUser.getUserId();
@@ -584,7 +589,7 @@ public class WarehouseReceiptController {
 
             // 仅从JWT获取用户信息，防止越权
             Long userId = CurrentUser.getUserId();
-            if (userId == null) {
+            if (userId == null && CurrentUser.getEntId() == null) {
                 return Result.error(401, "无法获取当前用户信息，请先登录");
             }
 
@@ -1052,7 +1057,7 @@ public class WarehouseReceiptController {
                 return Result.error(404, "入库单不存在");
             }
             // FIX: 校验仓储方身份 - 用户所属企业必须是仓库所属企业
-            Warehouse warehouse = warehouseReceiptService.getWarehouseById(order.getWarehouseId());
+            Warehouse warehouse = warehouseReceiptService.getWarehouseById(order.getActualWarehouseId());
             if (warehouse == null) {
                 return Result.error(404, "仓库不存在");
             }
@@ -1080,12 +1085,14 @@ public class WarehouseReceiptController {
 
     // ==================== 仓库管理 ====================
 
-    @Operation(summary = "创建仓库", description = "企业用户创建仓库信息，用于仓储服务。仓库名称和地址为必填项。")
+    @Operation(summary = "创建仓库", description = "仓储方企业创建仓库信息。仓库名称和地址为必填项。\n\n" +
+            "**前置条件**：仅仓储方企业（entRole=9）可操作。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "创建成功，返回仓库ID"),
         @ApiResponse(responseCode = "400", description = "参数错误：仓库名称、地址不能为空"),
         @ApiResponse(responseCode = "401", description = "未登录或Token无效"),
+        @ApiResponse(responseCode = "403", description = "无权限：仅仓储方企业可创建仓库"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @PostMapping("/warehouse/create")
@@ -1104,6 +1111,12 @@ public class WarehouseReceiptController {
             Long entId = CurrentUser.getEntId();
             if (entId == null) {
                 return Result.error(401, "无法获取当前企业信息，请先登录");
+            }
+
+            // 权限校验：仅仓储方企业可创建仓库
+            Integer entRole = CurrentUser.getEntRole();
+            if (entRole == null || entRole != EntRoleConstant.WAREHOUSE) {
+                return Result.error(403, "只有仓储方企业可以创建仓库");
             }
 
             Long warehouseId = warehouseReceiptService.createWarehouse(
@@ -1199,8 +1212,8 @@ public class WarehouseReceiptController {
     // ==================== Request DTOs ====================
 
     public static class StockInApplyRequest {
-        @Schema(description = "仓库ID", example = "1")
-        private Long warehouseId;
+        @Schema(description = "仓储公司ID（entId）", example = "2043692838935359490")
+        private Long warehouseEntId;
         @Schema(description = "货物名称", example = "钢材")
         private String goodsName;
         @Schema(description = "货物重量", example = "100.5")
@@ -1210,8 +1223,8 @@ public class WarehouseReceiptController {
         @Schema(description = "附件URL（可选）", example = "https://example.com/attachment.jpg")
         private String attachmentUrl;
 
-        public Long getWarehouseId() { return warehouseId; }
-        public void setWarehouseId(Long warehouseId) { this.warehouseId = warehouseId; }
+        public Long getWarehouseEntId() { return warehouseEntId; }
+        public void setWarehouseEntId(Long warehouseEntId) { this.warehouseEntId = warehouseEntId; }
         public String getGoodsName() { return goodsName; }
         public void setGoodsName(String goodsName) { this.goodsName = goodsName; }
         public BigDecimal getWeight() { return weight; }
@@ -1225,27 +1238,23 @@ public class WarehouseReceiptController {
     public static class MintReceiptRequest {
         @Schema(description = "入库单ID", example = "1")
         private Long stockOrderId;
-        @Schema(description = "仓库用户ID（可选，已从JWT自动获取）", example = "1")
-        private Long warehouseUserId;
         @Schema(description = "链上ID（可选，不填时由系统自动生成并上链）", example = "0xabc123...")
         private String onChainId;
 
         public Long getStockOrderId() { return stockOrderId; }
         public void setStockOrderId(Long stockOrderId) { this.stockOrderId = stockOrderId; }
-        public Long getWarehouseUserId() { return warehouseUserId; }
-        public void setWarehouseUserId(Long warehouseUserId) { this.warehouseUserId = warehouseUserId; }
         public String getOnChainId() { return onChainId; }
         public void setOnChainId(String onChainId) { this.onChainId = onChainId; }
     }
 
     public static class LaunchEndorsementRequest {
-        @Schema(description = "仓单ID", example = "1")
+        @Schema(description = "仓单ID", requiredMode = Schema.RequiredMode.REQUIRED, example = "2042829397927989251")
         private Long receiptId;
-        @Schema(description = "背书发起用户ID（可选，已从JWT自动获取）", example = "1")
+        @Schema(description = "已废弃，请忽略此字段，将从JWT自动获取", hidden = true)
         private Long transferorUserId;
-        @Schema(description = "被背书目标企业ID", example = "2")
+        @Schema(description = "被背书目标企业ID", requiredMode = Schema.RequiredMode.REQUIRED, example = "2043692838935359490")
         private Long transfereeEntId;
-        @Schema(description = "签名哈希", example = "0xdef456...")
+        @Schema(description = "签名哈希（可选，不传则区块链服务自动生成）", example = "0xdef456...")
         private String signatureHash;
 
         public Long getReceiptId() { return receiptId; }

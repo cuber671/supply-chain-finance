@@ -2,6 +2,7 @@ com/fisco/app/interceptor/RoleAuthorizationInterceptor.class
 com/fisco/app/feign/BlockchainFeignClient.class
 com/fisco/app/feign/BlockchainFeignClient$EndorsementRequest.class
 com/fisco/app/feign/CreditFeignClient.class
+com/fisco/app/feign/BlockchainFeignClient$SignRequest.class
 com/fisco/app/feign/BlockchainFeignClient$MergeReceiptRequest.class
 com/fisco/app/annotation/RequireRole.class
 com/fisco/app/dto/UserQueryResponseDTO.class
@@ -24,6 +25,7 @@ com/fisco/app/util/PageResult$Pagination.class
 com/fisco/app/util/AuditContext$AuditInfo.class
 com/fisco/app/feign/BlockchainFeignClient$LoanApproveRequest.class
 com/fisco/app/feign/BlockchainFeignClient$ReceivableRecordRepaymentRequest.class
+com/fisco/app/filter/BaseJwtAuthenticationFilter.class
 com/fisco/app/util/CurrentUser.class
 com/fisco/app/dto/TokenResponseDTO.class
 com/fisco/app/dto/LoginRequestDTO.class
@@ -61,6 +63,7 @@ com/fisco/app/feign/BlockchainFeignClient$LogisticsAssignCarrierRequest.class
 com/fisco/app/interceptor/RoleAuthorizationInterceptor$AuthorizationException.class
 com/fisco/app/feign/BlockchainFeignClient$ReceivableCreateRequest.class
 com/fisco/app/enums/AsyncTaskStatus.class
+com/fisco/app/util/Result$LongToStringSerializer.class
 com/fisco/app/enums/LoanStatus.class
 com/fisco/app/feign/AuthFeignClient.class
 com/fisco/app/feign/BlockchainFeignClient$LogisticsArriveAddRequest.class

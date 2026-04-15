@@ -22,6 +22,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.fisco.app.constant.EntRoleConstant;
+import com.fisco.app.dto.FinancialInstitutionCheckDTO;
 import com.fisco.app.entity.Enterprise;
 import com.fisco.app.entity.InvitationCode;
 import com.fisco.app.service.EnterpriseService;
@@ -956,6 +958,31 @@ public class EnterpriseController {
         }
     }
 
+    /**
+     * 使用邀请码（供auth-service在用户注册成功后调用，原子递增usedCount）
+     */
+    @Operation(summary = "使用邀请码", description = "用户注册成功后调用，原子递增邀请码使用次数。")
+    @PostMapping("/invite-codes/use")
+    public ResponseEntity<Result<Long>> useInvitationCode(
+            @Parameter(description = "邀请码", required = true)
+            @RequestBody Map<String, String> request) {
+        try {
+            String code = request.get("code");
+            if (code == null || code.isEmpty()) {
+                return ResponseEntity.ok(Result.error(400, "邀请码不能为空"));
+            }
+            Long inviterEntId = enterpriseService.useInvitationCode(code);
+            logger.info("邀请码使用成功: code={}, inviterEntId={}", code, inviterEntId);
+            return ResponseEntity.ok(Result.success(inviterEntId));
+        } catch (IllegalArgumentException e) {
+            logger.warn("使用邀请码失败: code={}, error={}", request.get("code"), e.getMessage());
+            return ResponseEntity.ok(Result.error(400, e.getMessage()));
+        } catch (Exception e) {
+            logger.error("使用邀请码异常", e);
+            return ResponseEntity.ok(Result.error(500, "操作失败，请稍后重试"));
+        }
+    }
+
     // ==================== 区块链查询接口 ====================
 
     /**
@@ -993,11 +1020,16 @@ public class EnterpriseController {
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @GetMapping("/check-financial-institution/{entId}")
-    public ResponseEntity<Result<Boolean>> checkFinancialInstitution(
+    public ResponseEntity<Result<FinancialInstitutionCheckDTO>> checkFinancialInstitution(
             @Parameter(description = "企业ID", required = true) @PathVariable Long entId) {
         try {
             boolean isFinInst = enterpriseService.isFinancialInstitution(entId);
-            return ResponseEntity.ok(Result.success(isFinInst));
+            String entRoleName = EntRoleConstant.getRoleName(
+                    enterpriseService.getEnterpriseById(entId) != null
+                            ? enterpriseService.getEnterpriseById(entId).getEntRole()
+                            : null);
+            FinancialInstitutionCheckDTO data = new FinancialInstitutionCheckDTO(entId, isFinInst, entRoleName);
+            return ResponseEntity.ok(Result.success(data));
         } catch (Exception e) {
             logger.error("验证金融机构异常: entId={}", entId, e);
             return ResponseEntity.ok(Result.error(500, "验证失败"));
@@ -1310,24 +1342,13 @@ public class EnterpriseController {
         response.setLocalAddress(enterprise.getLocalAddress());
         response.setContactPhone(enterprise.getContactPhone());
         response.setEntRole(enterprise.getEntRole());
-        response.setEntRoleName(getEntRoleName(enterprise.getEntRole()));
+        response.setEntRoleName(EntRoleConstant.getRoleName(enterprise.getEntRole()));
         response.setStatus(enterprise.getStatus());
         response.setStatusName(getStatusName(enterprise.getStatus()));
         response.setBlockchainAddress(enterprise.getBlockchainAddress());
         response.setCreateTime(enterprise.getCreateTime());
         response.setUpdateTime(enterprise.getUpdateTime());
         return response;
-    }
-
-    private String getEntRoleName(Integer entRole) {
-        if (entRole == null) return null;
-        switch (entRole) {
-            case 1: return "核心企业";
-            case 2: return "金融机构";
-            case 3: return "供应商";
-            case 4: return "经销商";
-            default: return "未知角色";
-        }
     }
 
     private String getStatusName(Integer status) {

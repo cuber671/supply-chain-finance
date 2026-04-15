@@ -1,0 +1,38 @@
+[
+  {
+    "username": "user_logistics_admin",
+    "password": "User2024@123",
+    "realName": "物流管理员",
+    "phone": "13900000001",
+    "email": "admin@zhongtong.com",
+    "userRole": "ADMIN",
+    "inviteCode": "YCGJ2Z6R"
+  },
+  {
+    "username": "user_logistics_fin",
+    "password": "User2024@123",
+    "realName": "物流财务",
+    "phone": "13900000002",
+    "email": "fin@zhongtong.com",
+    "userRole": "FINANCE",
+    "inviteCode": "YCGJ2Z6R"
+  },
+  {
+    "username": "user_logistics_op",
+    "password": "User2024@123",
+    "realName": "物流操作员",
+    "phone": "13900000003",
+    "email": "op@zhongtong.com",
+    "userRole": "OPERATOR",
+    "inviteCode": "YCGJ2Z6R"
+  },
+  {                      
+    "username": "user_test_audit_restricted",
+    "password": "Test2024@1234",                                                                                                                                                                                                        
+    "realName": "测试用户",
+    "phone": "13900000099",                                                                                                                                                                                                            
+    "email": "test@company.com",                            
+    "userRole": "OPERATOR",
+    "inviteCode": "YCGJ2Z6R"
+  }      
+]

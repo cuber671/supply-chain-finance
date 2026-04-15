@@ -51,6 +51,8 @@ feign:
         url: http://fisco-gateway-service:8087
         connectTimeout: 10000
         readTimeout: 60000  # 区块链交易可能需要更长时间
+      auth-service:
+        url: http://auth-service:8081
   circuitbreaker:
     enabled: true
 

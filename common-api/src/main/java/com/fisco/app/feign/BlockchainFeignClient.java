@@ -102,6 +102,11 @@ public interface BlockchainFeignClient {
     @PostMapping("/api/v1/blockchain/receipt/cancel")
     Result<String> cancelReceipt(@RequestBody CancelReceiptRequest request);
 
+    // ==================== 签名服务 ====================
+
+    @PostMapping("/api/v1/blockchain/sign")
+    Result<String> sign(@RequestBody SignRequest request);
+
     // ==================== 物流操作 ====================
 
     @PostMapping("/api/v1/blockchain/logistics/create")
@@ -782,5 +787,19 @@ public interface BlockchainFeignClient {
         public void setOffsetAmount(Long v) { this.offsetAmount = v; }
         public String getReason() { return reason; }
         public void setReason(String v) { this.reason = v; }
+    }
+
+    // 签名请求
+    class SignRequest {
+        private String data;
+
+        public SignRequest() {}
+
+        public SignRequest(String data) {
+            this.data = data;
+        }
+
+        public String getData() { return data; }
+        public void setData(String data) { this.data = data; }
     }
 }

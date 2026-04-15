@@ -46,3 +46,5 @@
 2026-04-12 07:09:27  [group:group0]  EnterpriseRegistryV2  0x5f04ffa3cab8f99ddf421605a47ce1b4f63fa12c
 2026-04-13 07:33:47  [group:group0]  ReceivableRepayment   0x654314ed1bb694a49bce914365475f24d05ebee5
 2026-04-13 07:48:44  [group:group0]  ReceivableRepayment   0x542c7a65c4ae367ceb7de3a428facbc94de77a51
+2026-04-15 11:38:34  [group:group0]  WarehouseReceiptCore  0x8e00b8fc603e368144eb9adc516df85473463f19
+2026-04-15 11:38:34  [group:group0]  WarehouseReceiptCore  0x8e00b8fc603e368144eb9adc516df85473463f19

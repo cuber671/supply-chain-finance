@@ -1,0 +1,1867 @@
+curl -X 'POST' \
+  'http://localhost:8081/api/v1/auth/admin/login' \
+  -H 'accept: */*' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "username": "admin",
+    "password": "123456",
+    "loginType": "ADMIN"
+}'
+
+● 调用 POST /api/v1/auth/refresh 接口即可刷新token。
+                                                                                                                                                                                                      
+  请求格式：                                                                                                                                                                                          
+                                                                                                                                                                                                      
+  curl -X 'POST' \                                                                                                                                                                                    
+    'http://localhost:8081/api/v1/auth/refresh' \                                                                                                                                                     
+    -H 'Content-Type: application/json' \                                                                                                                                                             
+    -d '{                                                                                                                                                                                             
+      "refreshToken": "eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJlbnRJZCI6MCwic2NvcGUiOjEsInRva2VuVHlwZSI6InJlZnJlc2giLCJqdGkiOiI0ZjhmNzYxNi1mMDlmLTRlNTItODc1Yy04MzkwNDNiN2MzMTMiLCJzdWIiOiIxMDAwMDAwMDAwMDAwMDAwMDAxIiwiaWF0IjoxNzc2MDg2NjYwLCJleHAiOjE3NzY2OTE0NjB9.1V__UuL-YPwVPlTGU8PigdARnavSXkJ61Jkus3Tm1f7M__uptWJE7GHB0Jm3ZfOaeBAa4d1aqAYraqZVcE48tA"                                          
+  }'
+
+    请求体：        
+
+  {
+    "refreshToken": "<你的refreshToken值>"
+  }                                                                                                                                                                                                   
+   
+  注意：                                                                                                                                                                                              
+  - 此接口不需要 Authorization 请求头
+  - 使用 refreshToken 进行认证                                                                                                                                                                        
+  - 返回新的 accessToken 和 refreshToken 对
+  - 旧 refreshToken 验证后会生成新的 refreshToken（refreshToken 也会轮换） 
+
+{
+  "code": 200,
+  "data": {
+    "accessToken": "eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJlbnRJZCI6MCwic2NvcGUiOjEsInRva2VuVHlwZSI6ImFjY2VzcyIsImp0aSI6IjRmOGY3NjE2LWYwOWYtNGU1Mi04NzVjLTgzOTA0M2I3YzMxMyIsInN1YiI6IjEwMDAwMDAwMDAwMDAwMDAwMDEiLCJpYXQiOjE3NzYwODY2NjAsImV4cCI6MTc3NjA5Mzg2MH0.lcGxplyELD0L3XxtJf-843lLVCOipqFi5cqicHS5XFfuJvGSXL-K_tzk6NWj5oJCeKFJ_shsRx1ed04eaDlqvw",
+    "refreshToken": "eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJlbnRJZCI6MCwic2NvcGUiOjEsInRva2VuVHlwZSI6InJlZnJlc2giLCJqdGkiOiI0ZjhmNzYxNi1mMDlmLTRlNTItODc1Yy04MzkwNDNiN2MzMTMiLCJzdWIiOiIxMDAwMDAwMDAwMDAwMDAwMDAxIiwiaWF0IjoxNzc2MDg2NjYwLCJleHAiOjE3NzY2OTE0NjB9.1V__UuL-YPwVPlTGU8PigdARnavSXkJ61Jkus3Tm1f7M__uptWJE7GHB0Jm3ZfOaeBAa4d1aqAYraqZVcE48tA",
+    "expirationSeconds": 7200,
+    "userId": 1000000000000000000,
+    "entId": null
+  },
+  "message": "管理员登录成功"
+}
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+curl -X 'POST' \
+  'http://localhost:8082/api/v1/enterprise/register' \
+  -H 'accept: */*' \
+  -H 'Content-Type: application/json' \
+  -d '  {
+    "username": "core_auto_mfg",
+    "password": "Auto2024@123",
+    "payPassword": "Pay2024@123",
+    "enterpriseName": "华泰汽车制造有限公司",
+    "orgCode": "91110000123456789A",
+    "entRole": 1,
+    "localAddress": "上海市浦东新区汽车工业园88号",
+    "contactPhone": "021-88888888"
+  }'
+  {
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "entId": 2043689390663823400,
+    "entRole": 1,
+    "orgCode": "91110000123456789A",
+    "enterpriseName": "华泰汽车制造有限公司",
+    "blockchainAddress": "0x1dd43b011fb4dcdc45f1b5dca56383345d22bb9a",
+    "username": "core_auto_mfg",
+    "status": 0
+  },
+  "timestamp": 1776088495392,
+  "txHash": null,
+  "errorStack": null
+}
+
+curl -X 'POST' \
+  'http://localhost:8082/api/v1/enterprise/register' \
+  -H 'accept: */*' \
+  -H 'Content-Type: application/json' \
+  -d '  {
+    "username": "core_electronics",
+    "password": "Auto2024@123",
+    "payPassword": "Pay2024@123",
+    "enterpriseName": "中芯电子科技有限公司",
+    "orgCode": "91110000123456801A",
+    "entRole": 1,
+    "localAddress": "深圳市福田区深业上城C座18层",
+    "contactPhone": "0755-88881234"
+  }'
+
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "entId": 2043689926033174500,
+    "entRole": 1,
+    "orgCode": "91110000123456801A",
+    "enterpriseName": "中芯电子科技有限公司",
+    "blockchainAddress": "0x2a8e04cd296a3438290fecf9b37581e2aa834117",
+    "username": "core_electronics",
+    "status": 0
+  },
+  "timestamp": 1776088622971,
+  "txHash": null,
+  "errorStack": null
+}
+
+curl -X 'POST' \
+  'http://localhost:8082/api/v1/enterprise/register' \
+  -H 'accept: */*' \
+  -H 'Content-Type: application/json' \
+  -d '  {
+    "username": "core_new_energy",
+    "password": "Auto2024@123",
+    "payPassword": "Pay2024@123",
+    "enterpriseName": "华新能源动力有限公司",
+    "orgCode": "91110000123456804A",
+    "entRole": 1,
+    "localAddress": "广东省广州市黄埔区科学城开泰大道66号",
+    "contactPhone": "020-88880001"
+  }'
+
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "entId": 2043690177792077800,
+    "entRole": 1,
+    "orgCode": "91110000123456804A",
+    "enterpriseName": "华新能源动力有限公司",
+    "blockchainAddress": "0xd4fd912b7f82f4e1feecc8c2e83028a93414e653",
+    "username": "core_new_energy",
+    "status": 0
+  },
+  "timestamp": 1776088682987,
+  "txHash": null,
+  "errorStack": null
+}
+
+curl -X 'POST' \
+  'http://localhost:8082/api/v1/enterprise/register' \
+  -H 'accept: */*' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "username": "supplier_engine",
+    "password": "Auto2024@123",
+    "payPassword": "Pay2024@123",
+    "enterpriseName": "深圳动力引擎科技有限公司",
+    "orgCode": "91110000123456790B",
+    "entRole": 3,
+    "localAddress": "深圳市南山区科技园北路45号",W
+    "contactPhone": "0755-88886666"
+  }'
+
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "entId": 2043690290639827000,
+    "entRole": 3,
+    "orgCode": "91110000123456790B",
+    "enterpriseName": "深圳动力引擎科技有限公司",
+    "blockchainAddress": "0xf62faa3c353b51a48b8c3d7c6f0e65bcfc4ff95b",
+    "username": "supplier_engine",
+    "status": 0
+  },
+  "timestamp": 1776088709895,
+  "txHash": null,
+  "errorStack": null
+}
+
+curl -X 'POST' \
+  'http://localhost:8082/api/v1/enterprise/register' \
+  -H 'accept: */*' \
+  -H 'Content-Type: application/json' \
+  -d '  {
+    "username": "supplier_steel",
+    "password": "Auto2024@123",
+    "payPassword": "Pay2024@123",
+    "enterpriseName": "华东钢铁材料有限公司",
+    "orgCode": "91110000123456791C",
+    "entRole": 3,
+    "localAddress": "江苏省南京市江宁区工业大道120号",
+    "contactPhone": "025-66668888"
+  }'
+
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "entId": 2043690498836689000,
+    "entRole": 3,
+    "orgCode": "91110000123456791C",
+    "enterpriseName": "华东钢铁材料有限公司",
+    "blockchainAddress": "0x2bca631aee9aaa93000a662aa0a3df4900259b7d",
+    "username": "supplier_steel",
+    "status": 0
+  },
+  "timestamp": 1776088759537,
+  "txHash": null,
+  "errorStack": null
+}
+
+curl -X 'POST' \
+  'http://localhost:8082/api/v1/enterprise/register' \
+  -H 'accept: */*' \
+  -H 'Content-Type: application/json' \
+  -d '  {
+    "username": "supplier_electronics",
+    "password": "Auto2024@123",
+    "payPassword": "Pay2024@123",
+    "enterpriseName": "中科智联汽车电子有限公司",
+    "orgCode": "91110000123456792D",
+    "entRole": 3,
+    "localAddress": "北京市海淀区中关村软件园二期A座",
+    "contactPhone": "010-88889999"
+  }'
+
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "entId": 2043690620626694100,
+    "entRole": 3,
+    "orgCode": "91110000123456792D",
+    "enterpriseName": "中科智联汽车电子有限公司",
+    "blockchainAddress": "0xd2ea3ab8c0593b773735b6a9a16aa320fc1ee7e2",
+    "username": "supplier_electronics",
+    "status": 0
+  },
+  "timestamp": 1776088788569,
+  "txHash": null,
+  "errorStack": null
+}
+
+curl -X 'POST' \
+  'http://localhost:8082/api/v1/enterprise/register' \
+  -H 'accept: */*' \
+  -H 'Content-Type: application/json' \
+  -d '  {
+    "username": "supplier_electronics",
+    "password": "Auto2024@123",
+    "payPassword": "Pay2024@123",
+    "enterpriseName": "中科智联汽车电子有限公司",
+    "orgCode": "91110000123456792D",
+    "entRole": 3,
+    "localAddress": "北京市海淀区中关村软件园二期A座",
+    "contactPhone": "010-88889999"
+  }'
+
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "entId": 2043690620626694100,
+    "entRole": 3,
+    "orgCode": "91110000123456792D",
+    "enterpriseName": "中科智联汽车电子有限公司",
+    "blockchainAddress": "0xd2ea3ab8c0593b773735b6a9a16aa320fc1ee7e2",
+    "username": "supplier_electronics",
+    "status": 0
+  },
+  "timestamp": 1776088788569,
+  "txHash": null,
+  "errorStack": null
+}
+
+curl -X 'POST' \
+  'http://localhost:8082/api/v1/enterprise/register' \
+  -H 'accept: */*' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "username": "supplier_tire",
+    "password": "Auto2024@123",
+    "payPassword": "Pay2024@123",
+    "enterpriseName": "中原橡胶工业集团有限公司",
+    "orgCode": "91110000123456793E",
+    "entRole": 3,
+    "localAddress": "河南省郑州市经开区第八大街200号",
+    "contactPhone": "0371-66667777"
+  }'
+
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "entId": 2043691021790900200,
+    "entRole": 3,
+    "orgCode": "91110000123456793E",
+    "enterpriseName": "中原橡胶工业集团有限公司",
+    "blockchainAddress": "0x97701fcb7612ca34f024b91e0ee84d48453be1ba",
+    "username": "supplier_tire",
+    "status": 0
+  },
+  "timestamp": 1776088884213,
+  "txHash": null,
+  "errorStack": null
+}
+
+curl -X 'POST' \
+  'http://localhost:8082/api/v1/enterprise/register' \
+  -H 'accept: */*' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "username": "supplier_glass",
+    "password": "Auto2024@123",
+    "payPassword": "Pay2024@123",
+    "enterpriseName": "华东特种玻璃股份有限公司",
+    "orgCode": "91110000123456805B",
+    "entRole": 3,
+    "localAddress": "山东省青岛市西海岸新区保税港区工业园",
+    "contactPhone": "0532-88880002"
+}'
+
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "entId": 2043691163126362000,
+    "entRole": 3,
+    "orgCode": "91110000123456805B",
+    "enterpriseName": "华东特种玻璃股份有限公司",
+    "blockchainAddress": "0x677e49a519dc278254ff13bbea62e39c4bdbbc92",
+    "username": "supplier_glass",
+    "status": 0
+  },
+  "timestamp": 1776088917911,
+  "txHash": null,
+  "errorStack": null
+}
+
+curl -X 'POST' \
+  'http://localhost:8082/api/v1/enterprise/register' \
+  -H 'accept: */*' \
+  -H 'Content-Type: application/json' \
+  -d '  {
+    "username": "warehouse_parts_sh",
+    "password": "Auto2024@123",
+    "payPassword": "Pay2024@123",
+    "enterpriseName": "上海华东仓储物流有限公司",
+    "orgCode": "91110000123456794F",
+    "entRole": 9,
+    "localAddress": "上海市嘉定区安亭镇国际汽车城仓库区3号库",
+    "contactPhone": "021-77778888"
+  }'
+
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "entId": 2043692838935359500,
+    "entRole": 9,
+    "orgCode": "91110000123456794F",
+    "enterpriseName": "上海华东仓储物流有限公司",
+    "blockchainAddress": "0xdb16df980548d9201680469907bcf58cfdedd91a",
+    "username": "warehouse_parts_sh",
+    "status": 0
+  },
+  "timestamp": 1776089317463,
+  "txHash": null,
+  "errorStack": null
+}
+
+curl -X 'POST' \
+  'http://localhost:8082/api/v1/enterprise/register' \
+  -H 'accept: */*' \
+  -H 'Content-Type: application/json' \
+  -d '  {
+    "username": "warehouse_raw_gz",
+    "password": "Auto2024@123",
+    "payPassword": "Pay2024@123",
+    "enterpriseName": "广州华南原材料仓储中心",
+    "orgCode": "91110000123456795G",
+    "entRole": 9,
+    "localAddress": "广州市黄埔区开发大道仓库物流园B区",
+    "contactPhone": "020-66669999"
+  }'
+
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "entId": 2043692940152303600,
+    "entRole": 9,
+    "orgCode": "91110000123456795G",
+    "enterpriseName": "广州华南原材料仓储中心",
+    "blockchainAddress": "0xb71754f7e9abe0e6a9173c5c27e3621622c4d6f1",
+    "username": "warehouse_raw_gz",
+    "status": 0
+  },
+  "timestamp": 1776089341594,
+  "txHash": null,
+  "errorStack": null
+}
+
+curl -X 'POST' \
+  'http://localhost:8082/api/v1/enterprise/register' \
+  -H 'accept: */*' \
+  -H 'Content-Type: application/json' \
+  -d '  {
+    "username": "warehouse_central",
+    "password": "Auto2024@123",
+    "payPassword": "Pay2024@123",
+    "enterpriseName": "中部地区仓储物流配送中心",
+    "orgCode": "91110000123456806F",
+    "entRole": 9,
+    "localAddress": "湖北省武汉市东西湖区吴家山物流园",
+    "contactPhone": "027-88880003"
+  }'
+
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "entId": 2043693009203130400,
+    "entRole": 9,
+    "orgCode": "91110000123456806F",
+    "enterpriseName": "中部地区仓储物流配送中心",
+    "blockchainAddress": "0x421df79c4dc479a1f4ea9fa1bd99ffdbcd1bbfb5",
+    "username": "warehouse_central",
+    "status": 0
+  },
+  "timestamp": 1776089358060,
+  "txHash": null,
+  "errorStack": null
+}
+
+curl -X 'POST' \
+  'http://localhost:8082/api/v1/enterprise/register' \
+  -H 'accept: */*' \
+  -H 'Content-Type: application/json' \
+  -d '  {
+    "username": "logistics_highway",
+    "password": "Auto2024@123",
+    "payPassword": "Pay2024@123",
+    "enterpriseName": "中通快运有限公司",
+    "orgCode": "91110000123456796H",
+    "entRole": 12,
+    "localAddress": "浙江省杭州市余杭区顺风物流园",
+    "contactPhone": "0571-88880000"
+  }'
+
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "entId": 2043693138240893000,
+    "entRole": 12,
+    "orgCode": "91110000123456796H",
+    "enterpriseName": "中通快运有限公司",
+    "blockchainAddress": "0x9768dcee77aca9ef4bb8dacdd1a979af58709bfc",
+    "username": "logistics_highway",
+    "status": 0
+  },
+  "timestamp": 1776089388822,
+  "txHash": null,
+  "errorStack": null
+}
+
+curl -X 'POST' \
+  'http://localhost:8082/api/v1/enterprise/register' \
+  -H 'accept: */*' \
+  -H 'Content-Type: application/json' \
+  -d '  {
+    "username": "logistics_city",
+    "password": "Auto2024@123",
+    "payPassword": "Pay2024@123",
+    "enterpriseName": "快捷城市配送服务有限公司",
+    "orgCode": "91110000123456797J",
+    "entRole": 12,
+    "localAddress": "上海市松江区洞泾镇物流配送中心",
+    "contactPhone": "021-88860000"
+  }'
+
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "entId": 2043693246546210800,
+    "entRole": 12,
+    "orgCode": "91110000123456797J",
+    "enterpriseName": "快捷城市配送服务有限公司",
+    "blockchainAddress": "0xe7e690431b9653edc84154a8aad8d8038d3dd22b",
+    "username": "logistics_city",
+    "status": 0
+  },
+  "timestamp": 1776089414642,
+  "txHash": null,
+  "errorStack": null
+}
+
+curl -X 'POST' \
+  'http://localhost:8082/api/v1/enterprise/register' \
+  -H 'accept: */*' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "username": "logistics_rail",
+    "password": "Auto2024@123",
+    "payPassword": "Pay2024@123",
+    "enterpriseName": "中铁捷运物流有限公司",
+    "orgCode": "91110000123456807H",
+    "entRole": 12,
+    "localAddress": "四川省成都市青白江区铁路港集装箱中心站",
+    "contactPhone": "028-88880004"
+}'
+
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "entId": 2043693669130727400,
+    "entRole": 12,
+    "orgCode": "91110000123456807H",
+    "enterpriseName": "中铁捷运物流有限公司",
+    "blockchainAddress": "0x2e53998e232a9c63dea350f501502c76023f83b6",
+    "username": "logistics_rail",
+    "status": 0
+  },
+  "timestamp": 1776089515399,
+  "txHash": null,
+  "errorStack": null
+}
+
+curl -X 'POST' \
+  'http://localhost:8082/api/v1/enterprise/register' \
+  -H 'accept: */*' \
+  -H 'Content-Type: application/json' \
+  -d '  {
+    "username": "institution_finance",
+    "password": "Auto2024@123",
+    "payPassword": "Pay2024@123",
+    "enterpriseName": "华瑞供应链金融有限公司",
+    "orgCode": "91110000123456798K",
+    "entRole": 6,
+    "localAddress": "上海市浦东新区陆家嘴金融中心A座28层",
+    "contactPhone": "021-68888888"
+  }'
+
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "entId": 2043693915218931700,
+    "entRole": 6,
+    "orgCode": "91110000123456798K",
+    "enterpriseName": "华瑞供应链金融有限公司",
+    "blockchainAddress": "0x34a5e488ddde2e2aaf2473d02cc6994506800bba",
+    "username": "institution_finance",
+    "status": 0
+  },
+  "timestamp": 1776089574059,
+  "txHash": null,
+  "errorStack": null
+}
+
+curl -X 'POST' \
+  'http://localhost:8082/api/v1/enterprise/register' \
+  -H 'accept: */*' \
+  -H 'Content-Type: application/json' \
+  -d '  {
+    "username": "institution_bank",
+    "password": "Auto2024@123",
+    "payPassword": "Pay2024@123",
+    "enterpriseName": "华融商业保理有限公司",
+    "orgCode": "91110000123456802K",
+    "entRole": 6,
+    "localAddress": "北京市西城区金融街7号英蓝国际中心",
+    "contactPhone": "010-68868686"
+  }'
+
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "entId": 2043694198535778300,
+    "entRole": 6,
+    "orgCode": "91110000123456802K",
+    "enterpriseName": "华融商业保理有限公司",
+    "blockchainAddress": "0x9562219db7f10f7d165e9c1e8a7a41cf1dbca04a",
+    "username": "institution_bank",
+    "status": 0
+  },
+  "timestamp": 1776089641612,
+  "txHash": null,
+  "errorStack": null
+}
+
+curl -X 'POST' \
+  'http://localhost:8082/api/v1/enterprise/register' \
+  -H 'accept: */*' \
+  -H 'Content-Type: application/json' \
+  -d '  {
+    "username": "institution_lease",
+    "password": "Auto2024@123",
+    "payPassword": "Pay2024@123",
+    "enterpriseName": "中企融资租赁有限公司",
+    "orgCode": "91110000123456808K",
+    "entRole": 6,
+    "localAddress": "天津市和平区南京路200号银河中心",
+    "contactPhone": "022-68868001"
+  }'
+
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "entId": 2043694431860715500,
+    "entRole": 6,
+    "orgCode": "91110000123456808K",
+    "enterpriseName": "中企融资租赁有限公司",
+    "blockchainAddress": "0xa1f5bf0696e6bcd4375d4cb872dad01435143b02",
+    "username": "institution_lease",
+    "status": 0
+  },
+  "timestamp": 1776089697243,
+  "txHash": null,
+  "errorStack": null
+}
+
+curl -X 'POST' \
+  'http://localhost:8082/api/v1/enterprise/register' \
+  -H 'accept: */*' \
+  -H 'Content-Type: application/json' \
+  -d '  {
+    "username": "trading_platform",
+    "password": "Auto2024@123",
+    "payPassword": "Pay2024@123",
+    "enterpriseName": "中国汽车零部件现货交易所有限公司",
+    "orgCode": "91110000123456799L",
+    "entRole": 2,
+    "localAddress": "天津市滨海新区于家堡金融区交易大厦",
+    "contactPhone": "022-66660000"
+  }'
+
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "entId": 2043694526136086500,
+    "entRole": 2,
+    "orgCode": "91110000123456799L",
+    "enterpriseName": "中国汽车零部件现货交易所有限公司",
+    "blockchainAddress": "0xe6eae047245dcb830483e0a0f17dc56fc3f03b16",
+    "username": "trading_platform",
+    "status": 0
+  },
+  "timestamp": 1776089719713,
+  "txHash": null,
+  "errorStack": null
+}
+
+curl -X 'POST' \
+  'http://localhost:8082/api/v1/enterprise/register' \
+  -H 'accept: */*' \
+  -H 'Content-Type: application/json' \
+  -d '  {
+    "username": "trading_market",
+    "password": "Auto2024@123",
+    "payPassword": "Pay2024@123",
+    "enterpriseName": "华东工业原材料现货交易中心",
+    "orgCode": "91110000123456803L",
+    "entRole": 2,
+    "localAddress": "江苏省苏州市工业园区星湖街328号",
+    "contactPhone": "0512-66668800"
+  }'
+
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "entId": 2043694621250318300,
+    "entRole": 2,
+    "orgCode": "91110000123456803L",
+    "enterpriseName": "华东工业原材料现货交易中心",
+    "blockchainAddress": "0x644383c3e0628dbf60095eb9dc5936a5be6ae0ac",
+    "username": "trading_market",
+    "status": 0
+  },
+  "timestamp": 1776089742394,
+  "txHash": null,
+  "errorStack": null
+}
+
+curl -X 'POST' \
+  'http://localhost:8082/api/v1/enterprise/register' \
+  -H 'accept: */*' \
+  -H 'Content-Type: application/json' \
+  -d '  {
+    "username": "trading_chem",
+    "password": "Auto2024@123",
+    "payPassword": "Pay2024@123",
+    "enterpriseName": "中国化工原料现货交易平台",
+    "orgCode": "91110000123456809L",
+    "entRole": 2,
+    "localAddress": "浙江省宁波市鄞州区南部商务区水街7号楼",
+    "contactPhone": "0574-88880005"
+  }'
+
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "entId": 2043694715613769700,
+    "entRole": 2,
+    "orgCode": "91110000123456809L",
+    "enterpriseName": "中国化工原料现货交易平台",
+    "blockchainAddress": "0xf21c41869d82f44bdc405c45fc3db3395c9f8181",
+    "username": "trading_chem",
+    "status": 0
+  },
+  "timestamp": 1776089764888,
+  "txHash": null,
+  "errorStack": null
+}
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+curl -X 'POST' \
+  'http://localhost:8082/api/v1/enterprise/2043689390663823361/audit' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJlbnRJZCI6MCwic2NvcGUiOjEsInRva2VuVHlwZSI6ImFjY2VzcyIsImp0aSI6IjRmOGY3NjE2LWYwOWYtNGU1Mi04NzVjLTgzOTA0M2I3YzMxMyIsInN1YiI6IjEwMDAwMDAwMDAwMDAwMDAwMDEiLCJpYXQiOjE3NzYwODY2NjAsImV4cCI6MTc3NjA5Mzg2MH0.lcGxplyELD0L3XxtJf-843lLVCOipqFi5cqicHS5XFfuJvGSXL-K_tzk6NWj5oJCeKFJ_shsRx1ed04eaDlqvw' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "approved": true
+}'
+
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "newStatus": 1,
+    "statusError": "[401] during [POST] to [http://fisco-gateway-service:8087/api/v1/blockchain/enterprise/update-status] [BlockchainFeignClient#updateEnterpriseStatus(EnterpriseStatusRequest)]: []",
+    "registerTxHash": null,
+    "action": "通过",
+    "statusTxHash": null,
+    "dbStatus": "success",
+    "enterpriseId": 2043689390663823400,
+    "enterpriseName": "华泰汽车制造有限公司",
+    "registerError": "[401] during [POST] to [http://fisco-gateway-service:8087/api/v1/blockchain/enterprise/register] [BlockchainFeignClient#registerEnterprise(EnterpriseRegisterRequest)]: []"
+  },
+  "timestamp": 1776090666428,
+  "txHash": null,
+  "errorStack": null
+}
+
+curl -X 'POST' \
+  'http://localhost:8082/api/v1/enterprise/2043689926033174530/audit' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJlbnRJZCI6MCwic2NvcGUiOjEsInRva2VuVHlwZSI6ImFjY2VzcyIsImp0aSI6IjRmOGY3NjE2LWYwOWYtNGU1Mi04NzVjLTgzOTA0M2I3YzMxMyIsInN1YiI6IjEwMDAwMDAwMDAwMDAwMDAwMDEiLCJpYXQiOjE3NzYwODY2NjAsImV4cCI6MTc3NjA5Mzg2MH0.lcGxplyELD0L3XxtJf-843lLVCOipqFi5cqicHS5XFfuJvGSXL-K_tzk6NWj5oJCeKFJ_shsRx1ed04eaDlqvw' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "approved": true
+}'
+
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "newStatus": 1,
+    "statusError": "[401] during [POST] to [http://fisco-gateway-service:8087/api/v1/blockchain/enterprise/update-status] [BlockchainFeignClient#updateEnterpriseStatus(EnterpriseStatusRequest)]: []",
+    "registerTxHash": null,
+    "action": "通过",
+    "statusTxHash": null,
+    "dbStatus": "success",
+    "enterpriseId": 2043689926033174500,
+    "enterpriseName": "中芯电子科技有限公司",
+    "registerError": "[401] during [POST] to [http://fisco-gateway-service:8087/api/v1/blockchain/enterprise/register] [BlockchainFeignClient#registerEnterprise(EnterpriseRegisterRequest)]: []"
+  },
+  "timestamp": 1776090812567,
+  "txHash": null,
+  "errorStack": null
+}
+
+curl -X 'POST' \
+  'http://localhost:8082/api/v1/enterprise/2043690177792077825/audit' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJlbnRJZCI6MCwic2NvcGUiOjEsInRva2VuVHlwZSI6ImFjY2VzcyIsImp0aSI6IjRmOGY3NjE2LWYwOWYtNGU1Mi04NzVjLTgzOTA0M2I3YzMxMyIsInN1YiI6IjEwMDAwMDAwMDAwMDAwMDAwMDEiLCJpYXQiOjE3NzYwODY2NjAsImV4cCI6MTc3NjA5Mzg2MH0.lcGxplyELD0L3XxtJf-843lLVCOipqFi5cqicHS5XFfuJvGSXL-K_tzk6NWj5oJCeKFJ_shsRx1ed04eaDlqvw' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "approved": true
+}'
+
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "newStatus": 1,
+    "statusError": "[401] during [POST] to [http://fisco-gateway-service:8087/api/v1/blockchain/enterprise/update-status] [BlockchainFeignClient#updateEnterpriseStatus(EnterpriseStatusRequest)]: []",
+    "registerTxHash": null,
+    "action": "通过",
+    "statusTxHash": null,
+    "dbStatus": "success",
+    "enterpriseId": 2043690177792077800,
+    "enterpriseName": "华新能源动力有限公司",
+    "registerError": "[401] during [POST] to [http://fisco-gateway-service:8087/api/v1/blockchain/enterprise/register] [BlockchainFeignClient#registerEnterprise(EnterpriseRegisterRequest)]: []"
+  },
+  "timestamp": 1776090848579,
+  "txHash": null,
+  "errorStack": null
+}
+
+curl -X 'POST' \
+  'http://localhost:8082/api/v1/enterprise/2043690290639826945/audit' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJlbnRJZCI6MCwic2NvcGUiOjEsInRva2VuVHlwZSI6ImFjY2VzcyIsImp0aSI6IjRmOGY3NjE2LWYwOWYtNGU1Mi04NzVjLTgzOTA0M2I3YzMxMyIsInN1YiI6IjEwMDAwMDAwMDAwMDAwMDAwMDEiLCJpYXQiOjE3NzYwODY2NjAsImV4cCI6MTc3NjA5Mzg2MH0.lcGxplyELD0L3XxtJf-843lLVCOipqFi5cqicHS5XFfuJvGSXL-K_tzk6NWj5oJCeKFJ_shsRx1ed04eaDlqvw' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "approved": true
+}'
+
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "newStatus": 1,
+    "statusError": "[401] during [POST] to [http://fisco-gateway-service:8087/api/v1/blockchain/enterprise/update-status] [BlockchainFeignClient#updateEnterpriseStatus(EnterpriseStatusRequest)]: []",
+    "registerTxHash": null,
+    "action": "通过",
+    "statusTxHash": null,
+    "dbStatus": "success",
+    "enterpriseId": 2043690290639827000,
+    "enterpriseName": "深圳动力引擎科技有限公司",
+    "registerError": "[401] during [POST] to [http://fisco-gateway-service:8087/api/v1/blockchain/enterprise/register] [BlockchainFeignClient#registerEnterprise(EnterpriseRegisterRequest)]: []"
+  },
+  "timestamp": 1776090885428,
+  "txHash": null,
+  "errorStack": null
+}
+
+curl -X 'POST' \
+  'http://localhost:8082/api/v1/enterprise/2043690498836688897/audit' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJlbnRJZCI6MCwic2NvcGUiOjEsInRva2VuVHlwZSI6ImFjY2VzcyIsImp0aSI6IjRmOGY3NjE2LWYwOWYtNGU1Mi04NzVjLTgzOTA0M2I3YzMxMyIsInN1YiI6IjEwMDAwMDAwMDAwMDAwMDAwMDEiLCJpYXQiOjE3NzYwODY2NjAsImV4cCI6MTc3NjA5Mzg2MH0.lcGxplyELD0L3XxtJf-843lLVCOipqFi5cqicHS5XFfuJvGSXL-K_tzk6NWj5oJCeKFJ_shsRx1ed04eaDlqvw' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "approved": true
+}'
+
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "newStatus": 1,
+    "statusError": "[401] during [POST] to [http://fisco-gateway-service:8087/api/v1/blockchain/enterprise/update-status] [BlockchainFeignClient#updateEnterpriseStatus(EnterpriseStatusRequest)]: []",
+    "registerTxHash": null,
+    "action": "通过",
+    "statusTxHash": null,
+    "dbStatus": "success",
+    "enterpriseId": 2043690498836689000,
+    "enterpriseName": "华东钢铁材料有限公司",
+    "registerError": "[401] during [POST] to [http://fisco-gateway-service:8087/api/v1/blockchain/enterprise/register] [BlockchainFeignClient#registerEnterprise(EnterpriseRegisterRequest)]: []"
+  },
+  "timestamp": 1776090907382,
+  "txHash": null,
+  "errorStack": null
+}
+
+curl -X 'POST' \
+  'http://localhost:8082/api/v1/enterprise/2043690620626694146/audit' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJlbnRJZCI6MCwic2NvcGUiOjEsInRva2VuVHlwZSI6ImFjY2VzcyIsImp0aSI6IjRmOGY3NjE2LWYwOWYtNGU1Mi04NzVjLTgzOTA0M2I3YzMxMyIsInN1YiI6IjEwMDAwMDAwMDAwMDAwMDAwMDEiLCJpYXQiOjE3NzYwODY2NjAsImV4cCI6MTc3NjA5Mzg2MH0.lcGxplyELD0L3XxtJf-843lLVCOipqFi5cqicHS5XFfuJvGSXL-K_tzk6NWj5oJCeKFJ_shsRx1ed04eaDlqvw' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "approved": true
+}'
+
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "newStatus": 1,
+    "statusError": "[401] during [POST] to [http://fisco-gateway-service:8087/api/v1/blockchain/enterprise/update-status] [BlockchainFeignClient#updateEnterpriseStatus(EnterpriseStatusRequest)]: []",
+    "registerTxHash": null,
+    "action": "通过",
+    "statusTxHash": null,
+    "dbStatus": "success",
+    "enterpriseId": 2043690620626694100,
+    "enterpriseName": "中科智联汽车电子有限公司",
+    "registerError": "[401] during [POST] to [http://fisco-gateway-service:8087/api/v1/blockchain/enterprise/register] [BlockchainFeignClient#registerEnterprise(EnterpriseRegisterRequest)]: []"
+  },
+  "timestamp": 1776090928417,
+  "txHash": null,
+  "errorStack": null
+}
+
+curl -X 'POST' \
+  'http://localhost:8082/api/v1/enterprise/2043691021790900226/audit' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJlbnRJZCI6MCwic2NvcGUiOjEsInRva2VuVHlwZSI6ImFjY2VzcyIsImp0aSI6IjRmOGY3NjE2LWYwOWYtNGU1Mi04NzVjLTgzOTA0M2I3YzMxMyIsInN1YiI6IjEwMDAwMDAwMDAwMDAwMDAwMDEiLCJpYXQiOjE3NzYwODY2NjAsImV4cCI6MTc3NjA5Mzg2MH0.lcGxplyELD0L3XxtJf-843lLVCOipqFi5cqicHS5XFfuJvGSXL-K_tzk6NWj5oJCeKFJ_shsRx1ed04eaDlqvw' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "approved": true
+}'
+
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "newStatus": 1,
+    "statusError": "[401] during [POST] to [http://fisco-gateway-service:8087/api/v1/blockchain/enterprise/update-status] [BlockchainFeignClient#updateEnterpriseStatus(EnterpriseStatusRequest)]: []",
+    "registerTxHash": null,
+    "action": "通过",
+    "statusTxHash": null,
+    "dbStatus": "success",
+    "enterpriseId": 2043691021790900200,
+    "enterpriseName": "中原橡胶工业集团有限公司",
+    "registerError": "[401] during [POST] to [http://fisco-gateway-service:8087/api/v1/blockchain/enterprise/register] [BlockchainFeignClient#registerEnterprise(EnterpriseRegisterRequest)]: []"
+  },
+  "timestamp": 1776090966215,
+  "txHash": null,
+  "errorStack": null
+}
+
+curl -X 'POST' \
+  'http://localhost:8082/api/v1/enterprise/2043691163126362113/audit' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJlbnRJZCI6MCwic2NvcGUiOjEsInRva2VuVHlwZSI6ImFjY2VzcyIsImp0aSI6IjRmOGY3NjE2LWYwOWYtNGU1Mi04NzVjLTgzOTA0M2I3YzMxMyIsInN1YiI6IjEwMDAwMDAwMDAwMDAwMDAwMDEiLCJpYXQiOjE3NzYwODY2NjAsImV4cCI6MTc3NjA5Mzg2MH0.lcGxplyELD0L3XxtJf-843lLVCOipqFi5cqicHS5XFfuJvGSXL-K_tzk6NWj5oJCeKFJ_shsRx1ed04eaDlqvw' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "approved": true
+}'
+
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "newStatus": 1,
+    "statusError": "[401] during [POST] to [http://fisco-gateway-service:8087/api/v1/blockchain/enterprise/update-status] [BlockchainFeignClient#updateEnterpriseStatus(EnterpriseStatusRequest)]: []",
+    "registerTxHash": null,
+    "action": "通过",
+    "statusTxHash": null,
+    "dbStatus": "success",
+    "enterpriseId": 2043691163126362000,
+    "enterpriseName": "华东特种玻璃股份有限公司",
+    "registerError": "[401] during [POST] to [http://fisco-gateway-service:8087/api/v1/blockchain/enterprise/register] [BlockchainFeignClient#registerEnterprise(EnterpriseRegisterRequest)]: []"
+  },
+  "timestamp": 1776090984210,
+  "txHash": null,
+  "errorStack": null
+}
+
+curl -X 'POST' \
+  'http://localhost:8082/api/v1/enterprise/2043692838935359490/audit' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJlbnRJZCI6MCwic2NvcGUiOjEsInRva2VuVHlwZSI6ImFjY2VzcyIsImp0aSI6IjRmOGY3NjE2LWYwOWYtNGU1Mi04NzVjLTgzOTA0M2I3YzMxMyIsInN1YiI6IjEwMDAwMDAwMDAwMDAwMDAwMDEiLCJpYXQiOjE3NzYwODY2NjAsImV4cCI6MTc3NjA5Mzg2MH0.lcGxplyELD0L3XxtJf-843lLVCOipqFi5cqicHS5XFfuJvGSXL-K_tzk6NWj5oJCeKFJ_shsRx1ed04eaDlqvw' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "approved": true
+}'
+
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "newStatus": 1,
+    "statusError": "[401] during [POST] to [http://fisco-gateway-service:8087/api/v1/blockchain/enterprise/update-status] [BlockchainFeignClient#updateEnterpriseStatus(EnterpriseStatusRequest)]: []",
+    "registerTxHash": null,
+    "action": "通过",
+    "statusTxHash": null,
+    "dbStatus": "success",
+    "enterpriseId": 2043692838935359500,
+    "enterpriseName": "上海华东仓储物流有限公司",
+    "registerError": "[401] during [POST] to [http://fisco-gateway-service:8087/api/v1/blockchain/enterprise/register] [BlockchainFeignClient#registerEnterprise(EnterpriseRegisterRequest)]: []"
+  },
+  "timestamp": 1776091049417,
+  "txHash": null,
+  "errorStack": null
+}
+
+curl -X 'POST' \
+  'http://localhost:8082/api/v1/enterprise/2043692940152303618/audit' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJlbnRJZCI6MCwic2NvcGUiOjEsInRva2VuVHlwZSI6ImFjY2VzcyIsImp0aSI6IjRmOGY3NjE2LWYwOWYtNGU1Mi04NzVjLTgzOTA0M2I3YzMxMyIsInN1YiI6IjEwMDAwMDAwMDAwMDAwMDAwMDEiLCJpYXQiOjE3NzYwODY2NjAsImV4cCI6MTc3NjA5Mzg2MH0.lcGxplyELD0L3XxtJf-843lLVCOipqFi5cqicHS5XFfuJvGSXL-K_tzk6NWj5oJCeKFJ_shsRx1ed04eaDlqvw' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "approved": true
+}'
+
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "newStatus": 1,
+    "statusError": "[401] during [POST] to [http://fisco-gateway-service:8087/api/v1/blockchain/enterprise/update-status] [BlockchainFeignClient#updateEnterpriseStatus(EnterpriseStatusRequest)]: []",
+    "registerTxHash": null,
+    "action": "通过",
+    "statusTxHash": null,
+    "dbStatus": "success",
+    "enterpriseId": 2043692940152303600,
+    "enterpriseName": "广州华南原材料仓储中心",
+    "registerError": "[401] during [POST] to [http://fisco-gateway-service:8087/api/v1/blockchain/enterprise/register] [BlockchainFeignClient#registerEnterprise(EnterpriseRegisterRequest)]: []"
+  },
+  "timestamp": 1776091064063,
+  "txHash": null,
+  "errorStack": null
+}
+
+curl -X 'POST' \
+  'http://localhost:8082/api/v1/enterprise/2043693009203130370/audit' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJlbnRJZCI6MCwic2NvcGUiOjEsInRva2VuVHlwZSI6ImFjY2VzcyIsImp0aSI6IjRmOGY3NjE2LWYwOWYtNGU1Mi04NzVjLTgzOTA0M2I3YzMxMyIsInN1YiI6IjEwMDAwMDAwMDAwMDAwMDAwMDEiLCJpYXQiOjE3NzYwODY2NjAsImV4cCI6MTc3NjA5Mzg2MH0.lcGxplyELD0L3XxtJf-843lLVCOipqFi5cqicHS5XFfuJvGSXL-K_tzk6NWj5oJCeKFJ_shsRx1ed04eaDlqvw' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "approved": true
+}'
+
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "newStatus": 1,
+    "statusError": "[401] during [POST] to [http://fisco-gateway-service:8087/api/v1/blockchain/enterprise/update-status] [BlockchainFeignClient#updateEnterpriseStatus(EnterpriseStatusRequest)]: []",
+    "registerTxHash": null,
+    "action": "通过",
+    "statusTxHash": null,
+    "dbStatus": "success",
+    "enterpriseId": 2043693009203130400,
+    "enterpriseName": "中部地区仓储物流配送中心",
+    "registerError": "[401] during [POST] to [http://fisco-gateway-service:8087/api/v1/blockchain/enterprise/register] [BlockchainFeignClient#registerEnterprise(EnterpriseRegisterRequest)]: []"
+  },
+  "timestamp": 1776091083997,
+  "txHash": null,
+  "errorStack": null
+}
+
+curl -X 'POST' \
+  'http://localhost:8082/api/v1/enterprise/2043693138240892929/audit' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJlbnRJZCI6MCwic2NvcGUiOjEsInRva2VuVHlwZSI6ImFjY2VzcyIsImp0aSI6IjRmOGY3NjE2LWYwOWYtNGU1Mi04NzVjLTgzOTA0M2I3YzMxMyIsInN1YiI6IjEwMDAwMDAwMDAwMDAwMDAwMDEiLCJpYXQiOjE3NzYwODY2NjAsImV4cCI6MTc3NjA5Mzg2MH0.lcGxplyELD0L3XxtJf-843lLVCOipqFi5cqicHS5XFfuJvGSXL-K_tzk6NWj5oJCeKFJ_shsRx1ed04eaDlqvw' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "approved": true
+}'
+
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "newStatus": 1,
+    "statusError": "[401] during [POST] to [http://fisco-gateway-service:8087/api/v1/blockchain/enterprise/update-status] [BlockchainFeignClient#updateEnterpriseStatus(EnterpriseStatusRequest)]: []",
+    "registerTxHash": null,
+    "action": "通过",
+    "statusTxHash": null,
+    "dbStatus": "success",
+    "enterpriseId": 2043693138240893000,
+    "enterpriseName": "中通快运有限公司",
+    "registerError": "[401] during [POST] to [http://fisco-gateway-service:8087/api/v1/blockchain/enterprise/register] [BlockchainFeignClient#registerEnterprise(EnterpriseRegisterRequest)]: []"
+  },
+  "timestamp": 1776091104095,
+  "txHash": null,
+  "errorStack": null
+}
+
+curl -X 'POST' \
+  'http://localhost:8082/api/v1/enterprise/2043693246546210818/audit' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJlbnRJZCI6MCwic2NvcGUiOjEsInRva2VuVHlwZSI6ImFjY2VzcyIsImp0aSI6IjRmOGY3NjE2LWYwOWYtNGU1Mi04NzVjLTgzOTA0M2I3YzMxMyIsInN1YiI6IjEwMDAwMDAwMDAwMDAwMDAwMDEiLCJpYXQiOjE3NzYwODY2NjAsImV4cCI6MTc3NjA5Mzg2MH0.lcGxplyELD0L3XxtJf-843lLVCOipqFi5cqicHS5XFfuJvGSXL-K_tzk6NWj5oJCeKFJ_shsRx1ed04eaDlqvw' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "approved": true
+}'
+
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "newStatus": 1,
+    "statusError": "[401] during [POST] to [http://fisco-gateway-service:8087/api/v1/blockchain/enterprise/update-status] [BlockchainFeignClient#updateEnterpriseStatus(EnterpriseStatusRequest)]: []",
+    "registerTxHash": null,
+    "action": "通过",
+    "statusTxHash": null,
+    "dbStatus": "success",
+    "enterpriseId": 2043693246546210800,
+    "enterpriseName": "快捷城市配送服务有限公司",
+    "registerError": "[401] during [POST] to [http://fisco-gateway-service:8087/api/v1/blockchain/enterprise/register] [BlockchainFeignClient#registerEnterprise(EnterpriseRegisterRequest)]: []"
+  },
+  "timestamp": 1776091117036,
+  "txHash": null,
+  "errorStack": null
+}
+
+curl -X 'POST' \
+  'http://localhost:8082/api/v1/enterprise/2043693669130727426/audit' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJlbnRJZCI6MCwic2NvcGUiOjEsInRva2VuVHlwZSI6ImFjY2VzcyIsImp0aSI6IjRmOGY3NjE2LWYwOWYtNGU1Mi04NzVjLTgzOTA0M2I3YzMxMyIsInN1YiI6IjEwMDAwMDAwMDAwMDAwMDAwMDEiLCJpYXQiOjE3NzYwODY2NjAsImV4cCI6MTc3NjA5Mzg2MH0.lcGxplyELD0L3XxtJf-843lLVCOipqFi5cqicHS5XFfuJvGSXL-K_tzk6NWj5oJCeKFJ_shsRx1ed04eaDlqvw' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "approved": true
+}'
+
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "newStatus": 1,
+    "statusError": "[401] during [POST] to [http://fisco-gateway-service:8087/api/v1/blockchain/enterprise/update-status] [BlockchainFeignClient#updateEnterpriseStatus(EnterpriseStatusRequest)]: []",
+    "registerTxHash": null,
+    "action": "通过",
+    "statusTxHash": null,
+    "dbStatus": "success",
+    "enterpriseId": 2043693669130727400,
+    "enterpriseName": "中铁捷运物流有限公司",
+    "registerError": "[401] during [POST] to [http://fisco-gateway-service:8087/api/v1/blockchain/enterprise/register] [BlockchainFeignClient#registerEnterprise(EnterpriseRegisterRequest)]: []"
+  },
+  "timestamp": 1776091177624,
+  "txHash": null,
+  "errorStack": null
+}
+
+curl -X 'POST' \
+  'http://localhost:8082/api/v1/enterprise/2043693915218931713/audit' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJlbnRJZCI6MCwic2NvcGUiOjEsInRva2VuVHlwZSI6ImFjY2VzcyIsImp0aSI6IjRmOGY3NjE2LWYwOWYtNGU1Mi04NzVjLTgzOTA0M2I3YzMxMyIsInN1YiI6IjEwMDAwMDAwMDAwMDAwMDAwMDEiLCJpYXQiOjE3NzYwODY2NjAsImV4cCI6MTc3NjA5Mzg2MH0.lcGxplyELD0L3XxtJf-843lLVCOipqFi5cqicHS5XFfuJvGSXL-K_tzk6NWj5oJCeKFJ_shsRx1ed04eaDlqvw' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "approved": true
+}'
+
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "newStatus": 1,
+    "statusError": "[401] during [POST] to [http://fisco-gateway-service:8087/api/v1/blockchain/enterprise/update-status] [BlockchainFeignClient#updateEnterpriseStatus(EnterpriseStatusRequest)]: []",
+    "registerTxHash": null,
+    "action": "通过",
+    "statusTxHash": null,
+    "dbStatus": "success",
+    "enterpriseId": 2043693915218931700,
+    "enterpriseName": "华瑞供应链金融有限公司",
+    "registerError": "[401] during [POST] to [http://fisco-gateway-service:8087/api/v1/blockchain/enterprise/register] [BlockchainFeignClient#registerEnterprise(EnterpriseRegisterRequest)]: []"
+  },
+  "timestamp": 1776091210163,
+  "txHash": null,
+  "errorStack": null
+}
+
+curl -X 'POST' \
+  'http://localhost:8082/api/v1/enterprise/2043694198535778305/audit' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJlbnRJZCI6MCwic2NvcGUiOjEsInRva2VuVHlwZSI6ImFjY2VzcyIsImp0aSI6IjRmOGY3NjE2LWYwOWYtNGU1Mi04NzVjLTgzOTA0M2I3YzMxMyIsInN1YiI6IjEwMDAwMDAwMDAwMDAwMDAwMDEiLCJpYXQiOjE3NzYwODY2NjAsImV4cCI6MTc3NjA5Mzg2MH0.lcGxplyELD0L3XxtJf-843lLVCOipqFi5cqicHS5XFfuJvGSXL-K_tzk6NWj5oJCeKFJ_shsRx1ed04eaDlqvw' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "approved": true
+}'
+
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "newStatus": 1,
+    "statusError": "[401] during [POST] to [http://fisco-gateway-service:8087/api/v1/blockchain/enterprise/update-status] [BlockchainFeignClient#updateEnterpriseStatus(EnterpriseStatusRequest)]: []",
+    "registerTxHash": null,
+    "action": "通过",
+    "statusTxHash": null,
+    "dbStatus": "success",
+    "enterpriseId": 2043694198535778300,
+    "enterpriseName": "华融商业保理有限公司",
+    "registerError": "[401] during [POST] to [http://fisco-gateway-service:8087/api/v1/blockchain/enterprise/register] [BlockchainFeignClient#registerEnterprise(EnterpriseRegisterRequest)]: []"
+  },
+  "timestamp": 1776091221792,
+  "txHash": null,
+  "errorStack": null
+}
+
+curl -X 'POST' \
+  'http://localhost:8082/api/v1/enterprise/2043694431860715522/audit' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJlbnRJZCI6MCwic2NvcGUiOjEsInRva2VuVHlwZSI6ImFjY2VzcyIsImp0aSI6IjRmOGY3NjE2LWYwOWYtNGU1Mi04NzVjLTgzOTA0M2I3YzMxMyIsInN1YiI6IjEwMDAwMDAwMDAwMDAwMDAwMDEiLCJpYXQiOjE3NzYwODY2NjAsImV4cCI6MTc3NjA5Mzg2MH0.lcGxplyELD0L3XxtJf-843lLVCOipqFi5cqicHS5XFfuJvGSXL-K_tzk6NWj5oJCeKFJ_shsRx1ed04eaDlqvw' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "approved": true
+}'
+
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "newStatus": 1,
+    "statusError": "[401] during [POST] to [http://fisco-gateway-service:8087/api/v1/blockchain/enterprise/update-status] [BlockchainFeignClient#updateEnterpriseStatus(EnterpriseStatusRequest)]: []",
+    "registerTxHash": null,
+    "action": "通过",
+    "statusTxHash": null,
+    "dbStatus": "success",
+    "enterpriseId": 2043694431860715500,
+    "enterpriseName": "中企融资租赁有限公司",
+    "registerError": "[401] during [POST] to [http://fisco-gateway-service:8087/api/v1/blockchain/enterprise/register] [BlockchainFeignClient#registerEnterprise(EnterpriseRegisterRequest)]: []"
+  },
+  "timestamp": 1776091234834,
+  "txHash": null,
+  "errorStack": null
+}
+
+curl -X 'POST' \
+  'http://localhost:8082/api/v1/enterprise/2043694526136086530/audit' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJlbnRJZCI6MCwic2NvcGUiOjEsInRva2VuVHlwZSI6ImFjY2VzcyIsImp0aSI6IjRmOGY3NjE2LWYwOWYtNGU1Mi04NzVjLTgzOTA0M2I3YzMxMyIsInN1YiI6IjEwMDAwMDAwMDAwMDAwMDAwMDEiLCJpYXQiOjE3NzYwODY2NjAsImV4cCI6MTc3NjA5Mzg2MH0.lcGxplyELD0L3XxtJf-843lLVCOipqFi5cqicHS5XFfuJvGSXL-K_tzk6NWj5oJCeKFJ_shsRx1ed04eaDlqvw' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "approved": true
+}'
+
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "newStatus": 1,
+    "statusError": "[401] during [POST] to [http://fisco-gateway-service:8087/api/v1/blockchain/enterprise/update-status] [BlockchainFeignClient#updateEnterpriseStatus(EnterpriseStatusRequest)]: []",
+    "registerTxHash": null,
+    "action": "通过",
+    "statusTxHash": null,
+    "dbStatus": "success",
+    "enterpriseId": 2043694526136086500,
+    "enterpriseName": "中国汽车零部件现货交易所有限公司",
+    "registerError": "[401] during [POST] to [http://fisco-gateway-service:8087/api/v1/blockchain/enterprise/register] [BlockchainFeignClient#registerEnterprise(EnterpriseRegisterRequest)]: []"
+  },
+  "timestamp": 1776091250162,
+  "txHash": null,
+  "errorStack": null
+}
+
+curl -X 'POST' \
+  'http://localhost:8082/api/v1/enterprise/2043694621250318338/audit' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJlbnRJZCI6MCwic2NvcGUiOjEsInRva2VuVHlwZSI6ImFjY2VzcyIsImp0aSI6IjRmOGY3NjE2LWYwOWYtNGU1Mi04NzVjLTgzOTA0M2I3YzMxMyIsInN1YiI6IjEwMDAwMDAwMDAwMDAwMDAwMDEiLCJpYXQiOjE3NzYwODY2NjAsImV4cCI6MTc3NjA5Mzg2MH0.lcGxplyELD0L3XxtJf-843lLVCOipqFi5cqicHS5XFfuJvGSXL-K_tzk6NWj5oJCeKFJ_shsRx1ed04eaDlqvw' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "approved": true
+}'
+
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "newStatus": 1,
+    "statusError": "[401] during [POST] to [http://fisco-gateway-service:8087/api/v1/blockchain/enterprise/update-status] [BlockchainFeignClient#updateEnterpriseStatus(EnterpriseStatusRequest)]: []",
+    "registerTxHash": null,
+    "action": "通过",
+    "statusTxHash": null,
+    "dbStatus": "success",
+    "enterpriseId": 2043694621250318300,
+    "enterpriseName": "华东工业原材料现货交易中心",
+    "registerError": "[401] during [POST] to [http://fisco-gateway-service:8087/api/v1/blockchain/enterprise/register] [BlockchainFeignClient#registerEnterprise(EnterpriseRegisterRequest)]: []"
+  },
+  "timestamp": 1776091261760,
+  "txHash": null,
+  "errorStack": null
+}
+
+curl -X 'POST' \
+  'http://localhost:8082/api/v1/enterprise/2043694715613769729/audit' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJlbnRJZCI6MCwic2NvcGUiOjEsInRva2VuVHlwZSI6ImFjY2VzcyIsImp0aSI6IjRmOGY3NjE2LWYwOWYtNGU1Mi04NzVjLTgzOTA0M2I3YzMxMyIsInN1YiI6IjEwMDAwMDAwMDAwMDAwMDAwMDEiLCJpYXQiOjE3NzYwODY2NjAsImV4cCI6MTc3NjA5Mzg2MH0.lcGxplyELD0L3XxtJf-843lLVCOipqFi5cqicHS5XFfuJvGSXL-K_tzk6NWj5oJCeKFJ_shsRx1ed04eaDlqvw' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "approved": true
+}'
+
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "newStatus": 1,
+    "statusError": "[401] during [POST] to [http://fisco-gateway-service:8087/api/v1/blockchain/enterprise/update-status] [BlockchainFeignClient#updateEnterpriseStatus(EnterpriseStatusRequest)]: []",
+    "registerTxHash": null,
+    "action": "通过",
+    "statusTxHash": null,
+    "dbStatus": "success",
+    "enterpriseId": 2043694715613769700,
+    "enterpriseName": "中国化工原料现货交易平台",
+    "registerError": "[401] during [POST] to [http://fisco-gateway-service:8087/api/v1/blockchain/enterprise/register] [BlockchainFeignClient#registerEnterprise(EnterpriseRegisterRequest)]: []"
+  },
+  "timestamp": 1776091280360,
+  "txHash": null,
+  "errorStack": null
+}
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+企业登录：
+curl -X 'POST' \
+  'http://localhost:8082/api/v1/enterprise/login' \
+  -H 'accept: */*' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "username": "logistics_highway",
+  "password": "Auto2024@123"
+}'
+
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "expiresIn": null,
+    "entId": 2043693138240893000,
+    "entRole": 12,
+    "accessToken": "eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiRU5URVJQUklTRSIsImVudElkIjoyMDQzNjkzMTM4MjQwODkyOTI5LCJlbnRSb2xlIjoxMiwic2NvcGUiOjUsInRva2VuVHlwZSI6ImFjY2VzcyIsImp0aSI6IjA2MzgwNjlkLTEzNzYtNDk0Mi1iMGRmLTIyNzRjYTU4YjgyNCIsInN1YiI6IjIwNDM2OTMxMzgyNDA4OTI5MjkiLCJpYXQiOjE3NzYxMjk1OTksImV4cCI6MTc3NjEzNjc5OX0.XstX5WNz6fkUQx0PrM887F7BAXPAKbzlLmCDVv10j_GmGv9xVt7nko1-8oit3Bi3iHoVPNd1ogpXx9Tb_26fJw",
+    "enterpriseName": "中通快运有限公司",
+    "blockchainAddress": "0x9768dcee77aca9ef4bb8dacdd1a979af58709bfc",
+    "username": "logistics_highway",
+    "status": 1,
+    "refreshToken": "eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiRU5URVJQUklTRSIsImVudElkIjoyMDQzNjkzMTM4MjQwODkyOTI5LCJlbnRSb2xlIjoxMiwic2NvcGUiOjUsInRva2VuVHlwZSI6InJlZnJlc2giLCJqdGkiOiIwNjM4MDY5ZC0xMzc2LTQ5NDItYjBkZi0yMjc0Y2E1OGI4MjQiLCJzdWIiOiIyMDQzNjkzMTM4MjQwODkyOTI5IiwiaWF0IjoxNzc2MTI5NTk5LCJleHAiOjE3NzY3MzQzOTl9.928Zl-QIhdsAWD8Kccv9s-jvimzhsTHUbxe6IJ0vnB2BSfvOvoxHHLgC_nl0U-BGWzM-vMqQTeJQOL0KUrolaA"
+  },
+  "timestamp": 1776129599743,
+  "txHash": null,
+  "errorStack": null
+}
+
+curl -X 'GET' \
+  'http://localhost:8082/api/v1/enterprise/invite-codes?maxUses=10&expireDays=30&remark=%E7%94%A8%E4%BA%8E%E6%8B%9B%E8%81%98%E6%96%B0%E5%91%98%E5%B7%A5' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiRU5URVJQUklTRSIsImVudElkIjoyMDQzNjkzMTM4MjQwODkyOTI5LCJlbnRSb2xlIjoxMiwic2NvcGUiOjUsInRva2VuVHlwZSI6ImFjY2VzcyIsImp0aSI6IjA2MzgwNjlkLTEzNzYtNDk0Mi1iMGRmLTIyNzRjYTU4YjgyNCIsInN1YiI6IjIwNDM2OTMxMzgyNDA4OTI5MjkiLCJpYXQiOjE3NzYxMjk1OTksImV4cCI6MTc3NjEzNjc5OX0.XstX5WNz6fkUQx0PrM887F7BAXPAKbzlLmCDVv10j_GmGv9xVt7nko1-8oit3Bi3iHoVPNd1ogpXx9Tb_26fJw'
+
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "code": "YCGJ2Z6R",
+    "maxUses": 10,
+    "expireDays": 30,
+    "remark": "用于招聘新员工"
+  },
+  "timestamp": 1776129889748,
+  "txHash": null,
+  "errorStack": null
+}
+
+curl -X 'POST' \
+  'http://localhost:8081/api/v1/auth/users/register' \
+  -H 'accept: */*' \
+  -H 'Content-Type: application/json' \
+  -d '  {
+    "username": "user_logistics_admin",
+    "password": "User2024@123",
+    "realName": "物流管理员",
+    "phone": "13900000001",
+    "email": "admin@zhongtong.com",
+    "userRole": "ADMIN",
+    "inviteCode": "YCGJ2Z6R"
+  }'
+
+{
+  "code": 200,
+  "data": {
+    "userId": 2043948069395296300
+  },
+  "message": "注册成功，请等待审核"
+}
+
+curl -X 'POST' \
+  'http://localhost:8081/api/v1/auth/users/register' \
+  -H 'accept: */*' \
+  -H 'Content-Type: application/json' \
+  -d '  {
+    "username": "user_logistics_fin",
+    "password": "User2024@123",
+    "realName": "物流财务",
+    "phone": "13900000002",
+    "email": "fin@zhongtong.com",
+    "userRole": "FINANCE",
+    "inviteCode": "YCGJ2Z6R"
+  }'
+
+{
+  "code": 200,
+  "data": {
+    "userId": 2043949044520644600
+  },
+  "message": "注册成功，请等待审核"
+}
+
+curl -X 'POST' \
+  'http://localhost:8081/api/v1/auth/users/register' \
+  -H 'accept: */*' \
+  -H 'Content-Type: application/json' \
+  -d '  {
+    "username": "user_logistics_op",
+    "password": "User2024@123",
+    "realName": "物流操作员",
+    "phone": "13900000003",
+    "email": "op@zhongtong.com",
+    "userRole": "OPERATOR",
+    "inviteCode": "YCGJ2Z6R"
+  }'
+
+{
+  "code": 200,
+  "data": {
+    "userId": 2043949188901171200
+  },
+  "message": "注册成功，请等待审核"
+}
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+审核注册
+curl -X 'POST' \
+  'http://localhost:8081/api/v1/auth/users/2043948069395296257/audit' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJlbnRJZCI6MCwic2NvcGUiOjEsInRva2VuVHlwZSI6ImFjY2VzcyIsImp0aSI6ImJhY2Y4YWFlLWZmYjQtNDRlNy1iZmJkLTI1ZjhkNWQwOGZhYyIsInN1YiI6IjEwMDAwMDAwMDAwMDAwMDAwMDEiLCJpYXQiOjE3NzYxNTI1MjAsImV4cCI6MTc3NjE1OTcyMH0.bgf5be3bp1H3V_lGeXzYrz37F-le3-GYHRTOJFMmXkdMEZ19KugrQx71_jeDFEFGw6Cpinr2odwHDAw-_WZKiQ' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "approved": true
+}'
+
+{
+  "code": 200,
+  "message": "审核通过"
+}
+
+curl -X 'POST' \
+  'http://localhost:8081/api/v1/auth/users/2043949044520644609/audit' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJlbnRJZCI6MCwic2NvcGUiOjEsInRva2VuVHlwZSI6ImFjY2VzcyIsImp0aSI6ImJhY2Y4YWFlLWZmYjQtNDRlNy1iZmJkLTI1ZjhkNWQwOGZhYyIsInN1YiI6IjEwMDAwMDAwMDAwMDAwMDAwMDEiLCJpYXQiOjE3NzYxNTI1MjAsImV4cCI6MTc3NjE1OTcyMH0.bgf5be3bp1H3V_lGeXzYrz37F-le3-GYHRTOJFMmXkdMEZ19KugrQx71_jeDFEFGw6Cpinr2odwHDAw-_WZKiQ' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "approved": true
+}'
+
+{
+  "code": 200,
+  "message": "审核通过"
+}
+
+curl -X 'POST' \
+  'http://localhost:8081/api/v1/auth/users/2043949188901171201/audit' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJlbnRJZCI6MCwic2NvcGUiOjEsInRva2VuVHlwZSI6ImFjY2VzcyIsImp0aSI6ImJhY2Y4YWFlLWZmYjQtNDRlNy1iZmJkLTI1ZjhkNWQwOGZhYyIsInN1YiI6IjEwMDAwMDAwMDAwMDAwMDAwMDEiLCJpYXQiOjE3NzYxNTI1MjAsImV4cCI6MTc3NjE1OTcyMH0.bgf5be3bp1H3V_lGeXzYrz37F-le3-GYHRTOJFMmXkdMEZ19KugrQx71_jeDFEFGw6Cpinr2odwHDAw-_WZKiQ' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "approved": true
+}'
+
+{
+  "code": 200,
+  "message": "审核通过"
+}
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+测试拒绝
+curl -X 'POST' \
+  'http://localhost:8081/api/v1/auth/users/register' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJlbnRJZCI6MCwic2NvcGUiOjEsInRva2VuVHlwZSI6ImFjY2VzcyIsImp0aSI6ImJhY2Y4YWFlLWZmYjQtNDRlNy1iZmJkLTI1ZjhkNWQwOGZhYyIsInN1YiI6IjEwMDAwMDAwMDAwMDAwMDAwMDEiLCJpYXQiOjE3NzYxNTI1MjAsImV4cCI6MTc3NjE1OTcyMH0.bgf5be3bp1H3V_lGeXzYrz37F-le3-GYHRTOJFMmXkdMEZ19KugrQx71_jeDFEFGw6Cpinr2odwHDAw-_WZKiQ' \
+  -H 'Content-Type: application/json' \
+  -d '  {                      
+    "username": "user_test_audit",
+    "password": "Test2024@123",                                                                                                                                                                                                        
+    "realName": "测试用户",
+    "phone": "13900000099",                                                                                                                                                                                                            
+    "email": "test@company.com",                            
+    "userRole": "OPERATOR",
+    "inviteCode": "YCGJ2Z6R"
+  }   '
+
+  {
+  "code": 200,
+  "data": {
+    "userId": 2043959702528680000
+  },
+  "message": "注册成功，请等待审核"
+}
+
+curl -X 'POST' \
+  'http://localhost:8081/api/v1/auth/users/2043959702528679937/audit' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJlbnRJZCI6MCwic2NvcGUiOjEsInRva2VuVHlwZSI6ImFjY2VzcyIsImp0aSI6ImJhY2Y4YWFlLWZmYjQtNDRlNy1iZmJkLTI1ZjhkNWQwOGZhYyIsInN1YiI6IjEwMDAwMDAwMDAwMDAwMDAwMDEiLCJpYXQiOjE3NzYxNTI1MjAsImV4cCI6MTc3NjE1OTcyMH0.bgf5be3bp1H3V_lGeXzYrz37F-le3-GYHRTOJFMmXkdMEZ19KugrQx71_jeDFEFGw6Cpinr2odwHDAw-_WZKiQ' \
+  -H 'Content-Type: application/json' \
+  -d ' {"approved": false, "rejectReason": "企业信息与邀请码不匹配"}'
+
+{
+  "code": 200,
+  "message": "审核已拒绝，原因：企业信息与邀请码不匹配"
+}
+------------------------------------------------------------------------------------------------------------------
+企业登录
+curl -X 'POST' \
+  'http://localhost:8081/api/v1/auth/login' \
+  -H 'accept: */*' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "username": "logistics_highway",
+  "password": "Auto2024@123",
+  "loginType": "ENTERPRISE"
+}'
+
+{
+  "code": 200,
+  "data": {
+    "accessToken": "eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiRU5URVJQUklTRSIsImVudElkIjoyMDQzNjkzMTM4MjQwODkyOTI5LCJzY29wZSI6NSwidG9rZW5UeXBlIjoiYWNjZXNzIiwianRpIjoiMDdlOTA3NTYtNDA0NS00MjgzLTkyZjYtNjE0MmQ0MDA3OTUxIiwic3ViIjoiMjA0MzY5MzEzODI0MDg5MjkyOSIsImlhdCI6MTc3NjE2NjM0MywiZXhwIjoxNzc2MTczNTQzfQ.5ALmlkx2m8cVWAuY_IyyKVMPasHhFgWaaahnrn5pkha5_Cr_gdNM0N5bqTKGLXX2V_XVuLNn8QDK5h3cbe3pQw",
+    "refreshToken": "eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiRU5URVJQUklTRSIsImVudElkIjoyMDQzNjkzMTM4MjQwODkyOTI5LCJzY29wZSI6NSwidG9rZW5UeXBlIjoicmVmcmVzaCIsImp0aSI6IjA3ZTkwNzU2LTQwNDUtNDI4My05MmY2LTYxNDJkNDAwNzk1MSIsInN1YiI6IjIwNDM2OTMxMzgyNDA4OTI5MjkiLCJpYXQiOjE3NzYxNjYzNDMsImV4cCI6MTc3Njc3MTE0M30.v5fysyritn6ybfMN0l5IJhbWZNqz9nFiRQ4DWT4lrqf-inEhn-vdn4DrhW6Tf-tLoJ3I1zAuZyIZBB11rx_lUQ",
+    "expirationSeconds": 7200,
+    "userId": 2043693138240893000,
+    "entId": 2043693138240893000
+  },
+  "message": "登录成功"
+}
+---------------------------------------------------------------------------------------------------------------------------------------
+用户注销
+curl -X 'POST' \
+  'http://localhost:8081/api/v1/auth/login' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiRU5URVJQUklTRSIsImVudElkIjoyMDQzNjkzMTM4MjQwODkyOTI5LCJzY29wZSI6NSwidG9rZW5UeXBlIjoiYWNjZXNzIiwianRpIjoiMDdlOTA3NTYtNDA0NS00MjgzLTkyZjYtNjE0MmQ0MDA3OTUxIiwic3ViIjoiMjA0MzY5MzEzODI0MDg5MjkyOSIsImlhdCI6MTc3NjE2NjM0MywiZXhwIjoxNzc2MTczNTQzfQ.5ALmlkx2m8cVWAuY_IyyKVMPasHhFgWaaahnrn5pkha5_Cr_gdNM0N5bqTKGLXX2V_XVuLNn8QDK5h3cbe3pQw' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "username": "user_test_audit_restricted",
+  "password": "Test2024@1234",
+  "loginType": "USER"
+}'
+{
+  "code": 200,
+  "data": {
+    "accessToken": "eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiT1BFUkFUT1IiLCJlbnRJZCI6MjA0MzY5MzEzODI0MDg5MjkyOSwic2NvcGUiOjEsInRva2VuVHlwZSI6ImFjY2VzcyIsImp0aSI6IjRkMTM4Zjk0LWQ1OWEtNGJkYi05MWNiLTg1MTJmODEzMjQ4YyIsInN1YiI6IjIwNDM5NTk3MDI1Mjg2Nzk5MzciLCJpYXQiOjE3NzYxNjY2NTAsImV4cCI6MTc3NjE3Mzg1MH0.rKBSbnJSYTPDYinsHoy4HE_SUAzllsMEba-HKdd7WK3FWf9RnEg6z2HmJeQPFx49HoCAMSnsxNngg1Cknt4lGA",
+    "refreshToken": "eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiT1BFUkFUT1IiLCJlbnRJZCI6MjA0MzY5MzEzODI0MDg5MjkyOSwic2NvcGUiOjEsInRva2VuVHlwZSI6InJlZnJlc2giLCJqdGkiOiI0ZDEzOGY5NC1kNTlhLTRiZGItOTFjYi04NTEyZjgxMzI0OGMiLCJzdWIiOiIyMDQzOTU5NzAyNTI4Njc5OTM3IiwiaWF0IjoxNzc2MTY2NjUwLCJleHAiOjE3NzY3NzE0NTB9.MsWGilYxNNecKS1yNCfym1QE4vWYaKGRFjy52B-E1rSpCBvjy0BnNbeWi_Ikveb5faVJPOSWHWfYKWi71hUPYQ",
+    "expirationSeconds": 7200,
+    "userId": 2043959702528680000,
+    "entId": 2043693138240893000
+  },
+  "message": "登录成功"
+}
+curl -X 'POST' \
+  'http://localhost:8081/api/v1/auth/users/cancel/apply' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiT1BFUkFUT1IiLCJlbnRJZCI6MjA0MzY5MzEzODI0MDg5MjkyOSwic2NvcGUiOjEsInRva2VuVHlwZSI6ImFjY2VzcyIsImp0aSI6IjIxNmU0ODdiLWJkMmItNDlkMy1hNGRjLTJjYmI5Nzc0ZDFmZCIsInN1YiI6IjIwNDM5NTk3MDI1Mjg2Nzk5MzciLCJpYXQiOjE3NzYxNjcyOTYsImV4cCI6MTc3NjE3NDQ5Nn0.Tonf-ebmEch5by3LYjkAusismqa8ZQ_n2DxkZYCLp3WR3n9Svi25Ke3D1XDNe_Hib04RaboBlCviC7ox9IJk9g' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "password": "Test2024@1234",
+  "reason": "不再使用该账号"
+}'
+{
+  "code": 200,
+  "message": "注销申请已提交，等待管理员审核"
+}
+curl -X 'POST' \
+  'http://localhost:8081/api/v1/auth/users/2043959702528679937/cancel/audit' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJlbnRJZCI6MCwic2NvcGUiOjEsInRva2VuVHlwZSI6ImFjY2VzcyIsImp0aSI6IjQ3NTZiNDllLWUwZjktNDEzZS04MmYxLWY3MDM5NzBiZDQ5OSIsInN1YiI6IjEwMDAwMDAwMDAwMDAwMDAwMDEiLCJpYXQiOjE3NzYxNjgwNDksImV4cCI6MTc3NjE3NTI0OX0.s7p8lGsGOJVUtWwGAgroJu00WmgrREylBR2Q0Ou8L0IQTSSu8OBR-G-r7OvBkwywSm0PhCmjKPO3Y8Wn3h82kg' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "approved": true
+}'
+{
+  "code": 200,
+  "message": "注销审核通过"
+}
+-------------------------------------------------------------------------------------------------------------------------------------
+仓单测试
+curl -X 'POST' \
+  'http://localhost:8081/api/v1/auth/login' \
+  -H 'accept: */*' \
+  -H 'Content-Type: application/json' \
+  -d '{
+   "username": "warehouse_parts_sh",
+   "password": "Auto2024@123",
+   "loginType": "ENTERPRISE"
+}'
+{
+  "code": 200,
+  "data": {
+    "accessToken": "eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiRU5URVJQUklTRSIsImVudElkIjoiMjA0MzY5MjgzODkzNTM1OTQ5MCIsInNjb3BlIjo1LCJ0b2tlblR5cGUiOiJhY2Nlc3MiLCJqdGkiOiIzYTBmZjM3My04YWU5LTQ2MmMtOGY4Yi04NzNjNDM1NjgxMzkiLCJzdWIiOiIyMDQzNjkyODM4OTM1MzU5NDkwIiwiaWF0IjoxNzc2MTcwNTc1LCJleHAiOjE3NzYxNzc3NzV9.XPHF8LvJEXPNPGcA_4fJizqsMV71lbwo1j1iY3_w210ZsAy1ehyzBhNbPbxrrixaUSMYwVVJK8BeHxQrwg-ZVw",
+    "refreshToken": "eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiRU5URVJQUklTRSIsImVudElkIjoiMjA0MzY5MjgzODkzNTM1OTQ5MCIsInNjb3BlIjo1LCJ0b2tlblR5cGUiOiJyZWZyZXNoIiwianRpIjoiM2EwZmYzNzMtOGFlOS00NjJjLThmOGItODczYzQzNTY4MTM5Iiwic3ViIjoiMjA0MzY5MjgzODkzNTM1OTQ5MCIsImlhdCI6MTc3NjE3MDU3NSwiZXhwIjoxNzc2Nzc1Mzc1fQ.gQz10ccNXQ8t9mOweVBfxPX51TjjHsHgLqohXgvXVfZQQdtlDCEdDyyHABot3Vw_fulZu4o6nNQT4ZNVRbcz4g",
+    "expirationSeconds": 7200,
+    "userId": 2043692838935359500,
+    "entId": 2043692838935359500
+  },
+  "message": "登录成功"
+}
+curl -X 'POST' \
+  'http://localhost:8083/api/v1/warehouse/warehouse/create' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiRU5URVJQUklTRSIsImVudElkIjoiMjA0MzY5MjgzODkzNTM1OTQ5MCIsImVudFJvbGUiOjksInNjb3BlIjo1LCJ0b2tlblR5cGUiOiJhY2Nlc3MiLCJqdGkiOiJkZGZiMWQ5OS0zNGI0LTRlNGYtYmJmNC0yYmJhYjE2NjM3ZDkiLCJzdWIiOiIyMDQzNjkyODM4OTM1MzU5NDkwIiwiaWF0IjoxNzc2MTcyOTM4LCJleHAiOjE3NzYxODAxMzh9.uClvpEEM_5Iger41UPyVK5iguMDKHwnFLuSR8rkQDh0yIU09GZLrFOfMdQ4BHbwUN5otsZTqLHW-tZXpjBxumg' \
+  -H 'Content-Type: application/json' \
+  -d '  {
+    "entId": 2043692838935359490,
+    "name": "上海嘉定仓库",
+    "address": "上海市嘉定区安亭镇国际汽车城仓库区3号库",
+    "contactUser": "张经理",
+    "contactPhone": "021-77778888"
+  }'
+  {
+  "code": 0,
+  "msg": "操作成功",
+  "data": 3,
+  "timestamp": 1776173003793,
+  "txHash": null,
+  "errorStack": null
+}
+curl -X 'POST' \
+  'http://localhost:8083/api/v1/warehouse/warehouse/create' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiRU5URVJQUklTRSIsImVudElkIjoiMjA0MzY5MjgzODkzNTM1OTQ5MCIsImVudFJvbGUiOjksInNjb3BlIjo1LCJ0b2tlblR5cGUiOiJhY2Nlc3MiLCJqdGkiOiJkZGZiMWQ5OS0zNGI0LTRlNGYtYmJmNC0yYmJhYjE2NjM3ZDkiLCJzdWIiOiIyMDQzNjkyODM4OTM1MzU5NDkwIiwiaWF0IjoxNzc2MTcyOTM4LCJleHAiOjE3NzYxODAxMzh9.uClvpEEM_5Iger41UPyVK5iguMDKHwnFLuSR8rkQDh0yIU09GZLrFOfMdQ4BHbwUN5otsZTqLHW-tZXpjBxumg' \
+  -H 'Content-Type: application/json' \
+  -d '  {
+    "entId": 2043692838935359490,
+    "name": "上海浦东仓库",
+    "address": "上海市浦东新区外高桥保税区仓库路88号",
+    "contactUser": "李经理",
+    "contactPhone": "021-66667777"
+  }'
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": 4,
+  "timestamp": 1776173238799,
+  "txHash": null,
+  "errorStack": null
+}
+curl -X 'POST' \
+  'http://localhost:8083/api/v1/warehouse/warehouse/create' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiRU5URVJQUklTRSIsImVudElkIjoiMjA0MzY5MjgzODkzNTM1OTQ5MCIsImVudFJvbGUiOjksInNjb3BlIjo1LCJ0b2tlblR5cGUiOiJhY2Nlc3MiLCJqdGkiOiJkZGZiMWQ5OS0zNGI0LTRlNGYtYmJmNC0yYmJhYjE2NjM3ZDkiLCJzdWIiOiIyMDQzNjkyODM4OTM1MzU5NDkwIiwiaWF0IjoxNzc2MTcyOTM4LCJleHAiOjE3NzYxODAxMzh9.uClvpEEM_5Iger41UPyVK5iguMDKHwnFLuSR8rkQDh0yIU09GZLrFOfMdQ4BHbwUN5otsZTqLHW-tZXpjBxumg' \
+  -H 'Content-Type: application/json' \
+  -d '  {
+    "entId": 2043692838935359490,
+    "name": "上海虹桥仓库",
+    "address": "上海市闵行区虹桥商务区仓库中心A栋",
+    "contactUser": "王经理",
+    "contactPhone": "021-55556666"
+  }'
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": 5,
+  "timestamp": 1776173265921,
+  "txHash": null,
+  "errorStack": null
+}
+curl -X 'POST' \
+  'http://localhost:8081/api/v1/auth/login' \
+  -H 'accept: */*' \
+  -H 'Content-Type: application/json' \
+  -d '{
+   "username": "supplier_glass",
+   "password": "Auto2024@123",
+   "loginType": "ENTERPRISE"
+}'
+{
+  "code": 200,
+  "data": {
+    "accessToken": "eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiRU5URVJQUklTRSIsImVudElkIjoiMjA0MzY5MTE2MzEyNjM2MjExMyIsImVudFJvbGUiOjMsInNjb3BlIjo1LCJ0b2tlblR5cGUiOiJhY2Nlc3MiLCJqdGkiOiJjNzU4OWY4OC0xMjRhLTRlNGYtOTRmNy0xZjMwYzA1NzA3NDAiLCJzdWIiOiIyMDQzNjkxMTYzMTI2MzYyMTEzIiwiaWF0IjoxNzc2MTc1NTU3LCJleHAiOjE3NzYxODI3NTd9.ZoeeGqKUqO9u_bn3Nug5J3QUoOaBSdbvJsJkHYKFQNLzaOkszM2quveMFVK--RyVMpyMYW3k3rxZJt3gb0lFyw",
+    "refreshToken": "eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiRU5URVJQUklTRSIsImVudElkIjoiMjA0MzY5MTE2MzEyNjM2MjExMyIsImVudFJvbGUiOjMsInNjb3BlIjo1LCJ0b2tlblR5cGUiOiJyZWZyZXNoIiwianRpIjoiYzc1ODlmODgtMTI0YS00ZTRmLTk0ZjctMWYzMGMwNTcwNzQwIiwic3ViIjoiMjA0MzY5MTE2MzEyNjM2MjExMyIsImlhdCI6MTc3NjE3NTU1NywiZXhwIjoxNzc2NzgwMzU3fQ.mSJx0BFQENKe4xYP6eiynJEwpDPSmL0aw2VLaGrooNKnbTXpil7uHJNffoFgTaKG5VTELhObAeaTFkNvwA8suQ",
+    "expirationSeconds": 7200,
+    "userId": 2043691163126362000,
+    "entId": 2043691163126362000
+  },
+  "message": "登录成功"
+}
+curl -X 'POST' \
+  'http://localhost:8083/api/v1/warehouse/stock-in/apply' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiRU5URVJQUklTRSIsImVudElkIjoiMjA0MzY5MTE2MzEyNjM2MjExMyIsImVudFJvbGUiOjMsInNjb3BlIjo1LCJ0b2tlblR5cGUiOiJhY2Nlc3MiLCJqdGkiOiIwY2MyYzA0MS0xOTIxLTQ5YjAtOTcwNy0zOTY4Yjk1MzY4NzEiLCJzdWIiOiIyMDQzNjkxMTYzMTI2MzYyMTEzIiwiaWF0IjoxNzc2MTc3NTkxLCJleHAiOjE3NzYxODQ3OTF9.QE8G-ah1QKxkt7WA6OmOZ1VCKdt2mxKwEoM9i5wAvbCon-VhMMO3vTbGR8Lcf0bspyUJj6ec_IpV09URH-ZMhw' \
+  -H 'Content-Type: application/json' \
+  -d '  {
+    "warehouseEntId": 2043692838935359490,
+    "goodsName": "特种钢材",
+    "weight": 100.5,
+    "unit": "吨",
+    "attachmentUrl": "https://example.com/attachment1.jpg"
+  }'
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": 2042829218189480000,
+  "timestamp": 1776177651003,
+  "txHash": null,
+  "errorStack": null
+}
+curl -X 'POST' \
+  'http://localhost:8083/api/v1/warehouse/stock-in/apply' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiRU5URVJQUklTRSIsImVudElkIjoiMjA0MzY5MTE2MzEyNjM2MjExMyIsImVudFJvbGUiOjMsInNjb3BlIjo1LCJ0b2tlblR5cGUiOiJhY2Nlc3MiLCJqdGkiOiIwY2MyYzA0MS0xOTIxLTQ5YjAtOTcwNy0zOTY4Yjk1MzY4NzEiLCJzdWIiOiIyMDQzNjkxMTYzMTI2MzYyMTEzIiwiaWF0IjoxNzc2MTc3NTkxLCJleHAiOjE3NzYxODQ3OTF9.QE8G-ah1QKxkt7WA6OmOZ1VCKdt2mxKwEoM9i5wAvbCon-VhMMO3vTbGR8Lcf0bspyUJj6ec_IpV09URH-ZMhw' \
+  -H 'Content-Type: application/json' \
+  -d '  {
+    "warehouseEntId": 2043692838935359490,
+    "goodsName": "铝合金板",
+    "weight": 50.0,
+    "unit": "吨",
+    "attachmentUrl": "https://example.com/attachment2.jpg"
+  }'
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": 2042829218189480000,
+  "timestamp": 1776178136493,
+  "txHash": null,
+  "errorStack": null
+}
+curl -X 'POST' \
+  'http://localhost:8083/api/v1/warehouse/stock-in/apply' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiRU5URVJQUklTRSIsImVudElkIjoiMjA0MzY5MTE2MzEyNjM2MjExMyIsImVudFJvbGUiOjMsInNjb3BlIjo1LCJ0b2tlblR5cGUiOiJhY2Nlc3MiLCJqdGkiOiIwY2MyYzA0MS0xOTIxLTQ5YjAtOTcwNy0zOTY4Yjk1MzY4NzEiLCJzdWIiOiIyMDQzNjkxMTYzMTI2MzYyMTEzIiwiaWF0IjoxNzc2MTc3NTkxLCJleHAiOjE3NzYxODQ3OTF9.QE8G-ah1QKxkt7WA6OmOZ1VCKdt2mxKwEoM9i5wAvbCon-VhMMO3vTbGR8Lcf0bspyUJj6ec_IpV09URH-ZMhw' \
+  -H 'Content-Type: application/json' \
+  -d '  {
+    "warehouseEntId": 2043692838935359490,
+    "goodsName": "电子元器件",
+    "weight": 5000.0,
+    "unit": "个",
+    "attachmentUrl": "https://example.com/attachment4.jpg"
+  }'
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": 2042829218189480000,
+  "timestamp": 1776178180527,
+  "txHash": null,
+  "errorStack": null
+}
+curl -X 'POST' \
+  'http://localhost:8083/api/v1/warehouse/stock-in/2042829218189479943/confirm?warehouseId=3' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiRU5URVJQUklTRSIsImVudElkIjoiMjA0MzY5MjgzODkzNTM1OTQ5MCIsImVudFJvbGUiOjksInNjb3BlIjo1LCJ0b2tlblR5cGUiOiJhY2Nlc3MiLCJqdGkiOiJjZTRkMmFmMS1lZGE2LTRmZDMtYTFlOC0zNjQ0ZDBmMWZmYmMiLCJzdWIiOiIyMDQzNjkyODM4OTM1MzU5NDkwIiwiaWF0IjoxNzc2MTc4NTYwLCJleHAiOjE3NzYxODU3NjB9.KrF0niI_Y1agkNhqTN2mYxzqT-1kxeb79KzDNrp52guCZpvxSvRqEDh0pssJ9tn9p5p9jWvkE2-r0HVD42TkPQ' \
+  -d ''
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": true,
+  "timestamp": 1776178698285,
+  "txHash": null,
+  "errorStack": null
+}
+curl -X 'POST' \
+  'http://localhost:8083/api/v1/warehouse/receipt/mint' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiRU5URVJQUklTRSIsImVudElkIjoiMjA0MzY5MjgzODkzNTM1OTQ5MCIsImVudFJvbGUiOjksInNjb3BlIjo1LCJ0b2tlblR5cGUiOiJhY2Nlc3MiLCJqdGkiOiI4NWIwNTdkNC1jM2VkLTQ0ODUtYWRlZi03MmY5YjZjNjcwNjkiLCJzdWIiOiIyMDQzNjkyODM4OTM1MzU5NDkwIiwiaWF0IjoxNzc2MjMzMTc2LCJleHAiOjE3NzYyNDAzNzZ9.pmDmHsPGD7CpvhqMfsbHkD_kw-GM2IPTsd3eTnRv_0lP7bWf8Gbgh4_VBqtnmq_XSeHhO6971St8-B9AYaVmvw' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "stockOrderId": 2042829218189479943
+}'
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": 2042829397927989200,
+  "timestamp": 1776233231139,
+  "txHash": null,
+  "errorStack": null
+}
+curl -X 'POST' \
+  'http://localhost:8083/api/v1/warehouse/stock-in/2042829218189479945/confirm?warehouseId=4' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiRU5URVJQUklTRSIsImVudElkIjoiMjA0MzY5MjgzODkzNTM1OTQ5MCIsImVudFJvbGUiOjksInNjb3BlIjo1LCJ0b2tlblR5cGUiOiJhY2Nlc3MiLCJqdGkiOiIwOGY4MTY5NS1kMzg2LTQ3ZjctODBlZi02OTZlMmIwNjZjZjEiLCJzdWIiOiIyMDQzNjkyODM4OTM1MzU5NDkwIiwiaWF0IjoxNzc2MjM3MDYyLCJleHAiOjE3NzYyNDQyNjJ9.PkSsaD0bT4px9rXUt-XAloFlpDJixy516oS2_JX6JH5PTXKJ1usyVlnBbWyl_wrI-gpy7dHUR6cbR4GUujeLzQ' \
+  -d ''
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": true,
+  "timestamp": 1776237259217,
+  "txHash": null,
+  "errorStack": null
+}
+curl -X 'POST' \
+  'http://localhost:8083/api/v1/warehouse/receipt/mint' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiRU5URVJQUklTRSIsImVudElkIjoiMjA0MzY5MjgzODkzNTM1OTQ5MCIsImVudFJvbGUiOjksInNjb3BlIjo1LCJ0b2tlblR5cGUiOiJhY2Nlc3MiLCJqdGkiOiIwOGY4MTY5NS1kMzg2LTQ3ZjctODBlZi02OTZlMmIwNjZjZjEiLCJzdWIiOiIyMDQzNjkyODM4OTM1MzU5NDkwIiwiaWF0IjoxNzc2MjM3MDYyLCJleHAiOjE3NzYyNDQyNjJ9.PkSsaD0bT4px9rXUt-XAloFlpDJixy516oS2_JX6JH5PTXKJ1usyVlnBbWyl_wrI-gpy7dHUR6cbR4GUujeLzQ' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "stockOrderId": 2042829218189479945
+}'
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": "2042829397927989251",
+  "timestamp": 1776237291049,
+  "txHash": null,
+  "errorStack": null
+}
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+仓单背书转让测试
+curl -X 'POST' \
+  'http://localhost:8083/api/v1/warehouse/stock-in/2042829218189479944/confirm?warehouseId=5' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiRU5URVJQUklTRSIsImVudElkIjoiMjA0MzY5MjgzODkzNTM1OTQ5MCIsImVudFJvbGUiOjksInNjb3BlIjo1LCJ0b2tlblR5cGUiOiJhY2Nlc3MiLCJqdGkiOiIwYzc5YmQ4OS00OGVmLTQ1N2QtODJjZS1lZGFlZTVkODM3N2IiLCJzdWIiOiIyMDQzNjkyODM4OTM1MzU5NDkwIiwiaWF0IjoxNzc2MjQ3Mjc2LCJleHAiOjE3NzYyNTQ0NzZ9.RpcodmPXz2BF3m0PuPSEYRnfLk8RuXxd7JKY-7e5y_Kl7JIgjmML3zm_VZEjL1tQEjGf6Xgz-puMT9mvJBwPdg' \
+  -d ''
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": true,
+  "timestamp": 1776247461266,
+  "txHash": null,
+  "errorStack": null
+}
+curl -X 'POST' \
+  'http://localhost:8083/api/v1/warehouse/receipt/mint' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiRU5URVJQUklTRSIsImVudElkIjoiMjA0MzY5MjgzODkzNTM1OTQ5MCIsImVudFJvbGUiOjksInNjb3BlIjo1LCJ0b2tlblR5cGUiOiJhY2Nlc3MiLCJqdGkiOiIwYzc5YmQ4OS00OGVmLTQ1N2QtODJjZS1lZGFlZTVkODM3N2IiLCJzdWIiOiIyMDQzNjkyODM4OTM1MzU5NDkwIiwiaWF0IjoxNzc2MjQ3Mjc2LCJleHAiOjE3NzYyNTQ0NzZ9.RpcodmPXz2BF3m0PuPSEYRnfLk8RuXxd7JKY-7e5y_Kl7JIgjmML3zm_VZEjL1tQEjGf6Xgz-puMT9mvJBwPdg' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "stockOrderId": 2042829218189479944
+}'
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": "2042829397927989252",
+  "timestamp": 1776247519853,
+  "txHash": null,
+  "errorStack": null
+}
+curl -X 'POST' \
+  'http://localhost:8083/api/v1/warehouse/endorsement/launch' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiRU5URVJQUklTRSIsImVudElkIjoiMjA0MzY5MTE2MzEyNjM2MjExMyIsImVudFJvbGUiOjMsInNjb3BlIjo1LCJ0b2tlblR5cGUiOiJhY2Nlc3MiLCJqdGkiOiIwNWNiNDA5Yi02ODU4LTQzODYtYWZiZi01NzE0ZDhkYTVhMzkiLCJzdWIiOiIyMDQzNjkxMTYzMTI2MzYyMTEzIiwiaWF0IjoxNzc2MjQ4ODUyLCJleHAiOjE3NzYyNTYwNTJ9.cXdk2fblNajT5pz3wsNJr5sdV0i9uJDMV-4rNw3DWltStXTrcrurQCyoOTipsmYuwnhNQ0A9tIEcESKzoIFwOQ' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "receiptId": 2042829397927989252,
+  "transfereeEntId": 2043694715613769729
+}'
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": 1,
+  "timestamp": 1776249130409,
+  "txHash": null,
+  "errorStack": null
+}
+curl -X 'POST' \
+  'http://localhost:8083/api/v1/warehouse/endorsement/1/confirm?accept=true' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiRU5URVJQUklTRSIsImVudElkIjoiMjA0MzY5NDcxNTYxMzc2OTcyOSIsImVudFJvbGUiOjIsInNjb3BlIjo1LCJ0b2tlblR5cGUiOiJhY2Nlc3MiLCJqdGkiOiI0MzM3YzIzZS1jYzdlLTRhMTgtYmFmYi00ZWIyZTNmYTMwNTYiLCJzdWIiOiIyMDQzNjk0NzE1NjEzNzY5NzI5IiwiaWF0IjoxNzc2MjUwMTcwLCJleHAiOjE3NzYyNTczNzB9.UPlHqNVJCKFBuppeLLtl9d3w1MA1rOwQxRcocAbdP6xFiCzqQYXZ_GfoSfEcwiiqvwuLXO-f3Rp2nuEIQO0aWQ' \
+  -d ''
+{
+  "code": 500,
+  "msg": "仓单区块链背书确认失败: receiptId=2042829397927989252, result=Result(code=500, msg=操作失败: 区块链交易失败: 区块链交易失败: , data=null, timestamp=1776250213962, txHash=null, errorStack=null), 链上过户未完成",
+  "data": null,
+  "timestamp": 1776250214071,
+  "txHash": null,
+  "errorStack": null
+}
+curl -X 'POST' \
+  'http://localhost:8083/api/v1/warehouse/endorsement/launch' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiRU5URVJQUklTRSIsImVudElkIjoiMjA0MzY5MTE2MzEyNjM2MjExMyIsImVudFJvbGUiOjMsInNjb3BlIjo1LCJ0b2tlblR5cGUiOiJhY2Nlc3MiLCJqdGkiOiIyMWY2Njg1ZC04OGU1LTQyNzQtOGQ2Ny0zOTVkM2FiOGNiOWQiLCJzdWIiOiIyMDQzNjkxMTYzMTI2MzYyMTEzIiwiaWF0IjoxNzc2MjU0OTUxLCJleHAiOjE3NzYyNjIxNTF9.JXodZom3QLnF17s8AkKxjekVM4_ZcTVlVZnnwAZuYXIV2UgsTw9dhfwDmgwxFlwbv3PN931DqBxTpMiKRQrb2Q' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "receiptId": 2042829397927989253,
+  "transfereeEntId": 2043694715613769729
+}'
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": 2,
+  "timestamp": 1776254988137,
+  "txHash": null,
+  "errorStack": null
+}
+curl -X 'POST' \
+  'http://localhost:8083/api/v1/warehouse/endorsement/2/confirm?accept=true' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiRU5URVJQUklTRSIsImVudElkIjoiMjA0MzY5NDcxNTYxMzc2OTcyOSIsImVudFJvbGUiOjIsInNjb3BlIjo1LCJ0b2tlblR5cGUiOiJhY2Nlc3MiLCJqdGkiOiJmY2QxZWJiOS1jMmY4LTQ4OWYtOTNhYy1kYjVlNDhhODIzMjciLCJzdWIiOiIyMDQzNjk0NzE1NjEzNzY5NzI5IiwiaWF0IjoxNzc2MjU1MTE3LCJleHAiOjE3NzYyNjIzMTd9.B0fgWr4nC31lx1X6GH3DKCnLNNxKTgEYn5wGr57voTh4wd16Lw2KY_euK-IK8bGxcFOrTeVZPO61VwYq8SM43Q' \
+  -d ''
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": true,
+  "timestamp": 1776255184822,
+  "txHash": null,
+  "errorStack": null
+}
+curl -X 'POST' \
+  'http://localhost:8083/api/v1/warehouse/receipt/mint' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiRU5URVJQUklTRSIsImVudElkIjoiMjA0MzY5MjgzODkzNTM1OTQ5MCIsImVudFJvbGUiOjksInNjb3BlIjo1LCJ0b2tlblR5cGUiOiJhY2Nlc3MiLCJqdGkiOiJlNzEzODhmMS05MzkxLTQzOGUtOTYzNi0wMDljM2RkZTAyMmYiLCJzdWIiOiIyMDQzNjkyODM4OTM1MzU5NDkwIiwiaWF0IjoxNzc2MjU1NzQ4LCJleHAiOjE3NzYyNjI5NDh9.00hwZkZQuJ3B8UEDAR1Moohma5ZjVRea0D4K5LZeGaXhpfOa0r9DvnPFBtofcgMyRmDar2c7dlr1OrwiLI2Ebw' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "stockOrderId": 2042829218189479944
+}'
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": "2042829397927989254",
+  "timestamp": 1776255771940,
+  "txHash": null,
+  "errorStack": null
+}

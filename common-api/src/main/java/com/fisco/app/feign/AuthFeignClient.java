@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 /**
  * 认证服务 Feign 客户端
  */
-@FeignClient(name = "auth-service", contextId = "authFeignClient")
+@FeignClient(name = "auth-service", url = "http://auth-service:8081", contextId = "authFeignClient")
 public interface AuthFeignClient {
 
     @GetMapping("/api/v1/auth/validate")

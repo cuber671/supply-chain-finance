@@ -28,7 +28,8 @@ public class RegisterRequestDTO {
     @Schema(description = "邮箱", example = "zhangsan@example.com")
     private String email;
 
-    @Schema(description = "企业ID", example = "1")
+    @Deprecated
+    @Schema(description = "企业ID（已废弃，由系统根据邀请码自动关联，传入将被忽略）", example = "1")
     private Long enterpriseId;
 
     @Schema(description = "用户角色", example = "OPERATOR", allowableValues = {"ADMIN", "FINANCE", "OPERATOR"})

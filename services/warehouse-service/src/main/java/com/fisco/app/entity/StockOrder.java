@@ -25,8 +25,11 @@ public class StockOrder {
     @TableId(type = IdType.AUTO)
     private Long id;
 
-    @TableField("warehouse_id")
-    private Long warehouseId;
+    @TableField("warehouse_ent_id")
+    private Long warehouseEntId;  // 目标仓储公司ID（entId）
+
+    @TableField("actual_warehouse_id")
+    private Long actualWarehouseId;  // 审核后填入的具体仓库ID（Warehouse.id）
 
     @TableField("ent_id")
     private Long entId;
@@ -46,9 +49,6 @@ public class StockOrder {
 
     @TableField("attachment_url")
     private String attachmentUrl;
-
-    @TableField("stock_no")
-    private String stockNo;
 
     @TableField("data_hash")
     private String dataHash;

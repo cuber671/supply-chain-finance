@@ -122,8 +122,9 @@ public interface UserService {
      * @param userId 用户ID
      * @param approved 审核结果
      * @param auditorId 审核人ID
+     * @param rejectReason 拒绝原因（审核拒绝时使用）
      */
-    boolean auditUser(Long userId, boolean approved, Long auditorId);
+    boolean auditUser(Long userId, boolean approved, Long auditorId, String rejectReason);
 
     /**
      * 审核用户注销申请

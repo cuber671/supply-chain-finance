@@ -10,6 +10,7 @@
 /home/llm_rca/fisco/supply-chain-finance/services/enterprise-service/src/main/java/com/fisco/app/mapper/InvitationCodeMapper.java
 /home/llm_rca/fisco/supply-chain-finance/services/enterprise-service/src/main/java/com/fisco/app/mapper/EnterpriseMapper.java
 /home/llm_rca/fisco/supply-chain-finance/services/enterprise-service/src/main/java/com/fisco/app/config/OpenApiConfig.java
+/home/llm_rca/fisco/supply-chain-finance/services/enterprise-service/src/main/java/com/fisco/app/dto/FinancialInstitutionCheckDTO.java
 /home/llm_rca/fisco/supply-chain-finance/services/enterprise-service/src/main/java/com/fisco/app/config/JwtAuthenticationFilter.java
 /home/llm_rca/fisco/supply-chain-finance/services/enterprise-service/src/main/java/com/fisco/app/controller/EnterpriseController.java
 /home/llm_rca/fisco/supply-chain-finance/services/enterprise-service/src/main/java/com/fisco/app/entity/Enterprise.java

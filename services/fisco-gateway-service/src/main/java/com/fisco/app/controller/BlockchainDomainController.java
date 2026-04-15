@@ -25,6 +25,7 @@ import com.fisco.app.service.impl.WarehouseReceiptContractService;
 import com.fisco.app.service.impl.LogisticsContractService;
 import com.fisco.app.service.impl.LoanContractService;
 import com.fisco.app.service.impl.ReceivableContractService;
+import com.fisco.app.service.SignatureService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -1339,6 +1340,72 @@ public class BlockchainDomainController {
         }
     }
 
+    // ==================== 签名服务 ====================
+
+    @Autowired
+    private SignatureService signatureService;
+
+    @Operation(summary = "数据签名", description = "使用 FISCO BCOS SDK 的 CryptoSuite.sign() 方法对数据进行签名，返回签名哈希。\n\n" +
+            "**用途**：用于替代前端的 UUID 生成 signatureHash，增强签名安全性和可追溯性。\n\n" +
+            "**签名算法**：根据配置的加密类型（ECDSA 或 SM2）自动选择。\n\n" +
+            "**注意**：此接口需要认证（Authorization 头）。")
+    @SecurityRequirement(name = "bearerAuth")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "签名成功", content = @Content(schema = @Schema(implementation = String.class))),
+        @ApiResponse(responseCode = "400", description = "参数错误：数据为空"),
+        @ApiResponse(responseCode = "401", description = "未授权：无效或缺失 Token"),
+        @ApiResponse(responseCode = "500", description = "服务端异常：区块链功能未启用或签名失败")
+    })
+    @PostMapping("/sign")
+    public Result<String> sign(
+            @Parameter(description = "签名请求：包含要签名的数据", required = true)
+            @RequestBody SignRequest request) {
+        try {
+            if (request.getData() == null || request.getData().isEmpty()) {
+                return Result.error(400, "签名数据不能为空");
+            }
+
+            String signatureHash = signatureService.sign(request.getData());
+            logger.info("签名成功，数据长度: {}, 签名: {}", request.getData().length(), signatureHash);
+            return Result.success(signatureHash);
+        } catch (IllegalStateException e) {
+            logger.error("签名服务不可用: {}", e.getMessage());
+            return Result.error(500, "签名服务不可用: " + e.getMessage());
+        } catch (Exception e) {
+            logger.error("签名失败: {}", e.getMessage(), e);
+            return Result.error(500, "签名失败: " + e.getMessage());
+        }
+    }
+
+    @Operation(summary = "验证签名", description = "验证签名是否正确。\n\n" +
+            "**注意**：此接口需要认证（Authorization 头）。")
+    @SecurityRequirement(name = "bearerAuth")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "验证成功", content = @Content),
+        @ApiResponse(responseCode = "400", description = "参数错误：数据或签名为空"),
+        @ApiResponse(responseCode = "401", description = "未授权：无效或缺失 Token"),
+        @ApiResponse(responseCode = "500", description = "服务端异常")
+    })
+    @PostMapping("/sign/verify")
+    public Result<Boolean> verifySign(
+            @Parameter(description = "验证请求：包含原始数据和签名", required = true)
+            @RequestBody SignVerifyRequest request) {
+        try {
+            if (request.getData() == null || request.getData().isEmpty()) {
+                return Result.error(400, "签名数据不能为空");
+            }
+            if (request.getSignature() == null || request.getSignature().isEmpty()) {
+                return Result.error(400, "签名不能为空");
+            }
+
+            boolean valid = signatureService.verify(request.getData(), request.getSignature());
+            return Result.success(valid);
+        } catch (Exception e) {
+            logger.error("签名验证失败: {}", e.getMessage(), e);
+            return Result.error(500, "验证失败: " + e.getMessage());
+        }
+    }
+
     // ==================== Helper Methods ====================
 
     /**
@@ -2093,5 +2160,42 @@ public class BlockchainDomainController {
         public void setOffsetAmount(Long v) { this.offsetAmount = v; }
         public String getReason() { return reason; }
         public void setReason(String v) { this.reason = v; }
+    }
+
+    // ==================== Signature Request DTOs ====================
+
+    @io.swagger.v3.oas.annotations.media.Schema(description = "签名请求")
+    public static class SignRequest {
+        @io.swagger.v3.oas.annotations.media.Schema(description = "要签名的数据（字符串）", example = "receiptId:WH202603270001:transferor:123456:transferee:789012")
+        private String data;
+
+        public SignRequest() {}
+
+        public SignRequest(String data) {
+            this.data = data;
+        }
+
+        public String getData() { return data; }
+        public void setData(String data) { this.data = data; }
+    }
+
+    @io.swagger.v3.oas.annotations.media.Schema(description = "签名验证请求")
+    public static class SignVerifyRequest {
+        @io.swagger.v3.oas.annotations.media.Schema(description = "原始数据", example = "receiptId:WH202603270001:transferor:123456:transferee:789012")
+        private String data;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "签名（十六进制字符串，带 0x 前缀）", example = "0xaabbccdd...")
+        private String signature;
+
+        public SignVerifyRequest() {}
+
+        public SignVerifyRequest(String data, String signature) {
+            this.data = data;
+            this.signature = signature;
+        }
+
+        public String getData() { return data; }
+        public void setData(String data) { this.data = data; }
+        public String getSignature() { return signature; }
+        public void setSignature(String signature) { this.signature = signature; }
     }
 }

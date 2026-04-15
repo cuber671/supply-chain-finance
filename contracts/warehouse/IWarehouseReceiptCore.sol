@@ -115,4 +115,12 @@ interface IWarehouseReceiptCore {
         uint256 quantity,
         uint8 status
     );
+
+    /**
+     * @dev 更新仓单所有者（供Ops合约调用）
+     * @param receiptId 仓单ID
+     * @param newOwnerHash 新货主哈希
+     * @return success 是否成功
+     */
+    function updateOwner(string calldata receiptId, bytes32 newOwnerHash) external returns (bool success);
 }

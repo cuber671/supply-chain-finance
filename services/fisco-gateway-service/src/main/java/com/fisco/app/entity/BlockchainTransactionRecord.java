@@ -18,6 +18,15 @@ import lombok.Data;
 @TableName("blockchain_transaction_record")
 public class BlockchainTransactionRecord {
 
+    // 状态常量
+    public static final int STATUS_PENDING = 0;   // 待确认
+    public static final int STATUS_SUCCESS = 1;  // 成功
+    public static final int STATUS_FAILED = 2;   // 失败（可重试）
+    public static final int STATUS_RETRY_EXHAUSTED = 3;  // 重试次数耗尽
+
+    // 最大重试次数
+    public static final int MAX_RETRY_COUNT = 3;
+
     @TableId(value = "record_id", type = IdType.AUTO)
     private Long id;
 
@@ -45,4 +54,13 @@ public class BlockchainTransactionRecord {
     private Long entId;
 
     private String jti;
+
+    // 重试次数
+    private Integer retryCount;
+
+    // 最后错误信息
+    private String errorMsg;
+
+    // 最后重试时间
+    private LocalDateTime lastRetryTime;
 }

@@ -32,8 +32,14 @@ public class EnterpriseFeignClientFallback implements EnterpriseFeignClient {
     }
 
     @Override
-    public Result<Boolean> validateInviteCode(String inviteCode) {
-        logger.warn("企业服务降级: validateInviteCode, inviteCode={}", inviteCode);
+    public Result<Map<String, Object>> validateInvitation(Map<String, String> request) {
+        logger.warn("企业服务降级: validateInvitation, code={}", request.get("code"));
+        return Result.error(ResultCodeEnum.SERVICE_UNAVAILABLE);
+    }
+
+    @Override
+    public Result<Long> useInviteCode(Map<String, String> request) {
+        logger.warn("企业服务降级: useInviteCode, code={}", request.get("code"));
         return Result.error(ResultCodeEnum.SERVICE_UNAVAILABLE);
     }
 }

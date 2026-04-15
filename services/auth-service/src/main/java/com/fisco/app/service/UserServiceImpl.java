@@ -2,6 +2,7 @@ package com.fisco.app.service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -74,49 +75,78 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public Long registerUser(RegisterRequestDTO request) {
-        // 邀请码校验（如果提供了邀请码）
+        Long resolvedEnterpriseId = 0L;
+
+        // 邀请码处理：校验并提取 inviterEntId
         if (request.getInviteCode() != null && !request.getInviteCode().isEmpty()) {
+            Map<String, String> validateReq = new java.util.HashMap<>();
+            validateReq.put("code", request.getInviteCode());
+
+            Result<Map<String, Object>> validateResult;
             try {
-                Result<?> validateResult = enterpriseFeignClient.validateInviteCode(request.getInviteCode());
-                if (validateResult == null || validateResult.getCode() != 0 || validateResult.getData() == null || !Boolean.TRUE.equals(validateResult.getData())) {
-                    throw new IllegalArgumentException("无效的邀请码");
-                }
-                // 如果邀请码有效，从邀请码中获取企业ID
-                // 注意：实际的企业ID获取可能需要从邀请码验证结果中获取，此处假设通过其他方式获取
-                // 企业服务validateInviteCode返回的数据应包含企业信息
-            } catch (IllegalArgumentException e) {
-                throw e;
+                validateResult = enterpriseFeignClient.validateInvitation(validateReq);
             } catch (Exception e) {
-                log.warn("邀请码校验调用失败, inviteCode={}, error={}", request.getInviteCode(), e.getMessage());
-                // 邀请码校验服务不可用时，允许用户不通过邀请码注册（可按需改为拒绝）
+                log.warn("邀请码校验服务调用异常, inviteCode={}, error={}", request.getInviteCode(), e.getMessage());
+                throw new IllegalArgumentException("邀请码校验失败，请稍后重试");
+            }
+
+            if (validateResult == null || validateResult.getCode() != 0 || validateResult.getData() == null) {
+                String errMsg = validateResult != null ? validateResult.getMsg() : "邀请码无效";
+                throw new IllegalArgumentException(errMsg != null ? errMsg : "无效的邀请码");
+            }
+
+            // 从校验结果中提取 inviterEntId
+            Object inviterEntIdObj = validateResult.getData().get("inviterEntId");
+            if (inviterEntIdObj == null) {
+                throw new IllegalArgumentException("邀请码关联企业信息缺失");
+            }
+            resolvedEnterpriseId = ((Number) inviterEntIdObj).longValue();
+        }
+
+        // 手机号查重：如果存在 FROZEN 状态的用户，更新信息并刷新状态
+        if (request.getPhone() != null && !request.getPhone().isEmpty()) {
+            User existingUser = getUserByPhone(request.getPhone());
+            if (existingUser != null && existingUser.getStatus() == UserStatusEnum.FROZEN.getValue()) {
+                existingUser.setUsername(request.getUsername());
+                existingUser.setPassword(passwordEncoder.encode(request.getPassword()));
+                existingUser.setRealName(request.getRealName());
+                existingUser.setEmail(request.getEmail());
+                existingUser.setStatus(UserStatusEnum.PENDING.getValue());
+                existingUser.setUserRole(request.getUserRole() != null ? request.getUserRole() : User.ROLE_OPERATOR);
+                existingUser.setEnterpriseId(resolvedEnterpriseId);
+                userMapper.updateById(existingUser);
+                log.info("用户重新注册（原FROZEN状态刷新）, userId={}, username={}, phone={}",
+                        existingUser.getUserId(), request.getUsername(), request.getPhone());
+                return existingUser.getUserId();
             }
         }
 
-        // 如果提供了企业ID且提供了邀请码，校验企业ID与邀请码匹配
-        if (request.getEnterpriseId() != null && request.getEnterpriseId() != 0 && request.getInviteCode() != null && !request.getInviteCode().isEmpty()) {
-            try {
-                Result<?> entResult = enterpriseFeignClient.getEnterpriseById(request.getEnterpriseId());
-                if (entResult == null || entResult.getCode() != 0) {
-                    throw new IllegalArgumentException("无效的企业ID");
-                }
-            } catch (IllegalArgumentException e) {
-                throw e;
-            }
-        }
-
-        // 构建用户实体
+        // 构建用户实体（enterpriseId 来自邀请码，不信任请求体中的 enterpriseId）
         User user = new User();
         user.setUsername(request.getUsername());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
         user.setRealName(request.getRealName());
         user.setPhone(request.getPhone());
         user.setEmail(request.getEmail());
-        user.setEnterpriseId(request.getEnterpriseId() != null ? request.getEnterpriseId() : 0L);
+        user.setEnterpriseId(resolvedEnterpriseId);
         user.setStatus(UserStatusEnum.PENDING.getValue());
         user.setUserRole(request.getUserRole() != null ? request.getUserRole() : User.ROLE_OPERATOR);
 
         userMapper.insert(user);
-        log.info("用户注册成功, userId={}, username={}, inviteCode={}", user.getUserId(), user.getUsername(), request.getInviteCode());
+        log.info("用户注册成功, userId={}, username={}, enterpriseId={}, inviteCode={}",
+                user.getUserId(), user.getUsername(), resolvedEnterpriseId, request.getInviteCode());
+
+        // 注册成功后，原子递增邀请码使用次数
+        if (request.getInviteCode() != null && !request.getInviteCode().isEmpty()) {
+            try {
+                Map<String, String> useReq = new java.util.HashMap<>();
+                useReq.put("code", request.getInviteCode());
+                enterpriseFeignClient.useInviteCode(useReq);
+            } catch (Exception e) {
+                log.error("邀请码usedCount递增失败，需人工核查: inviteCode={}, userId={}, error={}",
+                        request.getInviteCode(), user.getUserId(), e.getMessage());
+            }
+        }
 
         return user.getUserId();
     }
@@ -128,6 +158,15 @@ public class UserServiceImpl implements UserService {
         }
         LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(User::getUsername, username);
+        return userMapper.selectOne(wrapper);
+    }
+
+    private User getUserByPhone(String phone) {
+        if (phone == null || phone.isEmpty()) {
+            return null;
+        }
+        LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(User::getPhone, phone);
         return userMapper.selectOne(wrapper);
     }
 
@@ -149,6 +188,8 @@ public class UserServiceImpl implements UserService {
         Page<User> page = new Page<>(pageNum, pageSize);
         LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(User::getEnterpriseId, enterpriseId);
+        // 过滤掉已注销的用户
+        wrapper.ne(User::getStatus, UserStatusEnum.CANCELLED.getValue());
         wrapper.orderByDesc(User::getCreateTime);
         return userMapper.selectPage(page, wrapper);
     }
@@ -321,7 +362,7 @@ public class UserServiceImpl implements UserService {
     // ==================== 审核管理 ====================
 
     @Override
-    public boolean auditUser(Long userId, boolean approved, Long auditorId) {
+    public boolean auditUser(Long userId, boolean approved, Long auditorId, String rejectReason) {
         User user = getUserById(userId);
         if (user == null) {
             throw new IllegalArgumentException("用户不存在");
@@ -335,6 +376,10 @@ public class UserServiceImpl implements UserService {
         boolean result = userMapper.updateById(user) > 0;
         if (result) {
             log.info("用户审核完成: userId={}, approved={}, newStatus={}, auditorId={}", userId, approved, newStatus, auditorId);
+        }
+        // 审核拒绝时，记录拒绝原因
+        if (!approved && rejectReason != null && !rejectReason.isEmpty()) {
+            log.info("用户审核拒绝原因: userId={}, auditorId={}, reason={}", userId, auditorId, rejectReason);
         }
         return result;
     }

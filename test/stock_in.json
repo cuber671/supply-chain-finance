@@ -1,0 +1,37 @@
+[
+  {
+    "warehouseEntId": 2043692838935359490,
+    "goodsName": "特种钢材",
+    "weight": 100.5,
+    "unit": "吨",
+    "attachmentUrl": "https://example.com/attachment1.jpg"
+  },
+  {
+    "warehouseEntId": 2043692838935359490,
+    "goodsName": "铝合金板",
+    "weight": 50.0,
+    "unit": "吨",
+    "attachmentUrl": "https://example.com/attachment2.jpg"
+  },
+  {
+    "warehouseEntId": 2043692838935359490,
+    "goodsName": "塑料原料",
+    "weight": 200.0,
+    "unit": "千克",
+    "attachmentUrl": "https://example.com/attachment3.jpg"
+  },
+  {
+    "warehouseEntId": 2043692838935359490,
+    "goodsName": "电子元器件",
+    "weight": 5000.0,
+    "unit": "个",
+    "attachmentUrl": "https://example.com/attachment4.jpg"
+  },
+  {
+    "warehouseEntId": 2043692838935359490,
+    "goodsName": "橡胶密封件",
+    "weight": 150.0,
+    "unit": "千克",
+    "attachmentUrl": null
+  }
+]

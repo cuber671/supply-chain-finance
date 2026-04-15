@@ -81,4 +81,17 @@ public class CurrentUser {
         }
         return null;
     }
+
+    /**
+     * 获取操作者ID
+     * - 个人账户（role=USER）→ userId
+     * - 企业账户（role=ENTERPRISE）→ entId（企业账户无独立userId，用entId代替）
+     */
+    public static Long getOperatorId() {
+        String role = getRole();
+        if ("ENTERPRISE".equals(role)) {
+            return getEntId();
+        }
+        return getUserId();
+    }
 }

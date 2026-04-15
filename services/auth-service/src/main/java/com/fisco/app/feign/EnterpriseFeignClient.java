@@ -7,8 +7,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestParam;
-
 import java.util.Map;
 
 /**
@@ -29,9 +27,21 @@ public interface EnterpriseFeignClient {
     @PostMapping("/api/v1/enterprise/login")
     Result<?> login(@RequestBody Map<String, String> loginRequest);
 
-    @GetMapping("/api/v1/enterprises/{id}")
+    @GetMapping("/api/v1/enterprise/{id}")
     Result<Object> getEnterpriseById(@PathVariable("id") Long id);
 
-    @GetMapping("/api/v1/enterprises/validate-invite-code")
-    Result<Boolean> validateInviteCode(@RequestParam("inviteCode") String inviteCode);
+    /**
+     * 校验邀请码并返回邀请企业信息
+     * 调用 POST /api/v1/enterprise/invitation/validate
+     * 返回 Map 包含 inviterEntId, inviterEnterpriseName, maxUses, usedCount
+     */
+    @PostMapping("/api/v1/enterprise/invitation/validate")
+    Result<Map<String, Object>> validateInvitation(@RequestBody Map<String, String> request);
+
+    /**
+     * 使用邀请码（注册成功后调用，原子递增usedCount）
+     * 调用 POST /api/v1/enterprise/invite-codes/use
+     */
+    @PostMapping("/api/v1/enterprise/invite-codes/use")
+    Result<Long> useInviteCode(@RequestBody Map<String, String> request);
 }

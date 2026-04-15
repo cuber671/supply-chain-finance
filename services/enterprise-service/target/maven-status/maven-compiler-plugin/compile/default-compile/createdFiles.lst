@@ -16,6 +16,7 @@ com/fisco/app/controller/EnterpriseController$PasswordUpdateRequest.class
 com/fisco/app/config/JwtConfig.class
 com/fisco/app/config/BlockchainConfig$KeyPairInfo.class
 com/fisco/app/entity/InvitationCode.class
+com/fisco/app/dto/FinancialInstitutionCheckDTO.class
 com/fisco/app/controller/EnterpriseController$EnterpriseRegisterRequest.class
 com/fisco/app/controller/EnterpriseController$StatusRequest.class
 com/fisco/app/config/MyBatisPlusConfig$CustomMetaObjectHandler.class

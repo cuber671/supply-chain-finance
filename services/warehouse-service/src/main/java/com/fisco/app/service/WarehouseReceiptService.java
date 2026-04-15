@@ -24,9 +24,9 @@ public interface WarehouseReceiptService {
     /**
      * 申请入库
      *
-     * 货主企业发起入库申请，将货物存入指定仓库。
+     * 货主企业发起入库申请，指定仓储公司（warehouseId为仓储公司entId）。
      *
-     * @param warehouseId 仓库ID
+     * @param warehouseEntId 仓储公司ID（entId）
      * @param entId 申请企业ID
      * @param userId 申请人用户ID
      * @param goodsName 货物名称
@@ -34,21 +34,22 @@ public interface WarehouseReceiptService {
      * @param unit 重量单位
      * @param attachmentUrl 附件URL（货权凭证等）
      * @return 创建的入库单ID
-     * @throws IllegalArgumentException 参数不合法或仓库不属于该企业
+     * @throws IllegalArgumentException 参数不合法
      */
-    Long applyStockIn(Long warehouseId, Long entId, Long userId, String goodsName,
+    Long applyStockIn(Long warehouseEntId, Long entId, Long userId, String goodsName,
             BigDecimal weight, String unit, String attachmentUrl);
 
     /**
      * 确认入库单（仓库方操作）
      *
-     * 仓库管理人员核实货物到库后，确认入库单生效。
+     * 仓库管理人员核实货物到库后，确认入库单生效，并指定具体仓库。
      *
      * @param stockOrderId 入库单ID
+     * @param actualWarehouseId 实际入库的仓库ID（Warehouse.id）
      * @return 确认是否成功
      * @throws IllegalArgumentException 入库单不存在或状态不允许确认
      */
-    boolean confirmStockOrder(Long stockOrderId);
+    boolean confirmStockOrder(Long stockOrderId, Long actualWarehouseId);
 
     /**
      * 取消入库单
@@ -68,14 +69,6 @@ public interface WarehouseReceiptService {
      * @return 入库单记录，不存在返回null
      */
     StockOrder getStockOrderById(Long stockOrderId);
-
-    /**
-     * 根据入库单号查询入库单
-     *
-     * @param stockNo 入库单号
-     * @return 入库单记录，不存在返回null
-     */
-    StockOrder getStockOrderByStockNo(String stockNo);
 
     /**
      * 查询企业的入库单列表

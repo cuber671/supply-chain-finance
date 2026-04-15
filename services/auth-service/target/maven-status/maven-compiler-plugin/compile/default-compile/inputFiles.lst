@@ -6,11 +6,15 @@
 /home/llm_rca/fisco/supply-chain-finance/services/auth-service/src/main/java/com/fisco/app/service/TokenService.java
 /home/llm_rca/fisco/supply-chain-finance/services/auth-service/src/main/java/com/fisco/app/service/TokenServiceImpl.java
 /home/llm_rca/fisco/supply-chain-finance/services/auth-service/src/main/java/com/fisco/app/dto/UserQueryResponseDTO.java
+/home/llm_rca/fisco/supply-chain-finance/services/auth-service/src/main/java/com/fisco/app/dto/AuditUserRequestDTO.java
+/home/llm_rca/fisco/supply-chain-finance/services/auth-service/src/main/java/com/fisco/app/dto/UpdateUserStatusRequestDTO.java
 /home/llm_rca/fisco/supply-chain-finance/services/auth-service/src/main/java/com/fisco/app/config/OpenApiConfig.java
+/home/llm_rca/fisco/supply-chain-finance/services/auth-service/src/main/java/com/fisco/app/dto/UpdatePasswordRequestDTO.java
 /home/llm_rca/fisco/supply-chain-finance/services/auth-service/src/main/java/com/fisco/app/service/UserService.java
 /home/llm_rca/fisco/supply-chain-finance/services/auth-service/src/main/java/com/fisco/app/feign/EnterpriseFeignClient.java
 /home/llm_rca/fisco/supply-chain-finance/services/auth-service/src/main/java/com/fisco/app/entity/LoginTransaction.java
 /home/llm_rca/fisco/supply-chain-finance/services/auth-service/src/main/java/com/fisco/app/dto/RegisterRequestDTO.java
+/home/llm_rca/fisco/supply-chain-finance/services/auth-service/src/main/java/com/fisco/app/dto/UpdateUserInfoRequestDTO.java
 /home/llm_rca/fisco/supply-chain-finance/services/auth-service/src/main/java/com/fisco/app/mapper/LoginTransactionMapper.java
 /home/llm_rca/fisco/supply-chain-finance/services/auth-service/src/main/java/com/fisco/app/mapper/UserMapper.java
 /home/llm_rca/fisco/supply-chain-finance/services/auth-service/src/main/java/com/fisco/app/service/EnterpriseLoginService.java
@@ -22,7 +26,10 @@
 /home/llm_rca/fisco/supply-chain-finance/services/auth-service/src/main/java/com/fisco/app/controller/AuthController.java
 /home/llm_rca/fisco/supply-chain-finance/services/auth-service/src/main/java/com/fisco/app/feign/EnterpriseFeignClientFallback.java
 /home/llm_rca/fisco/supply-chain-finance/services/auth-service/src/main/java/com/fisco/app/controller/GlobalExceptionHandler.java
+/home/llm_rca/fisco/supply-chain-finance/services/auth-service/src/main/java/com/fisco/app/dto/UpdateUserRoleRequestDTO.java
+/home/llm_rca/fisco/supply-chain-finance/services/auth-service/src/main/java/com/fisco/app/dto/AuditCancellationRequestDTO.java
 /home/llm_rca/fisco/supply-chain-finance/services/auth-service/src/main/java/com/fisco/app/dto/LoginRequestDTO.java
 /home/llm_rca/fisco/supply-chain-finance/services/auth-service/src/main/java/com/fisco/app/dto/TokenResponseDTO.java
 /home/llm_rca/fisco/supply-chain-finance/services/auth-service/src/main/java/com/fisco/app/controller/LogoutController.java
+/home/llm_rca/fisco/supply-chain-finance/services/auth-service/src/main/java/com/fisco/app/dto/CancelApplyRequestDTO.java
 /home/llm_rca/fisco/supply-chain-finance/services/auth-service/src/main/java/com/fisco/app/entity/User.java

@@ -61,6 +61,9 @@ public class WarehouseReceipt {
     @TableField("loan_id")
     private String loanId;
 
+    @TableField("stock_order_id")
+    private Long stockOrderId;
+
     private Integer status;
 
     @TableField("on_chain_status")

@@ -239,7 +239,7 @@ public class WarehouseReceiptContractService extends BaseContractService {
 
         TransactionResponse response = sendTransactionWithAudit(
                 warehouseCoreContract,
-                "transferReceipt",
+                "updateOwner",
                 new Object[]{receiptId, toHash != null ? toHash : new byte[32]},
                 "WAREHOUSE_CONFIRM_ENDORSEMENT"
         );

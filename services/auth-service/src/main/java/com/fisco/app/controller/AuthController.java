@@ -82,6 +82,7 @@ public class AuthController {
             Long entId;
             String role;
             Integer scope;
+            Integer entRole = null;  // 企业类型，用于权限校验
             String txUuid = null;  // 企业登录事务ID，用于错误追踪
 
             if ("USER".equalsIgnoreCase(loginType)) {
@@ -123,6 +124,10 @@ public class AuthController {
                     entId = userId;
                     role = "ENTERPRISE";
                     scope = 5;
+                    // 提取企业类型entRole
+                    if (enterpriseData.get("entRole") != null) {
+                        entRole = ((Number) enterpriseData.get("entRole")).intValue();
+                    }
 
                     // Confirm事务
                     String sessionId = String.valueOf(enterpriseData.get("sessionId"));
@@ -139,7 +144,7 @@ public class AuthController {
             // FIX: 若此处异常但企业登录已Confirm，需记录异常供后台补偿任务处理
             Map<String, String> tokenPair;
             try {
-                tokenPair = tokenService.generateTokenPair(userId, entId, role, scope, null);
+                tokenPair = tokenService.generateTokenPair(userId, entId, role, scope, entRole);
             } catch (Exception e) {
                 // 企业登录已确认但Token生成失败，记录异常供人工/定时任务处理
                 log.error("Token生成失败但企业登录已确认, txUuid={}, userId={}, entId={}, error={}",
@@ -296,6 +301,52 @@ public class AuthController {
         } catch (Exception e) {
             log.error("Token刷新失败: {}", e.getMessage(), e);
             return buildErrorResponse(500, "Token刷新失败，请稍后重试");
+        }
+    }
+
+    /**
+     * 企业用户Token生成接口
+     * 供 enterprise-service 调用，为企业用户生成 JWT Token
+     */
+    @Operation(summary = "企业用户生成Token", description = "供企业服务调用，为已验证的企业用户生成 JWT 访问令牌和刷新令牌。")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "生成成功"),
+        @ApiResponse(responseCode = "400", description = "参数错误"),
+        @ApiResponse(responseCode = "500", description = "服务端异常")
+    })
+    @PostMapping("/enterprise/token")
+    public ResponseEntity<Map<String, Object>> generateEnterpriseToken(
+            @RequestBody Map<String, Object> request) {
+        try {
+            Long userId = request.get("userId") != null ? Long.valueOf(request.get("userId").toString()) : null;
+            Long entId = request.get("entId") != null ? Long.valueOf(request.get("entId").toString()) : null;
+            String role = (String) request.get("role");
+            Integer scope = request.get("scope") != null ? Integer.valueOf(request.get("scope").toString()) : null;
+            Integer entRole = request.get("entRole") != null ? Integer.valueOf(request.get("entRole").toString()) : null;
+
+            if (userId == null) {
+                return buildErrorResponse(400, "userId不能为空");
+            }
+
+            Map<String, String> tokenPair = tokenService.generateTokenPair(userId, entId, role, scope, entRole);
+
+            TokenResponseDTO tokenResponse = TokenResponseDTO.of(
+                    tokenPair.get("accessToken"),
+                    tokenPair.get("refreshToken"),
+                    JwtUtil.ACCESS_TOKEN_EXPIRATION / 1000,
+                    userId,
+                    entId
+            );
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("code", 200);
+            response.put("data", tokenResponse);
+
+            log.info("企业用户Token生成成功: userId={}, entId={}", userId, entId);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("企业用户Token生成失败: {}", e.getMessage(), e);
+            return buildErrorResponse(500, "Token生成失败，请稍后重试");
         }
     }
 

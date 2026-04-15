@@ -1,8 +1,9 @@
 package com.fisco.app.service.impl;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.List;
-import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -70,10 +71,10 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public Long applyStockIn(Long warehouseId, Long entId, Long userId, String goodsName,
+    public Long applyStockIn(Long warehouseEntId, Long entId, Long userId, String goodsName,
             BigDecimal weight, String unit, String attachmentUrl) {
-        if (warehouseId == null) {
-            throw new IllegalArgumentException("仓库ID不能为空");
+        if (warehouseEntId == null) {
+            throw new IllegalArgumentException("仓储公司ID不能为空");
         }
         if (goodsName == null || goodsName.isEmpty()) {
             throw new IllegalArgumentException("货物名称不能为空");
@@ -85,8 +86,11 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
             throw new IllegalArgumentException("计量单位不能为空");
         }
 
+        // 【数据完整性修复】计算 dataHash 用于数据完整性校验
+        String dataHash = calculateStockOrderDataHash(warehouseEntId, entId, userId, goodsName, weight, unit, attachmentUrl);
+
         StockOrder stockOrder = new StockOrder();
-        stockOrder.setWarehouseId(warehouseId);
+        stockOrder.setWarehouseEntId(warehouseEntId);  // 存储仓储公司ID
         stockOrder.setEntId(entId);
         stockOrder.setUserId(userId);
         stockOrder.setGoodsName(goodsName);
@@ -94,15 +98,21 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
         stockOrder.setUnit(unit);
         stockOrder.setAttachmentUrl(attachmentUrl);
         stockOrder.setStatus(StockOrder.STATUS_PENDING);
+        stockOrder.setDataHash(dataHash);
+        stockOrder.setActualWarehouseId(0L);  // 初始为0，审核后填入具体仓库ID
 
         stockOrderMapper.insert(stockOrder);
-        logger.info("申请入库成功: stockOrderId={}", stockOrder.getId());
+        logger.info("申请入库成功: stockOrderId={}, dataHash={}", stockOrder.getId(), dataHash);
         return stockOrder.getId();
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean confirmStockOrder(Long stockOrderId) {
+    public boolean confirmStockOrder(Long stockOrderId, Long actualWarehouseId) {
+        if (actualWarehouseId == null) {
+            throw new IllegalArgumentException("仓库ID不能为空");
+        }
+
         StockOrder stockOrder = stockOrderMapper.selectById(stockOrderId);
         if (stockOrder == null) {
             throw new IllegalArgumentException("入库单不存在");
@@ -112,8 +122,9 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
         }
 
         stockOrder.setStatus(StockOrder.STATUS_CONFIRMED);
+        stockOrder.setActualWarehouseId(actualWarehouseId);  // 审核后更新具体仓库ID
         stockOrderMapper.updateById(stockOrder);
-        logger.info("确认入库单成功: stockOrderId={}", stockOrderId);
+        logger.info("确认入库单成功: stockOrderId={}, actualWarehouseId={}", stockOrderId, actualWarehouseId);
         return true;
     }
 
@@ -137,13 +148,6 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
     @Override
     public StockOrder getStockOrderById(Long stockOrderId) {
         return stockOrderMapper.selectById(stockOrderId);
-    }
-
-    @Override
-    public StockOrder getStockOrderByStockNo(String stockNo) {
-        LambdaQueryWrapper<StockOrder> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(StockOrder::getId, Long.parseLong(stockNo));
-        return stockOrderMapper.selectOne(wrapper);
     }
 
     @Override
@@ -176,18 +180,26 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
             throw new IllegalArgumentException("入库单未确认，不能签发仓单");
         }
 
-        Warehouse warehouse = warehouseMapper.selectById(stockOrder.getWarehouseId());
+        // 幂等性保护：一个入库单只能签发一个仓单
+        LambdaQueryWrapper<WarehouseReceipt> idempotentWrapper = new LambdaQueryWrapper<>();
+        idempotentWrapper.eq(WarehouseReceipt::getStockOrderId, stockOrderId);
+        Long existingCount = warehouseReceiptMapper.selectCount(idempotentWrapper);
+        if (existingCount > 0) {
+            throw new IllegalArgumentException("该入库单已签发仓单，请勿重复操作");
+        }
+
+        Warehouse warehouse = warehouseMapper.selectById(stockOrder.getActualWarehouseId());
         if (warehouse == null) {
             throw new IllegalArgumentException("仓库不存在");
         }
 
-        // FIX: 校验入库单企业必须与仓库企业一致，防止跨企业伪造仓单
-        if (!stockOrder.getEntId().equals(warehouse.getEntId())) {
-            throw new IllegalArgumentException("入库单企业与仓库企业不匹配，不能签发仓单");
+        // FIX: 校验入库单指定的仓储公司必须与仓库所属企业一致，防止跨企业伪造仓单
+        if (!stockOrder.getWarehouseEntId().equals(warehouse.getEntId())) {
+            throw new IllegalArgumentException("入库单仓储企业与仓库所属企业不匹配，不能签发仓单");
         }
 
         WarehouseReceipt receipt = new WarehouseReceipt();
-        receipt.setWarehouseId(stockOrder.getWarehouseId());
+        receipt.setWarehouseId(stockOrder.getActualWarehouseId());
         receipt.setOnChainId(onChainId);
         receipt.setOwnerEntId(stockOrder.getEntId());
         receipt.setOwnerUserId(stockOrder.getUserId());
@@ -200,6 +212,7 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
         receipt.setRootId(0L);
         receipt.setIsLocked(false);
         receipt.setStatus(WarehouseReceipt.STATUS_IN_STOCK);
+        receipt.setStockOrderId(stockOrderId);
         // FIX: 初始状态为PENDING上链，区块链成功后才改为SYNCED
         receipt.setOnChainStatus(WarehouseReceipt.ON_CHAIN_STATUS_PENDING);
 
@@ -211,8 +224,8 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
             try {
                 BlockchainFeignClient.ReceiptIssueRequest request = new BlockchainFeignClient.ReceiptIssueRequest();
                 // 【诊断】记录传递给区块链的原始值
-                logger.info("【诊断】仓单上链参数: receiptId={}, ownerEntId={}, warehouseId={}, warehouse.getId()={}",
-                    receipt.getId(), receipt.getOwnerEntId(), stockOrder.getWarehouseId(), warehouse.getId());
+                logger.info("【诊断】仓单上链参数: receiptId={}, ownerEntId={}, actualWarehouseId={}, warehouse.getId()={}",
+                    receipt.getId(), receipt.getOwnerEntId(), stockOrder.getActualWarehouseId(), warehouse.getId());
                 // 如果未提供 onChainId，则使用本地仓单ID作为链上ID
                 String actualOnChainId = (onChainId != null) ? onChainId : String.valueOf(receipt.getId());
                 request.setReceiptId(actualOnChainId);
@@ -245,7 +258,11 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
                 // FIX: 区块链成功后更新onChainStatus为SYNCED
                 receipt.setOnChainStatus(WarehouseReceipt.ON_CHAIN_STATUS_SYNCED);
                 warehouseReceiptMapper.updateById(receipt);
-                logger.info("仓单上链成功: receiptId={}, onChainId={}", receipt.getId(), onChainId);
+
+                // 回填入库单的链上交易哈希（入库单本身不单独上链，通过仓单承载链上存证）
+                stockOrder.setChainTxHash(txHash);
+                stockOrderMapper.updateById(stockOrder);
+                logger.info("仓单上链成功: receiptId={}, onChainId={}, stockOrderId={}", receipt.getId(), onChainId, stockOrderId);
             } catch (Exception e) {
                 // 区块链失败时标记为FAILED并抛出异常，让事务回滚
                 receipt.setOnChainStatus(WarehouseReceipt.ON_CHAIN_STATUS_FAILED);
@@ -471,9 +488,59 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
             throw new IllegalArgumentException("仓单已质押锁定");
         }
 
-        // FIX: 校验只有仓单持有人才能发起转让
-        if (!receipt.getOwnerUserId().equals(transferorUserId)) {
-            throw new IllegalArgumentException("无权限：不是仓单持有人");
+        // FIX: 校验只有仓单持有人企业才能发起转让（企业级权限校验）
+        Long currentEntId = CurrentUser.getEntId();
+        if (currentEntId == null) {
+            throw new IllegalArgumentException("无法获取当前企业信息");
+        }
+        if (!receipt.getOwnerEntId().equals(currentEntId)) {
+            throw new IllegalArgumentException("无权限：不是仓单持有人企业");
+        }
+
+        // 新增校验：受让人企业ID不能为空
+        if (transfereeEntId == null) {
+            throw new IllegalArgumentException("受让人企业ID不能为空");
+        }
+
+        // 新增校验：不能将仓单转让给自己企业
+        if (receipt.getOwnerEntId().equals(transfereeEntId)) {
+            throw new IllegalArgumentException("不能将仓单转让给自己企业");
+        }
+
+        // 新增校验：受让人企业必须存在（可选检查，区块链调用会失败但提前拦截）
+        if (enterpriseFeignClient != null) {
+            try {
+                var entResult = enterpriseFeignClient.getEnterpriseById(transfereeEntId);
+                if (entResult == null || entResult.getCode() != 0) {
+                    throw new IllegalArgumentException("受让人企业不存在");
+                }
+            } catch (IllegalArgumentException e) {
+                throw e;
+            } catch (Exception e) {
+                logger.warn("受让人企业信息查询异常: transfereeEntId={}, error={}", transfereeEntId, e.getMessage());
+                // 企业信息查询失败不阻止操作，但记录警告
+            }
+        }
+
+        // 【安全修复】如果未提供 signatureHash，则通过区块链签名服务生成
+        String finalSignatureHash = signatureHash;
+        if (finalSignatureHash == null || finalSignatureHash.isEmpty()) {
+            // 构造要签名的数据：仓单ID + 转让人企业ID + 受让人企业ID
+            String dataToSign = receiptId + ":" + receipt.getOwnerEntId() + ":" + transfereeEntId;
+            try {
+                var signResult = blockchainFeignClient.sign(new BlockchainFeignClient.SignRequest(dataToSign));
+                if (signResult != null && signResult.getCode() == 0 && signResult.getData() != null) {
+                    finalSignatureHash = signResult.getData();
+                    logger.info("通过区块链签名服务生成 signatureHash: {}", finalSignatureHash);
+                } else {
+                    String errMsg = signResult != null ? signResult.getMsg() : "签名服务返回空";
+                    logger.warn("区块链签名服务返回异常，使用 UUID 作为 fallback: {}", errMsg);
+                    finalSignatureHash = "0x" + java.util.UUID.randomUUID().toString().replace("-", "");
+                }
+            } catch (Exception e) {
+                logger.warn("调用区块链签名服务失败，使用 UUID 作为 fallback: {}", e.getMessage());
+                finalSignatureHash = "0x" + java.util.UUID.randomUUID().toString().replace("-", "");
+            }
         }
 
         ReceiptEndorsement endorsement = new ReceiptEndorsement();
@@ -481,7 +548,7 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
         endorsement.setTransferorEntId(receipt.getOwnerEntId());
         endorsement.setTransferorUserId(transferorUserId);
         endorsement.setTransfereeEntId(transfereeEntId);
-        endorsement.setSignatureHash(signatureHash != null ? signatureHash : "0x" + java.util.UUID.randomUUID().toString().replace("-", ""));
+        endorsement.setSignatureHash(finalSignatureHash);
         endorsement.setStatus(ReceiptEndorsement.STATUS_PENDING);
 
         // 【新问题修复】区块链上链是必需的，如果不可用应该拒绝操作
@@ -492,7 +559,8 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
         // 【P2-1修复】调用区块链记录背书转让交易，需要校验响应码
         try {
             BlockchainFeignClient.EndorsementRequest request = new BlockchainFeignClient.EndorsementRequest();
-            request.setReceiptId(receipt.getOnChainId());
+            // 【修复】使用本地仓单ID作为链上receiptId，而不是交易哈希
+            request.setReceiptId(receipt.getId().toString());
             request.setFromHash(receipt.getOwnerEntId().toString());
             request.setToHash(transfereeEntId.toString());
             var result = blockchainFeignClient.launchEndorsement(request);
@@ -568,7 +636,8 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
             if (blockchainFeignClient != null && receipt.getOnChainId() != null) {
                 try {
                     BlockchainFeignClient.EndorsementRequest request = new BlockchainFeignClient.EndorsementRequest();
-                    request.setReceiptId(receipt.getOnChainId());
+                    // 【修复】使用本地仓单ID作为链上receiptId，而不是交易哈希
+                    request.setReceiptId(receipt.getId().toString());
                     request.setFromHash(receipt.getOwnerEntId().toString());
                     request.setToHash(endorsement.getTransfereeEntId().toString());
                     var result = blockchainFeignClient.confirmEndorsement(request);
@@ -593,11 +662,13 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
 
             // 区块链上链成功后，更新仓单持有人
             receipt.setOwnerEntId(endorsement.getTransfereeEntId());
-            receipt.setOwnerUserId(transfereeUserId);
+            // 企业账户确认时 userId 可能为空，用 0 替代
+            receipt.setOwnerUserId(transfereeUserId != null ? transfereeUserId : 0L);
             receipt.setStatus(WarehouseReceipt.STATUS_IN_STOCK);
             warehouseReceiptMapper.updateById(receipt);
 
-            endorsement.setTransfereeUserId(transfereeUserId);
+            // 企业账户确认时 userId 可能为空，用 0 替代
+            endorsement.setTransfereeUserId(transfereeUserId != null ? transfereeUserId : 0L);
             endorsement.setStatus(ReceiptEndorsement.STATUS_ACCEPTED);
         } else {
             // 拒绝，恢复仓单状态
@@ -1027,14 +1098,14 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
         Long currentEntId = CurrentUser.getEntId();
         if (enterpriseFeignClient != null && currentEntId != null) {
             try {
-                Map<String, Object> fiResult = enterpriseFeignClient.isFinancialInstitution(currentEntId);
-                if (fiResult == null || !"0".equals(String.valueOf(fiResult.get("code")))) {
+                Result<Boolean> fiResult = enterpriseFeignClient.isFinancialInstitution(currentEntId);
+                if (fiResult == null || fiResult.getCode() != 0) {
                     logger.warn("金融机构身份校验失败: receiptId={}, entId={}, fiResult={}",
                             receiptId, currentEntId, fiResult);
                     throw new IllegalStateException("金融机构身份校验失败，无法执行仓单锁定");
                 }
-                Object data = fiResult.get("data");
-                if (data == null || !Boolean.TRUE.equals(data)) {
+                Boolean data = fiResult.getData();
+                if (data == null || !data) {
                     throw new IllegalStateException("非金融机构不能执行仓单质押锁定操作");
                 }
                 logger.info("金融机构身份校验通过: receiptId={}, entId={}", receiptId, currentEntId);
@@ -1055,7 +1126,8 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
         if (blockchainFeignClient != null && receipt.getOnChainId() != null) {
             try {
                 BlockchainFeignClient.ReceiptOperationRequest request = new BlockchainFeignClient.ReceiptOperationRequest();
-                request.setReceiptId(receipt.getOnChainId());
+                // 【修复】使用本地仓单ID作为链上receiptId
+                request.setReceiptId(receipt.getId().toString());
                 Result<String> result = blockchainFeignClient.lockReceipt(request);
                 if (result == null || result.getCode() != 0) {
                     throw new RuntimeException("仓单区块链锁定失败: " + (result != null ? result.getMsg() : "null response"));
@@ -1103,7 +1175,8 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
         if (blockchainFeignClient != null && receipt.getOnChainId() != null) {
             try {
                 BlockchainFeignClient.ReceiptOperationRequest request = new BlockchainFeignClient.ReceiptOperationRequest();
-                request.setReceiptId(receipt.getOnChainId());
+                // 【修复】使用本地仓单ID作为链上receiptId
+                request.setReceiptId(receipt.getId().toString());
                 Result<String> result = blockchainFeignClient.unlockReceipt(request);
                 if (result == null || result.getCode() != 0) {
                     throw new RuntimeException("仓单区块链解锁失败: " + (result != null ? result.getMsg() : "null response"));
@@ -1147,7 +1220,8 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
         if (blockchainFeignClient != null && receipt.getOnChainId() != null) {
             try {
                 BlockchainFeignClient.ReceiptOperationRequest request = new BlockchainFeignClient.ReceiptOperationRequest();
-                request.setReceiptId(receipt.getOnChainId());
+                // 【修复】使用本地仓单ID作为链上receiptId
+                request.setReceiptId(receipt.getId().toString());
                 Result<String> result = blockchainFeignClient.unlockReceipt(request);
                 if (result == null || result.getCode() != 0) {
                     throw new RuntimeException("仓单区块链强制解锁失败: " + (result != null ? result.getMsg() : "null response"));
@@ -1209,14 +1283,14 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
         Long currentEntId = CurrentUser.getEntId();
         if (enterpriseFeignClient != null && currentEntId != null) {
             try {
-                Map<String, Object> fiResult = enterpriseFeignClient.isFinancialInstitution(currentEntId);
-                if (fiResult == null || !"0".equals(String.valueOf(fiResult.get("code")))) {
+                Result<Boolean> fiResult = enterpriseFeignClient.isFinancialInstitution(currentEntId);
+                if (fiResult == null || fiResult.getCode() != 0) {
                     logger.warn("金融机构身份校验失败: receiptId={}, entId={}, fiResult={}",
                             receiptId, currentEntId, fiResult);
                     throw new IllegalStateException("金融机构身份校验失败，无法执行仓单作废");
                 }
-                Object data = fiResult.get("data");
-                if (data == null || !Boolean.TRUE.equals(data)) {
+                Boolean data = fiResult.getData();
+                if (data == null || !data) {
                     throw new IllegalStateException("非金融机构不能执行仓单作废操作");
                 }
                 logger.info("金融机构身份校验通过: receiptId={}, entId={}", receiptId, currentEntId);
@@ -1237,7 +1311,8 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
                 if (currentStatus == WarehouseReceipt.STATUS_IN_STOCK) {
                     // 在库仓单调用burnReceipt
                     BlockchainFeignClient.BurnReceiptRequest burnRequest = new BlockchainFeignClient.BurnReceiptRequest();
-                    burnRequest.setReceiptId(receipt.getOnChainId());
+                    // 【修复】使用本地仓单ID作为链上receiptId
+                    burnRequest.setReceiptId(receipt.getId().toString());
                     Result<String> result = blockchainFeignClient.burnReceipt(burnRequest);
                     if (result == null || result.getCode() != 0) {
                         logger.error("仓单区块链核销失败: receiptId={}, result={}", receiptId, result);
@@ -1250,7 +1325,8 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
                 } else {
                     // 待转让/已拆分合并/已质押仓单调用cancelReceipt
                     BlockchainFeignClient.CancelReceiptRequest cancelRequest = new BlockchainFeignClient.CancelReceiptRequest();
-                    cancelRequest.setReceiptId(receipt.getOnChainId());
+                    // 【修复】使用本地仓单ID作为链上receiptId
+                    cancelRequest.setReceiptId(receipt.getId().toString());
                     cancelRequest.setReason("作废原因: " + reason);
                     Result<String> result = blockchainFeignClient.cancelReceipt(cancelRequest);
                     if (result == null || result.getCode() != 0) {
@@ -1319,7 +1395,8 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
 
         // 创建出库单（复用过库单状态）
         StockOrder stockOrder = new StockOrder();
-        stockOrder.setWarehouseId(receipt.getWarehouseId());
+        stockOrder.setWarehouseEntId(receipt.getWarehouseEntId());  // 存储仓储公司entId
+        stockOrder.setActualWarehouseId(receipt.getWarehouseId());  // 存储实际仓库ID
         stockOrder.setEntId(receipt.getOwnerEntId());
         stockOrder.setUserId(applyUserId);
         // FIX: 保存receiptId用于confirmBurn时关联仓单，避免用goodsName匹配导致的错误关联
@@ -1369,14 +1446,14 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
         Long currentEntId = CurrentUser.getEntId();
         if (enterpriseFeignClient != null && currentEntId != null) {
             try {
-                Map<String, Object> fiResult = enterpriseFeignClient.isFinancialInstitution(currentEntId);
-                if (fiResult == null || !"0".equals(String.valueOf(fiResult.get("code")))) {
+                Result<Boolean> fiResult = enterpriseFeignClient.isFinancialInstitution(currentEntId);
+                if (fiResult == null || fiResult.getCode() != 0) {
                     logger.warn("金融机构身份校验失败: stockOrderId={}, entId={}, fiResult={}",
                             stockOrderId, currentEntId, fiResult);
                     throw new IllegalStateException("金融机构身份校验失败，无法执行仓单核销确认");
                 }
-                Object data = fiResult.get("data");
-                if (data == null || !Boolean.TRUE.equals(data)) {
+                Boolean data = fiResult.getData();
+                if (data == null || !data) {
                     throw new IllegalStateException("非金融机构不能执行仓单核销确认操作");
                 }
                 logger.info("金融机构身份校验通过: stockOrderId={}, entId={}", stockOrderId, currentEntId);
@@ -1398,7 +1475,8 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
         if (blockchainFeignClient != null && receipt.getOnChainId() != null) {
             try {
                 BlockchainFeignClient.BurnReceiptRequest request = new BlockchainFeignClient.BurnReceiptRequest();
-                request.setReceiptId(receipt.getOnChainId());
+                // 【修复】使用本地仓单ID作为链上receiptId
+                request.setReceiptId(receipt.getId().toString());
                 var result = blockchainFeignClient.burnReceipt(request);
                 // 【P2修复】检查响应码确保区块链调用真正成功
                 if (result == null || result.getCode() != 0) {
@@ -1502,5 +1580,55 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
         traceInfo.setOperationHistory(operationLogMapper.selectList(opWrapper));
 
         return traceInfo;
+    }
+
+    /**
+     * 计算入库单数据哈希（用于数据完整性校验）
+     *
+     * 使用 SHA-256 算法对入库单关键字段进行哈希
+     *
+     * @param warehouseId 仓储公司ID（entId）
+     * @param entId 企业ID
+     * @param userId 用户ID
+     * @param goodsName 货物名称
+     * @param weight 重量
+     * @param unit 单位
+     * @param attachmentUrl 附件URL
+     * @return SHA-256 哈希值（十六进制字符串，带 0x 前缀）
+     */
+    private String calculateStockOrderDataHash(Long warehouseId, Long entId, Long userId,
+            String goodsName, BigDecimal weight, String unit, String attachmentUrl) {
+        try {
+            // 构造要哈希的数据字符串
+            StringBuilder data = new StringBuilder();
+            data.append(warehouseId != null ? warehouseId.toString() : "");
+            data.append("|");
+            data.append(entId != null ? entId.toString() : "");
+            data.append("|");
+            data.append(userId != null ? userId.toString() : "");
+            data.append("|");
+            data.append(goodsName != null ? goodsName : "");
+            data.append("|");
+            data.append(weight != null ? weight.toPlainString() : "");
+            data.append("|");
+            data.append(unit != null ? unit : "");
+            data.append("|");
+            data.append(attachmentUrl != null ? attachmentUrl : "");
+
+            // 计算 SHA-256 哈希
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hashBytes = digest.digest(data.toString().getBytes(StandardCharsets.UTF_8));
+
+            // 转换为十六进制字符串
+            StringBuilder hexHash = new StringBuilder("0x");
+            for (byte b : hashBytes) {
+                hexHash.append(String.format("%02x", b));
+            }
+
+            return hexHash.toString();
+        } catch (Exception e) {
+            logger.error("计算 StockOrder dataHash 失败: {}", e.getMessage());
+            throw new RuntimeException("数据完整性哈希计算失败", e);
+        }
     }
 }
