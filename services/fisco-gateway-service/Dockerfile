@@ -4,6 +4,10 @@
 # ============================================================
 FROM eclipse-temurin:11-jre-focal
 
+# 使用阿里云镜像源
+RUN sed -i 's|http://archive.ubuntu.com|http://mirrors.aliyun.com|g' /etc/apt/sources.list \
+    && sed -i 's|http://security.ubuntu.com|http://mirrors.aliyun.com|g' /etc/apt/sources.list
+
 # 安装 libssl (FISCO SDK 依赖) 和基础工具
 RUN apt-get update && apt-get install -y \
     curl tzdata libssl-dev \
