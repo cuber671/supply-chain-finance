@@ -19,8 +19,11 @@ spring:
   flyway:
     enabled: false
   cloud:
-    loadbalancer:
-      enabled: true
+    nacos:
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR:nacos:8848}
+        enabled: true
+        register-enabled: true
 
 fisco:
   enabled: ${FISCO_ENABLED:true}

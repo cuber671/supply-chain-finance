@@ -108,7 +108,7 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean confirmStockOrder(Long stockOrderId, Long actualWarehouseId) {
+    public Long confirmStockOrder(Long stockOrderId, Long actualWarehouseId) {
         if (actualWarehouseId == null) {
             throw new IllegalArgumentException("仓库ID不能为空");
         }
@@ -125,7 +125,12 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
         stockOrder.setActualWarehouseId(actualWarehouseId);  // 审核后更新具体仓库ID
         stockOrderMapper.updateById(stockOrder);
         logger.info("确认入库单成功: stockOrderId={}, actualWarehouseId={}", stockOrderId, actualWarehouseId);
-        return true;
+
+        // 自动签发仓单
+        Long operatorId = CurrentUser.getOperatorId();
+        Long receiptId = mintReceipt(stockOrderId, operatorId, null);
+        logger.info("确认入库并签发仓单: stockOrderId={}, receiptId={}", stockOrderId, receiptId);
+        return receiptId;
     }
 
     @Override
@@ -146,8 +151,131 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Long applyStockInAndConfirm(Long warehouseEntId, Long entId, Long userId, String goodsName,
+            BigDecimal weight, String unit, String attachmentUrl, Long actualWarehouseId) {
+        if (warehouseEntId == null) {
+            throw new IllegalArgumentException("仓储公司ID不能为空");
+        }
+        if (goodsName == null || goodsName.isEmpty()) {
+            throw new IllegalArgumentException("货物名称不能为空");
+        }
+        if (weight == null) {
+            throw new IllegalArgumentException("货物重量不能为空");
+        }
+        if (unit == null || unit.isEmpty()) {
+            throw new IllegalArgumentException("计量单位不能为空");
+        }
+        if (actualWarehouseId == null) {
+            throw new IllegalArgumentException("实际仓库ID不能为空");
+        }
+
+        // 验证仓库存在
+        Warehouse warehouse = warehouseMapper.selectById(actualWarehouseId);
+        if (warehouse == null) {
+            throw new IllegalArgumentException("仓库不存在");
+        }
+
+        // 计算dataHash用于数据完整性校验
+        String dataHash = calculateStockOrderDataHash(warehouseEntId, entId, userId, goodsName, weight, unit, attachmentUrl);
+
+        // 创建入库单（直接设置为已确认状态）
+        StockOrder stockOrder = new StockOrder();
+        stockOrder.setWarehouseEntId(warehouseEntId);
+        stockOrder.setEntId(entId);
+        stockOrder.setUserId(userId);
+        stockOrder.setGoodsName(goodsName);
+        stockOrder.setWeight(weight);
+        stockOrder.setUnit(unit);
+        stockOrder.setAttachmentUrl(attachmentUrl);
+        stockOrder.setStatus(StockOrder.STATUS_CONFIRMED);  // 直接设为已确认
+        stockOrder.setDataHash(dataHash);
+        stockOrder.setActualWarehouseId(actualWarehouseId);  // 直接填入具体仓库ID
+
+        stockOrderMapper.insert(stockOrder);
+        logger.info("快速入库确认-创建入库单: stockOrderId={}, dataHash={}", stockOrder.getId(), dataHash);
+
+        // 直接签发仓单
+        Long operatorId = CurrentUser.getOperatorId();
+        Long receiptId = mintReceipt(stockOrder.getId(), operatorId, null);
+        logger.info("快速入库确认-签发仓单: stockOrderId={}, receiptId={}", stockOrder.getId(), receiptId);
+
+        return receiptId;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Long createStockInConfirmed(Long warehouseEntId, Long entId, String goodsName,
+            BigDecimal weight, String unit, Long actualWarehouseId) {
+        if (warehouseEntId == null) {
+            throw new IllegalArgumentException("仓储公司ID不能为空");
+        }
+        if (goodsName == null || goodsName.isEmpty()) {
+            throw new IllegalArgumentException("货物名称不能为空");
+        }
+        if (weight == null) {
+            throw new IllegalArgumentException("货物重量不能为空");
+        }
+        if (unit == null || unit.isEmpty()) {
+            throw new IllegalArgumentException("计量单位不能为空");
+        }
+        if (actualWarehouseId == null) {
+            throw new IllegalArgumentException("实际仓库ID不能为空");
+        }
+
+        // 验证仓库存在
+        Warehouse warehouse = warehouseMapper.selectById(actualWarehouseId);
+        if (warehouse == null) {
+            throw new IllegalArgumentException("仓库不存在");
+        }
+
+        // 计算dataHash用于数据完整性校验（userId为null时参与hash计算）
+        String dataHash = calculateStockOrderDataHash(warehouseEntId, entId, null, goodsName, weight, unit, null);
+
+        // 创建入库单（直接设置为已确认状态，不签发仓单）
+        StockOrder stockOrder = new StockOrder();
+        stockOrder.setWarehouseEntId(warehouseEntId);
+        stockOrder.setEntId(entId);
+        stockOrder.setUserId(null);  // 暂不设置，由confirmDelivery时补充
+        stockOrder.setGoodsName(goodsName);
+        stockOrder.setWeight(weight);
+        stockOrder.setUnit(unit);
+        stockOrder.setAttachmentUrl(null);
+        stockOrder.setStatus(StockOrder.STATUS_CONFIRMED);  // 直接设为已确认
+        stockOrder.setDataHash(dataHash);
+        stockOrder.setActualWarehouseId(actualWarehouseId);  // 直接填入具体仓库ID
+
+        stockOrderMapper.insert(stockOrder);
+        logger.info("创建已确认入库单(物流到货): stockOrderId={}, dataHash={}", stockOrder.getId(), dataHash);
+
+        return stockOrder.getId();
+    }
+
+    @Override
     public StockOrder getStockOrderById(Long stockOrderId) {
         return stockOrderMapper.selectById(stockOrderId);
+    }
+
+    @Override
+    public boolean updateStockOrderStatus(Long stockOrderId, Integer status, String remark) {
+        StockOrder stockOrder = stockOrderMapper.selectById(stockOrderId);
+        if (stockOrder == null) {
+            throw new IllegalArgumentException("入库单不存在");
+        }
+        if (status != null) {
+            stockOrder.setStatus(status);
+        }
+        if (remark != null) {
+            String existingRemark = stockOrder.getRemark();
+            if (existingRemark != null && !existingRemark.isEmpty()) {
+                stockOrder.setRemark(existingRemark + "; " + remark);
+            } else {
+                stockOrder.setRemark(remark);
+            }
+        }
+        stockOrderMapper.updateById(stockOrder);
+        logger.info("更新入库单状态: stockOrderId={}, status={}, remark={}", stockOrderId, status, remark);
+        return true;
     }
 
     @Override
@@ -307,7 +435,7 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
         receipt.setWarehouseId(warehouseId);
         receipt.setOwnerEntId(ownerEntId);
         receipt.setOwnerUserId(warehouseUserId);
-        receipt.setWarehouseEntId(warehouseEntId);
+        receipt.setWarehouseEntId(warehouse.getEntId());
         receipt.setWarehouseUserId(warehouseUserId);
         receipt.setGoodsName(goodsName);
         receipt.setWeight(weight);
@@ -467,7 +595,21 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
             case WarehouseReceipt.STATUS_SPLIT_MERGED: return "已拆分合并";
             case WarehouseReceipt.STATUS_BURNED: return "已核销";
             case WarehouseReceipt.STATUS_IN_TRANSIT: return "运输中";
+            case WarehouseReceipt.STATUS_VOID: return "已作废";
+            case WarehouseReceipt.STATUS_WAIT_LOGISTICS: return "待物流";
             default: return "未知状态";
+        }
+    }
+
+    /**
+     * 校验仓单是否处于可操作状态（未被待物流状态阻塞）
+     */
+    private void validateReceiptOperable(WarehouseReceipt receipt, String operation) {
+        if (receipt == null) {
+            throw new IllegalArgumentException("仓单不存在");
+        }
+        if (receipt.getStatus() == WarehouseReceipt.STATUS_WAIT_LOGISTICS) {
+            throw new IllegalStateException("仓单正在等待物流操作，无法执行" + operation + "，请稍后再试");
         }
     }
 
@@ -478,9 +620,7 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
     public Long launchEndorsement(Long receiptId, Long transferorUserId, Long transfereeEntId,
             String signatureHash) {
         WarehouseReceipt receipt = warehouseReceiptMapper.selectById(receiptId);
-        if (receipt == null) {
-            throw new IllegalArgumentException("仓单不存在");
-        }
+        validateReceiptOperable(receipt, "背书转让");
         if (receipt.getStatus() != WarehouseReceipt.STATUS_IN_STOCK) {
             throw new IllegalArgumentException("仓单状态不是在库");
         }
@@ -751,13 +891,15 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public Long applySplit(Long receiptId, Long applyUserId, BigDecimal[] targetWeights) {
+    public Long applySplit(Long receiptId, Long applyUserId, BigDecimal[] targetWeights, Long[] warehouseIds) {
         WarehouseReceipt receipt = warehouseReceiptMapper.selectById(receiptId);
-        if (receipt == null) {
-            throw new IllegalArgumentException("仓单不存在");
+        validateReceiptOperable(receipt, "拆分");
+        if (receipt.getStatus() == WarehouseReceipt.STATUS_VOID) {
+            throw new IllegalArgumentException("仓单已作废");
         }
-        if (receipt.getStatus() != WarehouseReceipt.STATUS_IN_STOCK) {
-            throw new IllegalArgumentException("仓单状态不是在库");
+        if (receipt.getStatus() != WarehouseReceipt.STATUS_IN_STOCK
+            && receipt.getStatus() != WarehouseReceipt.STATUS_WAIT_LOGISTICS) {
+            throw new IllegalArgumentException("仓单状态不允许拆分");
         }
 
         BigDecimal totalWeight = BigDecimal.ZERO;
@@ -766,6 +908,11 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
         }
         if (totalWeight.compareTo(receipt.getWeight()) != 0) {
             throw new IllegalArgumentException("拆分重量之和与原仓单重量不相等");
+        }
+
+        // 校验warehouseIds数组长度与targetWeights一致（如果提供了warehouseIds）
+        if (warehouseIds != null && warehouseIds.length != targetWeights.length) {
+            throw new IllegalArgumentException("仓库ID数量与拆分数量不匹配");
         }
 
         ReceiptOperationLog opLog = new ReceiptOperationLog();
@@ -778,6 +925,7 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
         opLog.setExecuteEntId(receipt.getWarehouseEntId());
         opLog.setExecuteUserId(0L);
         opLog.setStatus(ReceiptOperationLog.STATUS_PENDING);
+
         // 存储拆分重量分配信息到remark字段（JSON格式）
         StringBuilder weightsJson = new StringBuilder("[");
         for (int i = 0; i < targetWeights.length; i++) {
@@ -785,10 +933,23 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
             if (i < targetWeights.length - 1) weightsJson.append(",");
         }
         weightsJson.append("]");
-        opLog.setRemark("targetWeights=" + weightsJson.toString());
+
+        // 存储仓库ID分配信息（如果提供了warehouseIds）
+        String warehouseIdsJson = "";
+        if (warehouseIds != null) {
+            StringBuilder idsJson = new StringBuilder("[");
+            for (int i = 0; i < warehouseIds.length; i++) {
+                idsJson.append(warehouseIds[i].toString());
+                if (i < warehouseIds.length - 1) idsJson.append(",");
+            }
+            idsJson.append("]");
+            warehouseIdsJson = ",warehouseIds=" + idsJson.toString();
+        }
+
+        opLog.setRemark("targetWeights=" + weightsJson.toString() + warehouseIdsJson);
 
         operationLogMapper.insert(opLog);
-        logger.info("发起拆分申请成功: opLogId={}", opLog.getId());
+        logger.info("发起拆分申请成功: opLogId={}, warehouseIds={}", opLog.getId(), warehouseIds != null ? java.util.Arrays.toString(warehouseIds) : "default");
         return opLog.getId();
     }
 
@@ -801,6 +962,7 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
 
         List<WarehouseReceipt> receipts = warehouseReceiptMapper.selectBatchIds(receiptIds);
         for (WarehouseReceipt r : receipts) {
+            validateReceiptOperable(r, "合并");
             if (r.getStatus() != WarehouseReceipt.STATUS_IN_STOCK) {
                 throw new IllegalArgumentException("仓单状态不是在庫");
             }
@@ -864,6 +1026,7 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
         // 解析目标重量分配
         String remark = opLog.getRemark();
         BigDecimal[] targetWeights = parseTargetWeights(remark);
+        Long[] warehouseIds = parseWarehouseIds(remark);
 
         Long sourceReceiptId = Long.parseLong(opLog.getSourceReceiptIds());
         WarehouseReceipt sourceReceipt = warehouseReceiptMapper.selectById(sourceReceiptId);
@@ -876,12 +1039,23 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
         List<Long> newReceiptIdList = new java.util.ArrayList<>();
         for (int i = 0; i < targetWeights.length; i++) {
             WarehouseReceipt newReceipt = new WarehouseReceipt();
-            newReceipt.setWarehouseId(sourceReceipt.getWarehouseId());
+            // 使用指定的仓库ID（如果有），否则使用原仓单的仓库
+            Long targetWarehouseId = warehouseIds != null ? warehouseIds[i] : sourceReceipt.getWarehouseId();
+            newReceipt.setWarehouseId(targetWarehouseId);
             newReceipt.setOnChainId(""); // 拆分后新生成，链上ID待上链
             newReceipt.setOwnerEntId(sourceReceipt.getOwnerEntId());
             newReceipt.setOwnerUserId(sourceReceipt.getOwnerUserId());
-            newReceipt.setWarehouseEntId(sourceReceipt.getWarehouseEntId());
-            newReceipt.setWarehouseUserId(sourceReceipt.getWarehouseUserId());
+            // 设置目标仓库的企业ID（如果使用不同仓库，需要查询目标仓库的企业信息）
+            if (warehouseIds != null && !warehouseIds[i].equals(sourceReceipt.getWarehouseId())) {
+                Warehouse targetWarehouse = warehouseMapper.selectById(warehouseIds[i]);
+                if (targetWarehouse != null) {
+                    newReceipt.setWarehouseEntId(targetWarehouse.getEntId());
+                    newReceipt.setWarehouseUserId(sourceReceipt.getWarehouseUserId()); // 仓库用户沿用原仓单的
+                }
+            } else {
+                newReceipt.setWarehouseEntId(sourceReceipt.getWarehouseEntId());
+                newReceipt.setWarehouseUserId(sourceReceipt.getWarehouseUserId());
+            }
             newReceipt.setGoodsName(sourceReceipt.getGoodsName());
             newReceipt.setWeight(targetWeights[i]);
             newReceipt.setUnit(sourceReceipt.getUnit());
@@ -916,6 +1090,13 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
                     ownerHashes.add(sourceReceipt.getOwnerEntId().toString());
                 }
                 request.setOwnerHashes(ownerHashes);
+                // 设置warehouseHashes
+                List<String> warehouseHashes = new java.util.ArrayList<>();
+                for (int i = 0; i < targetWeights.length; i++) {
+                    Long targetWarehouseId = warehouseIds != null ? warehouseIds[i] : sourceReceipt.getWarehouseId();
+                    warehouseHashes.add(targetWarehouseId.toString());
+                }
+                request.setWarehouseHashes(warehouseHashes);
 
                 Result<String> result = blockchainFeignClient.splitReceipt(request);
                 if (result == null || result.getCode() != 0) {
@@ -1076,6 +1257,33 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
         return weights;
     }
 
+    private Long[] parseWarehouseIds(String remark) {
+        // 解析 remark 中的 warehouseIds=[1,2,3] 格式
+        // 如果没有warehouseIds字段，返回null（使用默认仓库）
+        if (remark == null || !remark.contains("warehouseIds=")) {
+            return null;
+        }
+        int start = remark.indexOf("warehouseIds=[");
+        if (start == -1) {
+            return null;
+        }
+        int arrayStart = remark.indexOf("[", start);
+        int arrayEnd = remark.indexOf("]", start);
+        if (arrayStart == -1 || arrayEnd == -1) {
+            return null;
+        }
+        String idsStr = remark.substring(arrayStart + 1, arrayEnd);
+        if (idsStr.trim().isEmpty()) {
+            return null;
+        }
+        String[] idStrs = idsStr.split(",");
+        Long[] warehouseIds = new Long[idStrs.length];
+        for (int i = 0; i < idStrs.length; i++) {
+            warehouseIds[i] = Long.parseLong(idStrs[i].trim());
+        }
+        return warehouseIds;
+    }
+
     @Override
     public ReceiptOperationLog getOperationLogById(Long opLogId) {
         return operationLogMapper.selectById(opLogId);
@@ -1089,6 +1297,9 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
         WarehouseReceipt receipt = warehouseReceiptMapper.selectById(receiptId);
         if (receipt == null) {
             throw new IllegalArgumentException("仓单不存在");
+        }
+        if (receipt.getStatus() == WarehouseReceipt.STATUS_WAIT_LOGISTICS) {
+            throw new IllegalStateException("仓单正在等待物流操作，无法执行质押锁定");
         }
         if (receipt.getIsLocked()) {
             throw new IllegalArgumentException("仓单已质押锁定");
@@ -1239,11 +1450,172 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
     }
 
     @Override
+    public boolean setInTransit(Long receiptId) {
+        WarehouseReceipt receipt = warehouseReceiptMapper.selectById(receiptId);
+        if (receipt == null) {
+            throw new IllegalArgumentException("仓单不存在");
+        }
+        if (receipt.getStatus() != WarehouseReceipt.STATUS_WAIT_LOGISTICS) {
+            logger.warn("仓单不在待物流状态，可能已被操作: receiptId={}, status={}", receiptId, receipt.getStatus());
+        }
+
+        // 调用区块链设置仓单为InTransit
+        if (blockchainFeignClient != null && receipt.getOnChainId() != null) {
+            try {
+                BlockchainFeignClient.ReceiptOperationRequest request = new BlockchainFeignClient.ReceiptOperationRequest();
+                request.setReceiptId(receipt.getOnChainId());
+                Result<String> result = blockchainFeignClient.setInTransit(request);
+                if (result == null || result.getCode() != 0) {
+                    throw new RuntimeException("仓单区块链设置转运中失败: " + (result != null ? result.getMsg() : "null response"));
+                }
+                logger.info("仓单区块链设置转运中成功: receiptId={}", receiptId);
+            } catch (RuntimeException e) {
+                throw e;
+            } catch (Exception e) {
+                logger.error("仓单区块链设置转运中失败: receiptId={}", receiptId, e);
+                throw new RuntimeException("仓单区块链设置转运中失败: " + e.getMessage());
+            }
+        }
+
+        // 【修复】区块链成功后更新DB状态，与链上状态保持一致
+        receipt.setStatus(WarehouseReceipt.STATUS_IN_TRANSIT);
+        warehouseReceiptMapper.updateById(receipt);
+
+        logger.info("设置仓单为物流转运中完成: receiptId={}", receiptId);
+        return true;
+    }
+
+    @Override
+    public boolean restoreFromTransit(Long receiptId) {
+        WarehouseReceipt receipt = warehouseReceiptMapper.selectById(receiptId);
+        if (receipt == null) {
+            throw new IllegalArgumentException("仓单不存在");
+        }
+        if (receipt.getStatus() != WarehouseReceipt.STATUS_IN_TRANSIT) {
+            logger.warn("仓单不在运输中状态，无需恢复: receiptId={}, status={}", receiptId, receipt.getStatus());
+            // 如果不是IN_TRANSIT状态，可能是已经恢复过了，幂等返回成功
+            return true;
+        }
+
+        // 调用区块链将仓单状态从InTransit恢复到InStorage
+        if (blockchainFeignClient != null && receipt.getOnChainId() != null) {
+            try {
+                BlockchainFeignClient.ReceiptOperationRequest request = new BlockchainFeignClient.ReceiptOperationRequest();
+                request.setReceiptId(receipt.getOnChainId());
+                Result<String> result = blockchainFeignClient.restoreFromTransit(request);
+                if (result == null || result.getCode() != 0) {
+                    throw new RuntimeException("仓单区块链恢复失败: " + (result != null ? result.getMsg() : "null response"));
+                }
+                logger.info("仓单区块链恢复成功: receiptId={}", receiptId);
+            } catch (RuntimeException e) {
+                throw e;
+            } catch (Exception e) {
+                logger.error("仓单区块链恢复异常: receiptId={}", receiptId, e);
+                throw new RuntimeException("仓单区块链恢复失败: " + e.getMessage());
+            }
+        }
+
+        // 【修复】区块链成功后更新DB状态，与链上状态保持一致
+        receipt.setStatus(WarehouseReceipt.STATUS_IN_STOCK);
+        warehouseReceiptMapper.updateById(receipt);
+
+        logger.info("仓单从转运中恢复到在库完成: receiptId={}", receiptId);
+        return true;
+    }
+
+    @Override
+    public boolean markWaitLogistics(Long receiptId, String voucherNo) {
+        WarehouseReceipt receipt = warehouseReceiptMapper.selectById(receiptId);
+        if (receipt == null) {
+            throw new IllegalArgumentException("仓单不存在");
+        }
+        if (receipt.getStatus() == WarehouseReceipt.STATUS_WAIT_LOGISTICS) {
+            throw new IllegalStateException("仓单已在待物流状态（" + receipt.getRemark() + "），无法重复标记");
+        }
+        if (receipt.getStatus() != WarehouseReceipt.STATUS_IN_STOCK) {
+            throw new IllegalStateException("仓单状态不是在庫（status=" + receipt.getStatus() + "），无法标记待物流");
+        }
+        if (Boolean.TRUE.equals(receipt.getIsLocked())) {
+            throw new IllegalStateException("仓单已质押锁定，无法标记待物流");
+        }
+
+        receipt.setStatus(WarehouseReceipt.STATUS_WAIT_LOGISTICS);
+        receipt.setRemark("物流委派单创建中: " + voucherNo);
+        warehouseReceiptMapper.updateById(receipt);
+        logger.info("仓单标记为待物流状态: receiptId={}, voucherNo={}", receiptId, voucherNo);
+        return true;
+    }
+
+    @Override
+    public boolean clearWaitLogistics(Long receiptId) {
+        WarehouseReceipt receipt = warehouseReceiptMapper.selectById(receiptId);
+        if (receipt == null) {
+            throw new IllegalArgumentException("仓单不存在");
+        }
+        // 【修复】支持 WAIT_LOGISTICS(7) 和 IN_TRANSIT(5) 两种状态的清除
+        // WAIT_LOGISTICS：货主创建物流委派单后的初始状态
+        // IN_TRANSIT：pickup后仓单状态变为运输中，部分交付到达后应恢复到在库
+        if (receipt.getStatus() != WarehouseReceipt.STATUS_WAIT_LOGISTICS
+                && receipt.getStatus() != WarehouseReceipt.STATUS_IN_TRANSIT) {
+            throw new IllegalStateException("仓单不在待物流或运输中状态（status=" + receipt.getStatus() + "），无法清除待物流状态");
+        }
+
+        // 如果是IN_TRANSIT状态，需要调用区块链将仓单从InTransit恢复到InStorage
+        if (receipt.getStatus() == WarehouseReceipt.STATUS_IN_TRANSIT) {
+            if (blockchainFeignClient != null && receipt.getOnChainId() != null) {
+                try {
+                    BlockchainFeignClient.ReceiptOperationRequest request = new BlockchainFeignClient.ReceiptOperationRequest();
+                    request.setReceiptId(receipt.getOnChainId());
+                    Result<String> result = blockchainFeignClient.restoreFromTransit(request);
+                    if (result == null || result.getCode() != 0) {
+                        throw new RuntimeException("仓单区块链恢复失败: " + (result != null ? result.getMsg() : "null response"));
+                    }
+                    logger.info("仓单区块链从转运中恢复成功: receiptId={}", receiptId);
+                } catch (RuntimeException e) {
+                    throw e;
+                } catch (Exception e) {
+                    logger.error("仓单区块链恢复异常: receiptId={}", receiptId, e);
+                    throw new RuntimeException("仓单区块链恢复失败: " + e.getMessage());
+                }
+            }
+        }
+
+        receipt.setStatus(WarehouseReceipt.STATUS_IN_STOCK);
+        receipt.setRemark(null);
+        warehouseReceiptMapper.updateById(receipt);
+        logger.info("仓单清除待物流状态: receiptId={}, 原状态={}", receiptId, receipt.getStatus());
+        return true;
+    }
+
+    @Override
+    public boolean updateReceiptRemark(Long receiptId, String remark) {
+        WarehouseReceipt receipt = warehouseReceiptMapper.selectById(receiptId);
+        if (receipt == null) {
+            throw new IllegalArgumentException("仓单不存在");
+        }
+        receipt.setRemark(remark);
+        warehouseReceiptMapper.updateById(receipt);
+        logger.info("仓单备注更新: receiptId={}, remark={}", receiptId, remark);
+        return true;
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean voidReceipt(Long receiptId, Long operatorUserId, String reason) {
         WarehouseReceipt receipt = warehouseReceiptMapper.selectById(receiptId);
         if (receipt == null) {
             throw new IllegalArgumentException("仓单不存在");
+        }
+        if (receipt.getStatus() == WarehouseReceipt.STATUS_WAIT_LOGISTICS) {
+            // 【部分交付修复】WAIT_LOGISTICS 状态允许作废：
+            // 仓单进入 WAIT_LOGISTICS 是因为货主创建了物流委派单，代表货主已授权物流介入。
+            // 部分交付场景下，仓单会被拆分或作废，此时允许跳过此检查。
+            // 通过 remark 中的 logisticsVoucherNo 判断是否在物流流程中（格式："物流委派单创建中"）
+            if (receipt.getRemark() != null && receipt.getRemark().contains("物流委派单")) {
+                logger.info("仓单处于物流流程中，允许作废: receiptId={}, remark={}", receiptId, receipt.getRemark());
+            } else {
+                throw new IllegalStateException("仓单正在等待物流操作，无法执行作废");
+            }
         }
 
         // 【QS-01修复】仓单作废的链上状态约束：
@@ -1279,9 +1651,15 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
             throw new IllegalArgumentException("仓单有待处理的拆分合并申请，不能作废");
         }
 
-        // 【P1-3修复】仓单作废应由金融机构发起，需验证FI身份
+        // 【P1-3修复 + 部分交付修复】仓单作废应由金融机构发起，需验证FI身份
+        // 但以下情况例外：
+        // - 状态为 SPLIT_MERGED（已执行拆分合并）：说明仓单已通过拆分流程处理，新仓单已生成，旧仓单作废无需FI校验
+        // - 状态为 WAIT_LOGISTICS（待物流）且为货主本人：说明货主已授权物流操作，此时货主可作废仓单
         Long currentEntId = CurrentUser.getEntId();
-        if (enterpriseFeignClient != null && currentEntId != null) {
+        boolean isOwner = receipt.getOwnerEntId() != null && receipt.getOwnerEntId().equals(currentEntId);
+        if (enterpriseFeignClient != null && currentEntId != null
+                && currentStatus != WarehouseReceipt.STATUS_SPLIT_MERGED
+                && !(currentStatus == WarehouseReceipt.STATUS_WAIT_LOGISTICS && isOwner)) {
             try {
                 Result<Boolean> fiResult = enterpriseFeignClient.isFinancialInstitution(currentEntId);
                 if (fiResult == null || fiResult.getCode() != 0) {
@@ -1301,18 +1679,24 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
                         receiptId, currentEntId, e.getMessage());
                 throw new IllegalStateException("金融机构身份校验失败，无法执行仓单作废");
             }
+        } else if (currentStatus == WarehouseReceipt.STATUS_SPLIT_MERGED) {
+            logger.info("仓单已执行拆分合并，SPLIT_MERGED状态跳过FI身份校验: receiptId={}", receiptId);
+        } else if (currentStatus == WarehouseReceipt.STATUS_WAIT_LOGISTICS && isOwner) {
+            logger.info("仓单处于待物流状态，货主跳过FI身份校验: receiptId={}, ownerEntId={}", receiptId, currentEntId);
         }
 
         // 【修复SC-001-01】区块链调用FIRST，成功后才更新DB状态
         // 【QS-01修复】根据仓单当前状态选择正确的链上操作
         // 在库(1)仓单调用burnReceipt，转运中(5)仓单不能作废，其他状态调用cancelReceipt
+        // 【直接移库修复】WAIT_LOGISTICS(7)状态：区块链上仍是InStorage，需调用burnReceipt
         if (blockchainFeignClient != null && receipt.getOnChainId() != null) {
             try {
-                if (currentStatus == WarehouseReceipt.STATUS_IN_STOCK) {
-                    // 在库仓单调用burnReceipt
+                if (currentStatus == WarehouseReceipt.STATUS_IN_STOCK
+                        || currentStatus == WarehouseReceipt.STATUS_WAIT_LOGISTICS) {
+                    // 在库仓单或待物流仓单调用burnReceipt（区块链状态仍为InStorage）
                     BlockchainFeignClient.BurnReceiptRequest burnRequest = new BlockchainFeignClient.BurnReceiptRequest();
-                    // 【修复】使用本地仓单ID作为链上receiptId
-                    burnRequest.setReceiptId(receipt.getId().toString());
+                    // 【直接移库修复】使用区块链receiptId（onChainId）而非本地ID
+                    burnRequest.setReceiptId(receipt.getOnChainId());
                     Result<String> result = blockchainFeignClient.burnReceipt(burnRequest);
                     if (result == null || result.getCode() != 0) {
                         logger.error("仓单区块链核销失败: receiptId={}, result={}", receiptId, result);
@@ -1325,8 +1709,8 @@ public class WarehouseReceiptServiceImpl implements WarehouseReceiptService {
                 } else {
                     // 待转让/已拆分合并/已质押仓单调用cancelReceipt
                     BlockchainFeignClient.CancelReceiptRequest cancelRequest = new BlockchainFeignClient.CancelReceiptRequest();
-                    // 【修复】使用本地仓单ID作为链上receiptId
-                    cancelRequest.setReceiptId(receipt.getId().toString());
+                    // 【直接移库修复】使用区块链receiptId（onChainId）而非本地ID
+                    cancelRequest.setReceiptId(receipt.getOnChainId());
                     cancelRequest.setReason("作废原因: " + reason);
                     Result<String> result = blockchainFeignClient.cancelReceipt(cancelRequest);
                     if (result == null || result.getCode() != 0) {

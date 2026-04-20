@@ -86,6 +86,7 @@ public class WarehouseReceipt {
     public static final int STATUS_BURNED = 4;
     public static final int STATUS_IN_TRANSIT = 5;
     public static final int STATUS_VOID = 6;  // 已作废
+    public static final int STATUS_WAIT_LOGISTICS = 7;  // 待物流（物流委派单创建中，禁止拆分/转让/再次创建物流）
 
     // 链上状态常量
     public static final int ON_CHAIN_STATUS_PENDING = 0;  // 待上链

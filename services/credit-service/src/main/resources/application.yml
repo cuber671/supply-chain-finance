@@ -19,14 +19,11 @@ spring:
   flyway:
     enabled: false
   cloud:
-    discovery:
-      client:
-        simple:
-          instances:
-            enterprise-service:
-              - uri: http://enterprise-service:8082
-            fisco-gateway-service:
-              - uri: http://fisco-gateway-service:8087
+    nacos:
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR:nacos:8848}
+        enabled: true
+        register-enabled: true
 
 fisco:
   enabled: ${FISCO_ENABLED:true}
@@ -57,10 +54,6 @@ feign:
         connectTimeout: 5000
         readTimeout: 30000
         loggerLevel: BASIC
-      enterprise-service:
-        url: http://enterprise-service:8082
-      fisco-gateway-service:
-        url: http://fisco-gateway-service:8087
   circuitbreaker:
     enabled: true
 

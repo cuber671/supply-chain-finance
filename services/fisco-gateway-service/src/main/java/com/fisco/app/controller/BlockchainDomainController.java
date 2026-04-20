@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.fisco.app.annotation.RequireRole;
+import com.fisco.app.feign.BlockchainFeignClient.CancelReceiptRequest;
 import com.fisco.app.feign.BlockchainFeignClient.LogisticsArriveCreateRequest;
 import com.fisco.app.feign.BlockchainFeignClient.UpdateBalanceRequest;
 import com.fisco.app.util.Result;
@@ -370,11 +371,17 @@ public class BlockchainDomainController {
                 ownerHashes = request.getOwnerHashes().stream()
                         .map(this::entityIdToBytes32).collect(Collectors.toList());
             }
+            List<byte[]> warehouseHashes = null;
+            if (request.getWarehouseHashes() != null) {
+                warehouseHashes = request.getWarehouseHashes().stream()
+                        .map(this::entityIdToBytes32).collect(Collectors.toList());
+            }
             TransactionReceipt receipt = warehouseReceiptContractService.splitReceipt(
                     request.getOriginalReceiptId(),
                     request.getNewReceiptIds(),
                     request.getWeights().stream().map(l -> BigInteger.valueOf(l.longValue())).collect(Collectors.toList()),
                     ownerHashes,
+                    warehouseHashes,
                     request.getUnit()
             );
             return Result.success(receipt != null ? receipt.getTransactionHash() : null);
@@ -495,6 +502,46 @@ public class BlockchainDomainController {
         }
     }
 
+    @Operation(summary = "设置仓单为物流转运中", description = "物流提货确认时调用，将仓单状态设为InTransit。")
+    @SecurityRequirement(name = "bearerAuth")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "操作成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
+        @ApiResponse(responseCode = "400", description = "参数错误"),
+        @ApiResponse(responseCode = "500", description = "服务端异常")
+    })
+    @PostMapping("/receipt/set-in-transit")
+    public Result<String> setInTransitReceipt(
+            @Parameter(description = "仓单转运中请求信息", required = true)
+            @RequestBody ReceiptOperationRequest request) {
+        try {
+            TransactionReceipt receipt = warehouseReceiptContractService.setInTransit(request.getReceiptId());
+            return Result.success(receipt != null ? receipt.getTransactionHash() : null);
+        } catch (Exception e) {
+            logger.error("设置仓单为转运中失败", e);
+            return Result.error(500, "操作失败: " + e.getMessage());
+        }
+    }
+
+    @Operation(summary = "从物流转运中恢复到在库状态", description = "部分交付确认时调用，将仓单状态从InTransit恢复到InStorage。")
+    @SecurityRequirement(name = "bearerAuth")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "操作成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
+        @ApiResponse(responseCode = "400", description = "参数错误"),
+        @ApiResponse(responseCode = "500", description = "服务端异常")
+    })
+    @PostMapping("/receipt/restore-from-transit")
+    public Result<String> restoreFromTransitReceipt(
+            @Parameter(description = "仓单恢复请求信息", required = true)
+            @RequestBody ReceiptOperationRequest request) {
+        try {
+            TransactionReceipt receipt = warehouseReceiptContractService.restoreFromTransit(request.getReceiptId());
+            return Result.success(receipt != null ? receipt.getTransactionHash() : null);
+        } catch (Exception e) {
+            logger.error("仓单从转运中恢复失败", e);
+            return Result.error(500, "操作失败: " + e.getMessage());
+        }
+    }
+
     @Operation(summary = "核销仓单", description = "将仓单核销上链，完成出库操作。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
@@ -520,6 +567,29 @@ public class BlockchainDomainController {
             return Result.success(receipt != null ? receipt.getTransactionHash() : null);
         } catch (Exception e) {
             logger.error("核销仓单失败", e);
+            return Result.error(500, "操作失败: " + e.getMessage());
+        }
+    }
+
+    @Operation(summary = "取消仓单", description = "将仓单取消上链，用于直接移库等场景的仓单作废。")
+    @SecurityRequirement(name = "bearerAuth")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "取消成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
+        @ApiResponse(responseCode = "400", description = "参数错误"),
+        @ApiResponse(responseCode = "500", description = "服务端异常")
+    })
+    @PostMapping("/receipt/cancel")
+    public Result<String> cancelReceipt(
+            @Parameter(description = "仓单取消请求信息", required = true)
+            @RequestBody CancelReceiptRequest request) {
+        try {
+            TransactionReceipt receipt = warehouseReceiptContractService.cancelReceipt(
+                    request.getReceiptId(),
+                    request.getReason()
+            );
+            return Result.success(receipt != null ? receipt.getTransactionHash() : null);
+        } catch (Exception e) {
+            logger.error("取消仓单失败", e);
             return Result.error(500, "操作失败: " + e.getMessage());
         }
     }
@@ -1636,6 +1706,8 @@ public class BlockchainDomainController {
         private List<Long> weights;
         @io.swagger.v3.oas.annotations.media.Schema(description = "各新仓单货主哈希列表", example = "[\"0xabc123\", \"0xdef456\"]")
         private List<String> ownerHashes;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "各新仓单仓库哈希列表", example = "[\"0xabc123\", \"0xdef456\"]")
+        private List<String> warehouseHashes;
         @io.swagger.v3.oas.annotations.media.Schema(description = "重量单位", example = "kg")
         private String unit;
 
@@ -1647,6 +1719,8 @@ public class BlockchainDomainController {
         public void setWeights(List<Long> v) { this.weights = v; }
         public List<String> getOwnerHashes() { return ownerHashes; }
         public void setOwnerHashes(List<String> v) { this.ownerHashes = v; }
+        public List<String> getWarehouseHashes() { return warehouseHashes; }
+        public void setWarehouseHashes(List<String> v) { this.warehouseHashes = v; }
         public String getUnit() { return unit; }
         public void setUnit(String v) { this.unit = v; }
     }

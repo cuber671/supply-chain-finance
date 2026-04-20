@@ -39,6 +39,7 @@ contract WarehouseReceiptOps {
         string[] newReceiptIds;
         uint256[] weights;
         bytes32[] ownerHashes;
+        bytes32[] warehouseHashes;
         string unit;
     }
 
@@ -68,6 +69,7 @@ contract WarehouseReceiptOps {
         string indexed originalReceiptId,
         string[] newReceiptIds,
         uint256[] weights,
+        bytes32[] warehouseHashes,
         uint256 timestamp
     );
 
@@ -138,6 +140,7 @@ contract WarehouseReceiptOps {
         require(input.newReceiptIds.length > 0 && input.newReceiptIds.length <= MAX_SPLIT_COUNT, "Invalid split count");
         require(input.newReceiptIds.length == input.weights.length, "Length mismatch");
         require(input.newReceiptIds.length == input.ownerHashes.length, "Length mismatch");
+        require(input.newReceiptIds.length == input.warehouseHashes.length, "Warehouse hashes length mismatch");
         require(bytes(input.unit).length > 0, "Invalid unit");
 
         // 验证权重总和
@@ -154,6 +157,7 @@ contract WarehouseReceiptOps {
             newReceiptIds: input.newReceiptIds,
             weights: input.weights,
             ownerHashes: input.ownerHashes,
+            warehouseHashes: input.warehouseHashes,
             unit: input.unit
         });
 
@@ -163,6 +167,7 @@ contract WarehouseReceiptOps {
             input.originalReceiptId,
             input.newReceiptIds,
             input.weights,
+            input.warehouseHashes,
             block.timestamp
         );
 
@@ -195,6 +200,7 @@ contract WarehouseReceiptOps {
                 newReceiptIds: inputs[i].newReceiptIds,
                 weights: inputs[i].weights,
                 ownerHashes: inputs[i].ownerHashes,
+                warehouseHashes: inputs[i].warehouseHashes,
                 unit: inputs[i].unit
             });
             core.splitReceipt(coreInput);

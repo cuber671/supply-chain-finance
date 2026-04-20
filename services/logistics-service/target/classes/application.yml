@@ -19,14 +19,11 @@ spring:
   flyway:
     enabled: false
   cloud:
-    discovery:
-      client:
-        simple:
-          instances:
-            warehouse-service:
-              - uri: http://warehouse-service:8083
-            fisco-gateway-service:
-              - uri: http://fisco-gateway-service:8087
+    nacos:
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR:nacos:8848}
+        enabled: true
+        register-enabled: true
 
 mybatis-plus:
   mapper-locations: classpath*:mapper/**/*.xml
@@ -59,10 +56,7 @@ feign:
         connectTimeout: 5000
         readTimeout: 30000
         loggerLevel: BASIC
-      warehouse-service:
-        url: http://warehouse-service:8083
       fisco-gateway-service:
-        url: http://fisco-gateway-service:8087
         connectTimeout: 10000
         readTimeout: 60000  # 区块链交易可能需要更长时间
   circuitbreaker:

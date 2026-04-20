@@ -19,26 +19,11 @@ spring:
   flyway:
     enabled: false
   cloud:
-    loadbalancer:
-      enabled: true
-    discovery:
-      client:
-        simple:
-          instances:
-            warehouse-service:
-              - uri: http://warehouse-service:8083
-            enterprise-service:
-              - uri: http://enterprise-service:8082
-            fisco-gateway-service:
-              - uri: http://fisco-gateway-service:8087
-            logistics-service:
-              - uri: http://logistics-service:8084
-            auth-service:
-              - uri: http://auth-service:8081
-            credit-service:
-              - uri: http://credit-service:8086
-            finance-service:
-              - uri: http://finance-service:8085
+    nacos:
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR:nacos:8848}
+        enabled: true
+        register-enabled: true
 
 fisco:
   enabled: ${FISCO_ENABLED:true}

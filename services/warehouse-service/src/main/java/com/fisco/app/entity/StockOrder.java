@@ -67,8 +67,25 @@ public class StockOrder {
     private LocalDateTime updateTime;
 
     // 状态常量
-    public static final int STATUS_PENDING = 1;
-    public static final int STATUS_CONFIRMED = 2;
-    public static final int STATUS_CANCELLED = 3;
-    public static final int STATUS_COMPLETED = 4; // 已完成出库
+    public static final int STATUS_PENDING = 1;          // 待确认
+    public static final int STATUS_CONFIRMED = 2;       // 已确认入库
+    public static final int STATUS_CANCELLED = 3;       // 已取消
+    public static final int STATUS_COMPLETED = 4;        // 已完成出库
+    public static final int STATUS_IN_TRANSIT = 5;       // 【新增】转运中（pickup时）
+    public static final int STATUS_WRITTEN_OFF = 6;      // 【新增】已核销（arrive时）
+
+    /**
+     * 获取状态描述
+     */
+    public static String getStatusDesc(int status) {
+        switch (status) {
+            case STATUS_PENDING: return "待确认";
+            case STATUS_CONFIRMED: return "已确认入库";
+            case STATUS_CANCELLED: return "已取消";
+            case STATUS_COMPLETED: return "已完成出库";
+            case STATUS_IN_TRANSIT: return "转运中";
+            case STATUS_WRITTEN_OFF: return "已核销";
+            default: return "未知状态";
+        }
+    }
 }

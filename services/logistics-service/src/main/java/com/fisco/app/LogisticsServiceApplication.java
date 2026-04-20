@@ -3,6 +3,7 @@ package com.fisco.app;
 import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import org.springframework.cloud.openfeign.EnableFeignClients;
 
 /**
@@ -15,6 +16,7 @@ import org.springframework.cloud.openfeign.EnableFeignClients;
 @SpringBootApplication(scanBasePackages = {"com.fisco.app"})
 @MapperScan("com.fisco.app.mapper")
 @EnableFeignClients(basePackages = "com.fisco.app.feign")
+@EnableDiscoveryClient
 public class LogisticsServiceApplication {
 
     public static void main(String[] args) {

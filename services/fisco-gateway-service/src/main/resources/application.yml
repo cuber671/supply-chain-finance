@@ -20,6 +20,12 @@ spring:
     enabled: false  # gateway 只读写记录，不建 schema；禁用以避免与 auth-service 的 Flyway 迁移冲突
     locations: classpath:db/migration
     baseline-on-migrate: true
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR:nacos:8848}
+        enabled: true
+        register-enabled: true
 
 fisco:
   enabled: ${FISCO_ENABLED:true}

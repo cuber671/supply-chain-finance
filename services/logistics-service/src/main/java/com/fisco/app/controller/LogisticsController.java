@@ -16,6 +16,13 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import javax.validation.Valid;
+
+import com.fisco.app.dto.ArriveRequest;
+import com.fisco.app.dto.AssignDriverRequest;
+import com.fisco.app.dto.ConfirmDeliveryRequest;
+import com.fisco.app.dto.ConfirmPickupRequest;
+import com.fisco.app.dto.InvalidateRequest;
 import com.fisco.app.entity.LogisticsDelegate;
 import com.fisco.app.entity.LogisticsTrack;
 import com.fisco.app.service.LogisticsService;
@@ -48,20 +55,51 @@ public class LogisticsController {
 
     // ==================== 委派单管理 ====================
 
-    @Operation(summary = "创建物流委派单", description = "货主企业创建物流委派单，指定业务场景、运输数量、承运企业等信息。")
+    /**
+     * 创建物流委派单
+     *
+     * 三种业务场景（businessScene 必填）：
+     * - 场景一(1)：直接移库 - 货主将仓单项下货物从A仓库转移到B仓库，所有权不转移。创建时锁定仓单，交付后解锁。
+     * - 场景二(2)：转让后移库 - 仓单背书转让后，受让方安排物流将货物转移到自己控制的仓库。不锁定仓单（仓单已在受让方名下）。
+     * - 场景三(3)：发货入库 - 货物从供应商发往仓库，到货后创建新仓单。无仓单关联，到货时创建新仓单。
+     *
+     * 通用必填参数：businessScene、transportQuantity、unit、carrierEntId
+     *
+     * 场景一额外必填：receiptId（关联仓单）、sourceWhId（起运地仓库）、targetWhId（目的地仓库）
+     * 场景二额外必填：endorseId（关联背书记录）、targetWhId（目的地仓库，必须属于受让方）
+     * 场景三额外必填：targetWhId（目的地仓库）
+     *
+     * @param delegate 委派单信息，其中 ownerEntId 由系统自动设置为当前登录企业，无需传入
+     * @return 创建成功的委派单（含系统生成的 voucherNo）
+     */
+    @Operation(summary = "创建物流委派单",
+        description = "货主企业创建物流委派单，支持三种业务场景。\n\n" +
+        "**场景一（直接移库）**：货主将仓单项下货物从A仓库转移到B仓库，所有权不转移。创建时锁定仓单，交付后解锁。\n" +
+        "  必填：receiptId（关联仓单）、sourceWhId（起运地仓库）、targetWhId（目的地仓库）\n\n" +
+        "**场景二（转让后移库）**：仓单背书转让后，受让方安排物流将货物转移到自己控制的仓库。\n" +
+        "  必填：endorseId（关联背书记录）、targetWhId（目的地仓库，必须属于受让方）\n\n" +
+        "**场景三（发货入库）**：货物从供应商发往仓库，到货后创建新仓单。\n" +
+        "  必填：targetWhId（目的地仓库）\n\n" +
+        "**通用必填**：businessScene（1/2/3）、transportQuantity、unit、carrierEntId\n" +
+        "**自动填充**：ownerEntId（当前登录企业）、voucherNo（系统生成）\n" +
+        "**说明**：ownerEntId 由系统从JWT Token中提取，无需传入。管理员账户（entId=null）不可创建委派单。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "创建成功", content = @Content(schema = @Schema(implementation = LogisticsDelegate.class))),
-        @ApiResponse(responseCode = "400", description = "参数错误：业务场景、运输数量、计量单位、承运企业ID不能为空"),
+        @ApiResponse(responseCode = "400", description = "参数错误：业务场景无效、必填参数为空、运输数量为负数、承运企业不是物流企业、仓单/背书/仓库不满足场景约束"),
         @ApiResponse(responseCode = "401", description = "未登录或Token无效"),
-        @ApiResponse(responseCode = "500", description = "服务端异常")
+        @ApiResponse(responseCode = "403", description = "管理员账户无法创建物流委派单"),
+        @ApiResponse(responseCode = "500", description = "服务端异常：区块链上链失败、仓单服务不可用等")
     })
     @PostMapping("/create")
     public Result<LogisticsDelegate> createDelegate(
-            @Parameter(description = "委派单信息", required = true) @RequestBody LogisticsDelegate delegate) {
+            @Parameter(description = "委派单信息", required = true) @Valid @RequestBody LogisticsDelegate delegate) {
         try {
             if (delegate.getBusinessScene() == null) {
                 return Result.error(400, "业务场景不能为空");
+            }
+            if (delegate.getBusinessScene() < 1 || delegate.getBusinessScene() > 3) {
+                return Result.error(400, "无效的业务场景，仅支持1(直接移库)/2(转让后移库)/3(发货入库)");
             }
             if (delegate.getTransportQuantity() == null) {
                 return Result.error(400, "运输数量不能为空");
@@ -72,12 +110,15 @@ public class LogisticsController {
             if (delegate.getCarrierEntId() == null) {
                 return Result.error(400, "承运企业ID不能为空");
             }
-            if (delegate.getActionOnArrival() == null) {
-                delegate.setActionOnArrival(1);
-            }
 
             Long entId = CurrentUser.getEntId();
             if (entId == null) {
+                // entId=null 可能是管理员（admin login，entId=null，userId!=null）
+                // 管理员不是企业身份，无法创建以企业为主体的物流委派单
+                Long userId = CurrentUser.getUserId();
+                if (userId != null && CurrentUser.isAdmin()) {
+                    return Result.error(403, "管理员账户无法创建物流委派单，请使用企业账户登录");
+                }
                 return Result.error(401, "未登录或Token无效");
             }
 
@@ -195,11 +236,11 @@ public class LogisticsController {
 
     // ==================== 物流指派 ====================
 
-    @Operation(summary = "物流指派任务", description = "承运企业指派司机和车辆到物流委派单。委派单编号、司机ID、司机姓名、车牌号均为必填。")
+    @Operation(summary = "物流指派任务", description = "承运企业指派司机和车辆到物流委派单。指派后委派单状态从PENDING(1)变为ASSIGNED(2)，可进行提货确认。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "指派成功", content = @Content(schema = @Schema(implementation = LogisticsDelegate.class))),
-        @ApiResponse(responseCode = "400", description = "参数错误：委派单编号、司机ID、司机姓名、车牌号不能为空"),
+        @ApiResponse(responseCode = "400", description = "参数错误：必填字段为空或委派单状态不允许指派"),
         @ApiResponse(responseCode = "401", description = "未登录或Token无效"),
         @ApiResponse(responseCode = "403", description = "无权限操作该委派单，只有承运企业才能指派司机"),
         @ApiResponse(responseCode = "404", description = "委派单不存在"),
@@ -207,25 +248,12 @@ public class LogisticsController {
     })
     @PostMapping("/assign")
     public Result<LogisticsDelegate> assignDriver(
-            @Parameter(description = "指派信息", required = true) @RequestBody Map<String, Object> params) {
+            @Parameter(description = "指派信息", required = true) @Valid @RequestBody AssignDriverRequest request) {
         try {
-            String voucherNo = params.get("voucherNo") != null ? params.get("voucherNo").toString() : null;
-            String driverId = params.get("driverId") != null ? params.get("driverId").toString() : null;
-            String driverName = params.get("driverName") != null ? params.get("driverName").toString() : null;
-            String vehicleNo = params.get("vehicleNo") != null ? params.get("vehicleNo").toString() : null;
-
-            if (voucherNo == null || voucherNo.isEmpty()) {
-                return Result.error(400, "委派单编号不能为空");
-            }
-            if (driverId == null || driverId.isEmpty()) {
-                return Result.error(400, "司机ID不能为空");
-            }
-            if (driverName == null || driverName.isEmpty()) {
-                return Result.error(400, "司机姓名不能为空");
-            }
-            if (vehicleNo == null || vehicleNo.isEmpty()) {
-                return Result.error(400, "车牌号不能为空");
-            }
+            String voucherNo = request.getVoucherNo();
+            String driverId = request.getDriverId();
+            String driverName = request.getDriverName();
+            String vehicleNo = request.getVehicleNo();
 
             Long entId = CurrentUser.getEntId();
             if (entId == null) {
@@ -255,32 +283,39 @@ public class LogisticsController {
 
     // ==================== 提货确认 ====================
 
-    @Operation(summary = "仓库提货确认", description = "司机到达仓库后凭授权码确认提货，支持GPS坐标上报。")
+    @Operation(summary = "仓库提货确认", description = "司机到达仓库后凭授权码确认提货，支持GPS坐标上报。指派后委派单状态从ASSIGNED(2)变为IN_TRANSIT(3)，可进行运输中状态更新。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "提货确认成功", content = @Content(schema = @Schema(implementation = LogisticsDelegate.class))),
-        @ApiResponse(responseCode = "400", description = "参数错误：委派单编号不能为空"),
+        @ApiResponse(responseCode = "400", description = "参数错误：必填字段为空或授权码错误"),
         @ApiResponse(responseCode = "401", description = "未登录或Token无效"),
+        @ApiResponse(responseCode = "403", description = "无权限操作该委派单，只有承运企业才能确认提货"),
+        @ApiResponse(responseCode = "404", description = "委派单不存在"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @PostMapping("/pickup")
     public Result<LogisticsDelegate> confirmPickup(
-            @Parameter(description = "提货确认信息", required = true) @RequestBody Map<String, Object> params) {
+            @Parameter(description = "提货确认信息", required = true) @Valid @RequestBody ConfirmPickupRequest request) {
         try {
-            String voucherNo = params.get("voucherNo") != null ? params.get("voucherNo").toString() : null;
-            String authCode = params.get("authCode") != null ? params.get("authCode").toString() : null;
-            BigDecimal driverLatitude = params.get("driverLatitude") != null
-                ? new BigDecimal(params.get("driverLatitude").toString()) : null;
-            BigDecimal driverLongitude = params.get("driverLongitude") != null
-                ? new BigDecimal(params.get("driverLongitude").toString()) : null;
-
-            if (voucherNo == null || voucherNo.isEmpty()) {
-                return Result.error(400, "委派单编号不能为空");
-            }
+            String voucherNo = request.getVoucherNo();
+            String authCode = request.getAuthCode();
+            BigDecimal driverLatitude = request.getDriverLatitude() != null
+                ? BigDecimal.valueOf(request.getDriverLatitude()) : null;
+            BigDecimal driverLongitude = request.getDriverLongitude() != null
+                ? BigDecimal.valueOf(request.getDriverLongitude()) : null;
 
             Long entId = CurrentUser.getEntId();
             if (entId == null) {
                 return Result.error(401, "未登录或Token无效");
+            }
+
+            LogisticsDelegate delegate = logisticsService.getDelegateByVoucherNo(voucherNo);
+            if (delegate == null) {
+                return Result.error(404, "委派单不存在");
+            }
+
+            if (!entId.equals(delegate.getCarrierEntId())) {
+                return Result.error(403, "无权限操作该委派单，只有承运企业才能确认提货");
             }
 
             LogisticsDelegate result;
@@ -303,51 +338,71 @@ public class LogisticsController {
 
     // ==================== 到货入库 ====================
 
-    @Operation(summary = "到货入库申请", description = "承运方提交到货入库申请，支持全量入库和增量入库两种方式。actionType=1为全量入库，actionType=2为增量入库（需指定目标仓单ID）。")
+    @Operation(summary = "到货入库申请", description =
+        "目标仓库（仓储方）确认货物到达并执行入库操作。" +
+        "状态流转：IN_TRANSIT(3) → IN_TRANSIT(3)【保持】，后续由货主调用 /delivery/confirm 确认交付。" + "<br><br>" +
+        "<b>权限说明：</b>仅目标仓库所属企业（仓储方）可调用。" + "<br><br>" +
+        "<b>仅 voucherNo 必填，其余均可省略，后端自动推断：</b>" + "<br>" +
+        "- warehouseId：默认使用委派单的目标仓库" + "<br>" +
+        "- arrivedWeight：默认使用委派单的运输数量" + "<br>" +
+        "- actionType：根据 arrivedWeight 与 transportQuantity 比较自动判断（全量=1，部分=2）" + "<br><br>" +
+        "<b>actionType=1 全量交付：</b>调用区块链arriveAndCreateReceipt创建新仓单，货物完整到达目标仓库。" + "<br>" +
+        "<b>actionType=2 部分交付：</b>将到货信息记录到remark（arrive_records），不调用区块链，" +
+        "到货信息包含目的仓库ID和到货重量，后续confirmDelivery从arrive_records解析目的仓库并调用splitReceipt完成仓单拆分。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "申请成功", content = @Content(schema = @Schema(implementation = LogisticsDelegate.class))),
-        @ApiResponse(responseCode = "400", description = "参数错误：委派单编号不能为空、无效的到货处理动作"),
+        @ApiResponse(responseCode = "200", description = "操作成功", content = @Content(schema = @Schema(implementation = LogisticsDelegate.class))),
+        @ApiResponse(responseCode = "400", description = "参数错误：委派单编号不能为空、无效的到货处理动作、仓库ID或到货重量为空"),
         @ApiResponse(responseCode = "401", description = "未登录或Token无效"),
-        @ApiResponse(responseCode = "403", description = "无权限操作该委派单"),
-        @ApiResponse(responseCode = "404", description = "委派单不存在"),
+        @ApiResponse(responseCode = "403", description = "无权限操作该委派单，仅目标仓库（仓储方）可确认到货入库"),
+        @ApiResponse(responseCode = "404", description = "委派单不存在或目标仓库不存在"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @PostMapping("/arrive")
     public Result<LogisticsDelegate> arrive(
-            @Parameter(description = "到货入库信息", required = true) @RequestBody Map<String, Object> params) {
+            @Parameter(description = "到货入库信息", required = true) @Valid @RequestBody ArriveRequest request) {
         try {
-            String voucherNo = params.get("voucherNo") != null ? params.get("voucherNo").toString() : null;
-            Integer actionType = params.get("actionType") != null
-                ? Integer.parseInt(params.get("actionType").toString()) : null;
-            Long targetReceiptId = params.get("targetReceiptId") != null
-                ? Long.parseLong(params.get("targetReceiptId").toString()) : null;
-
-            if (voucherNo == null || voucherNo.isEmpty()) {
-                return Result.error(400, "委派单编号不能为空");
-            }
-            if (actionType == null || (actionType != 1 && actionType != 2)) {
-                return Result.error(400, "无效的到货处理动作");
-            }
-            if (actionType == 2 && targetReceiptId == null) {
-                return Result.error(400, "增量入库时必须指定目标仓单ID");
-            }
-
             Long entId = CurrentUser.getEntId();
             if (entId == null) {
                 return Result.error(401, "未登录或Token无效");
             }
 
-            LogisticsDelegate delegate = logisticsService.getDelegateByVoucherNo(voucherNo);
+            LogisticsDelegate delegate = logisticsService.getDelegateByVoucherNo(request.getVoucherNo());
             if (delegate == null) {
                 return Result.error(404, "委派单不存在");
             }
-            if (!entId.equals(delegate.getCarrierEntId())) {
-                return Result.error(403, "无权限操作该委派单");
+
+            // 权限校验：仅目标仓库（仓储方）可确认到货入库
+            // 需要获取 targetWhId 对应的 warehouseEntId 进行校验
+            Map<String, Object> warehouseInfo = logisticsService.getWarehouseById(delegate.getTargetWhId());
+            if (warehouseInfo == null || warehouseInfo.get("data") == null) {
+                return Result.error(404, "目标仓库不存在");
+            }
+            @SuppressWarnings("unchecked")
+            Map<String, Object> whData = (Map<String, Object>) warehouseInfo.get("data");
+            Long warehouseEntId = Long.parseLong(whData.get("entId").toString());
+            if (!entId.equals(warehouseEntId)) {
+                return Result.error(403, "无权限操作该委派单，仅目标仓库（仓储方）可确认到货入库");
             }
 
-            LogisticsDelegate result = logisticsService.arrive(voucherNo, actionType, targetReceiptId);
-            logger.info("到货入库申请成功: voucherNo={}, actionType={}, entId={}", voucherNo, actionType, entId);
+            LogisticsDelegate result = logisticsService.arrive(
+                request.getVoucherNo(),
+                request.getActionType(),
+                request.getTargetReceiptId(),
+                request.getWarehouseId(),
+                request.getArrivedWeight()
+            );
+
+            // actionType 为空时自动判断
+            if (request.getActionType() == null) {
+                logger.info("到货入库申请成功(自动判断actionType): voucherNo={}, actionType={}, entId={}",
+                    request.getVoucherNo(),
+                    result.getRemark() != null && result.getRemark().contains("arrive_records=") ? 2 : 1,
+                    entId);
+            } else {
+                logger.info("到货入库申请成功: voucherNo={}, actionType={}, entId={}",
+                    request.getVoucherNo(), request.getActionType(), entId);
+            }
             return Result.success(result);
 
         } catch (IllegalArgumentException e) {
@@ -540,7 +595,7 @@ public class LogisticsController {
 
     // ==================== 状态更新 ====================
 
-    @Operation(summary = "更新物流状态", description = "更新委派单物流状态。状态值范围1-5：1-已指派、2-已提货、3-运输中、4-已到达、5-已交付。")
+    @Operation(summary = "更新物流状态（内部/管理接口）", description = "通用状态更新接口，建议使用 /delivery/confirm（交付确认）或 /invalidate（失效）代替。状态值范围1-5：1-待指派、2-已指派、3-运输中、4-已交付、5-已失效。状态流转：1→2→3→4/5。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "更新成功", content = @Content(schema = @Schema(implementation = LogisticsDelegate.class))),
@@ -591,28 +646,28 @@ public class LogisticsController {
         }
     }
 
-    @Operation(summary = "确认交付", description = "货主确认货物交付，完成物流委派流程。action参数：1-全量交付，2-部分交付（需指定目标仓单ID）。")
+    @Operation(summary = "确认交付", description =
+        "货主确认货物交付，完成物流委派流程。状态从IN_TRANSIT(3)变为DELIVERED(4)。" + "<br><br>" +
+        "<b>action=1 全量交付：</b>调用clearWaitLogistics解锁原仓单，仓单状态从WAIT_LOGISTICS变为IN_STOCK。" + "<br>" +
+        "<b>action=2 部分交付：</b>从arrive接口记录的arrive_records解析目的仓库，调用splitReceipt拆分仓单，" +
+        "原仓单变为SPLIT_MERGED，创建两个新仓单（目的仓库存放运输量，源仓库存放剩余量）。" + "<br><br>" +
+        "注意：action=2时无需指定targetReceiptId，从arrive_records自动解析。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "交付确认成功", content = @Content(schema = @Schema(implementation = LogisticsDelegate.class))),
-        @ApiResponse(responseCode = "400", description = "参数错误"),
+        @ApiResponse(responseCode = "400", description = "参数错误：必填字段为空或委派单状态不允许交付"),
         @ApiResponse(responseCode = "401", description = "未登录或Token无效"),
-        @ApiResponse(responseCode = "403", description = "只有货主才能确认交付"),
+        @ApiResponse(responseCode = "403", description = "无权限操作该委派单，仅货主才能确认交付"),
         @ApiResponse(responseCode = "404", description = "委派单不存在"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @PostMapping("/delivery/confirm")
-    public Result<LogisticsDelegate> confirmDelivery(@RequestBody Map<String, Object> params) {
+    public Result<LogisticsDelegate> confirmDelivery(
+            @Parameter(description = "确认交付信息", required = true) @Valid @RequestBody ConfirmDeliveryRequest request) {
         try {
-            String voucherNo = params.get("voucherNo") != null ? params.get("voucherNo").toString() : null;
-            Integer action = params.get("action") != null
-                ? Integer.parseInt(params.get("action").toString()) : 1;
-            String targetReceiptId = params.get("targetReceiptId") != null
-                ? params.get("targetReceiptId").toString() : null;
-
-            if (voucherNo == null || voucherNo.isEmpty()) {
-                return Result.error(400, "委派单编号不能为空");
-            }
+            String voucherNo = request.getVoucherNo();
+            Integer action = request.getAction() != null ? request.getAction() : 1;
+            String targetReceiptId = request.getTargetReceiptId();
 
             Long entId = CurrentUser.getEntId();
             if (entId == null) {
@@ -623,8 +678,10 @@ public class LogisticsController {
             if (delegate == null) {
                 return Result.error(404, "委派单不存在");
             }
-            if (!entId.equals(delegate.getOwnerEntId())) {
-                return Result.error(403, "只有货主才能确认交付");
+            // 权限校验：仅货主可确认交付
+            boolean isOwner = entId.equals(delegate.getOwnerEntId());
+            if (!isOwner) {
+                return Result.error(403, "无权限操作该委派单，仅货主才能确认交付");
             }
 
             LogisticsDelegate result = logisticsService.confirmDelivery(voucherNo, action, targetReceiptId);
@@ -638,24 +695,21 @@ public class LogisticsController {
         }
     }
 
-    @Operation(summary = "使委派单失效", description = "货主使委派单失效，取消物流委派。")
+    @Operation(summary = "使委派单失效", description = "货主或承运企业使委派单失效，取消物流委派。委派单从任意状态(非运输中)变为INVALID(5)，直接移库场景会自动清除仓单的待物流状态。注意：运输中(IN_TRANSIT)的委派单禁止失效。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "操作成功", content = @Content(schema = @Schema(implementation = LogisticsDelegate.class))),
-        @ApiResponse(responseCode = "400", description = "参数错误"),
+        @ApiResponse(responseCode = "400", description = "参数错误：委派单状态为运输中禁止失效"),
         @ApiResponse(responseCode = "401", description = "未登录或Token无效"),
-        @ApiResponse(responseCode = "403", description = "无权限操作该委派单"),
+        @ApiResponse(responseCode = "403", description = "无权限操作该委派单，只有货主或承运企业才能使委派单失效"),
         @ApiResponse(responseCode = "404", description = "委派单不存在"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @PostMapping("/invalidate")
-    public Result<LogisticsDelegate> invalidate(@RequestBody Map<String, Object> params) {
+    public Result<LogisticsDelegate> invalidate(
+            @Parameter(description = "失效信息", required = true) @Valid @RequestBody InvalidateRequest request) {
         try {
-            String voucherNo = params.get("voucherNo") != null ? params.get("voucherNo").toString() : null;
-
-            if (voucherNo == null || voucherNo.isEmpty()) {
-                return Result.error(400, "委派单编号不能为空");
-            }
+            String voucherNo = request.getVoucherNo();
 
             Long entId = CurrentUser.getEntId();
             if (entId == null) {
@@ -666,8 +720,8 @@ public class LogisticsController {
             if (delegate == null) {
                 return Result.error(404, "委派单不存在");
             }
-            if (!entId.equals(delegate.getOwnerEntId())) {
-                return Result.error(403, "无权限操作该委派单");
+            if (!entId.equals(delegate.getOwnerEntId()) && !entId.equals(delegate.getCarrierEntId())) {
+                return Result.error(403, "无权限操作该委派单，只有货主或承运企业才能使委派单失效");
             }
 
             LogisticsDelegate result = logisticsService.invalidate(voucherNo);

@@ -21,6 +21,7 @@ interface IWarehouseReceiptCore {
         string[] newReceiptIds;
         uint256[] weights;
         bytes32[] ownerHashes;
+        bytes32[] warehouseHashes;
         string unit;
     }
 

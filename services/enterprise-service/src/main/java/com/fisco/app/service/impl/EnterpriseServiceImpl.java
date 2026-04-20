@@ -212,6 +212,15 @@ public class EnterpriseServiceImpl implements EnterpriseService {
     }
 
     @Override
+    public boolean isLogisticsEnterprise(Long entId) {
+        if (entId == null) {
+            return false;
+        }
+        Enterprise ent = enterpriseMapper.selectById(entId);
+        return ent != null && ent.getEntRole() == Enterprise.ROLE_LOGISTICS;
+    }
+
+    @Override
     public Enterprise getEnterpriseByUsername(String username) {
         if (username == null || username.isEmpty()) {
             return null;

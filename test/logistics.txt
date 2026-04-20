@@ -169,4 +169,517 @@
   │ 创建新仓单 │ 否           │ 否                 │ 到货时创建 │
   ├────────────┼──────────────┼────────────────────┼────────────┤                                                                                                                
   │ 典型场景   │ 库间调拨     │ 仓单转让后物流     │ 收购入库   │
-  └────────────┴──────────────┴────────────────────┴────────────┘                                                                                                                
+  └────────────┴──────────────┴────────────────────┴────────────┘             
+  
+场景1直接移库 — 完整业务逻辑（实施版）
+核心设计原则
+原则	说明
+action=1 仓储方主导	arrive创建入库申请，仓储方确认+签发仓单，delivery仅作废原仓单
+action=2 splitReceipt统一	arrive创建已确认入库单，splitReceipt统一创建新仓单
+审计链条完整	入库申请作为审计凭证存在
+避免重复仓单	仓单创建路径唯一
+接口参数设计
+arrive 接口
+
+POST /api/v1/logistics/arrive
+{
+  "voucherNo": "xxx",           // 委派单编号
+  "actionType": 1,              // 1=全量交付，2=部分交付
+  "warehouseId": 5,             // 到货仓库ID
+  "arrivedWeight": 100          // 到货重量
+}
+delivery/confirm 接口
+
+POST /api/v1/logistics/delivery/confirm
+{
+  "voucherNo": "xxx",
+  "action": 1                   // 1=全量交付，2=部分交付
+}
+action=1 全量交付
+
+Step 1: 货主创建委派单
+  POST /api/v1/logistics/create
+  {
+    "businessScene": 1,
+    "receiptId": 原仓单ID(100吨, sourceWh=3),
+    "sourceWhId": 3,
+    "targetWhId": 5,
+    "transportQuantity": 100,
+    "unit": "吨",
+    "carrierEntId": 物流企业ID
+  }
+  → 仓单状态: IN_STOCK → WAIT_LOGISTICS
+  → 委派单状态: PENDING(1)
+
+Step 2: 物流公司指派司机
+  POST /api/v1/logistics/assign
+  { "voucherNo": "xxx", "driverId": "D001", "driverName": "张三", "vehicleNo": "粤B12345" }
+  → 委派单状态: ASSIGNED(2)
+
+Step 3: 司机提货确认
+  POST /api/v1/logistics/pickup
+  { "voucherNo": "xxx", "authCode": "THX9A6EK" }
+  → 委派单状态: ASSIGNED(2) → IN_TRANSIT(3)
+
+Step 4: 物流公司到货登记
+  POST /api/v1/logistics/arrive
+  {
+    "voucherNo": "xxx",
+    "actionType": 1,
+    "warehouseId": 5,
+    "arrivedWeight": 100
+  }
+  → 创建 targetWh 入库申请（status=1 待确认）
+  → 委派单状态: IN_TRANSIT(3)
+
+Step 5: 仓储方确认入库 + 签发仓单
+  POST /api/v1/warehouse/stock-in/{stockOrderId}/confirm?warehouseId=5
+  → confirmStockOrder 内部:
+     1. 更新入库单 status=2 已确认
+     2. 自动调用 mintReceipt 签发仓单
+  → 新仓单A: 100吨 IN_STOCK (targetWh=5)
+
+Step 6: 货主确认交付
+  POST /api/v1/logistics/delivery/confirm
+  {
+    "voucherNo": "xxx",
+    "action": 1
+  }
+  → 清除原仓单 WAIT_LOGISTICS
+  → 作废原仓单
+  → 委派单状态: DELIVERED(4)
+
+结果：
+  - 新仓单A: 100吨 IN_STOCK (targetWh=5) ✅  仓储方签发
+  - 原仓单: 已作废 ✅
+action=2 部分交付
+
+Step 1: 货主创建委派单
+  POST /api/v1/logistics/create
+  {
+    "businessScene": 1,
+    "receiptId": 原仓单ID(100吨, sourceWh=3),
+    "sourceWhId": 3,
+    "targetWhId": 5,
+    "transportQuantity": 30,
+    "unit": "吨",
+    "carrierEntId": 物流企业ID
+  }
+  → 仓单状态: IN_STOCK → WAIT_LOGISTICS
+  → 委派单状态: PENDING(1)
+
+Step 2: 物流公司指派司机
+  POST /api/v1/logistics/assign
+  → 委派单状态: ASSIGNED(2)
+
+Step 3: 司机提货确认
+  POST /api/v1/logistics/pickup
+  → 委派单状态: ASSIGNED(2) → IN_TRANSIT(3)
+
+Step 4: 物流公司到货登记（目标仓库）
+  POST /api/v1/logistics/arrive
+  {
+    "voucherNo": "xxx",
+    "actionType": 2,
+    "warehouseId": 5,
+    "arrivedWeight": 30
+  }
+  → 创建 targetWh 入库申请（status=2 已确认，跳过仓储方操作）
+  → 不触发自动签发仓单
+  → 委派单状态: IN_TRANSIT(3)
+
+Step 5: 物流公司到货登记（源仓库）
+  POST /api/v1/logistics/arrive
+  {
+    "voucherNo": "xxx",
+    "actionType": 2,
+    "warehouseId": 3,
+    "arrivedWeight": 70
+  }
+  → 创建 sourceWh 入库申请（status=2 已确认）
+  → 不触发自动签发仓单
+  → 委派单状态: IN_TRANSIT(3)
+
+Step 6: 货主确认交付（触发仓单拆分）
+  POST /api/v1/logistics/delivery/confirm
+  {
+    "voucherNo": "xxx",
+    "action": 2
+  }
+  → 调用 splitReceipt(原仓单ID, weights=[30, 70], warehouseIds=[5, 3])
+  → 原仓单拆分:
+     - 新仓单B: 30吨 IN_STOCK (warehouseId=5, targetWh)
+     - 新仓单C: 70吨 IN_STOCK (warehouseId=3, sourceWh)
+  → 原仓单: 已作废
+  → 清除 WAIT_LOGISTICS
+  → 委派单状态: DELIVERED(4)
+
+结果：
+  - 入库申请1: 30吨 status=2 已确认（targetWh）✅
+  - 入库申请2: 70吨 status=2 已确认（sourceWh）✅
+  - 新仓单B: 30吨 IN_STOCK (targetWh=5) ✅ splitReceipt创建
+  - 新仓单C: 70吨 IN_STOCK (sourceWh=3) ✅ splitReceipt创建
+  - 原仓单: 已作废 ✅
+仓单/入库单状态对照
+操作	action=1 仓单	action=1 入库单	action=2 仓单	action=2 入库单
+create	IN_STOCK→WAIT_LOGISTICS	—	IN_STOCK→WAIT_LOGISTICS	—
+arrive	—	status=1	—	status=2(已确认)
+confirm	—	status=2	—	status=2(已是)
+mintReceipt	新仓单A	—	不触发	—
+delivery	原仓单作废	—	splitReceipt创建B+C	—
+delivery	清除WAIT_LOGISTICS	—	原仓单作废+清除WAIT_LOGISTICS	—
+接口参数汇总
+arrive
+参数	类型	必填	action=1	action=2	说明
+voucherNo	String	✅	✅	✅	委派单编号
+actionType	Integer	✅	1	2	1=全量，2=部分
+warehouseId	Long	✅	targetWh	targetWh或sourceWh	到货仓库
+arrivedWeight	BigDecimal	✅	全部重量	对应仓库重量	到货重量
+delivery/confirm
+参数	类型	必填	说明
+voucherNo	String	✅	委派单编号
+action	Integer	✅	1=全量交付，2=部分交付
+待确认/扩展的技术问题
+问题	当前状态	需要修改
+applySplit 支持 warehouseIds	不支持	✅ 需扩展
+applySplit 允许 WAIT_LOGISTICS 状态	不允许	✅ 需修改
+arrive 创建入库单时 status=2	—	需新增逻辑
+confirmStockOrder 不对 action=2 自动签发	—	需条件判断
+完整流程图
+
+action=1:
+create → assign → pickup → arrive(创建status=1) → 仓储confirm+mint → delivery(作废原仓单)
+
+action=2:
+create → assign → pickup → arrive(创建status=2) → arrive(创建status=2) → delivery(splitReceipt)
+场景二：转让后移库
+阶段	步骤	接口	执行方	涉及表	数据变化
+创建委派单	1	/api/v1/logistics/create	受让方	t_logistics_delegate	新增：voucherNo、ownerEntId、carrierEntId、endorseId、sourceWhId、targetWhId、businessScene=2、status=1
+执行委派	2	/api/v1/logistics/assign	承运方	t_logistics_delegate	更新：driverId、driverName、vehicleNo、status→2
+执行委派	3	/api/v1/logistics/pickup	承运方	t_logistics_delegate	更新：status→3（IN_TRANSIT）
+到达仓库	4	/api/v1/logistics/arrive	承运方	t_logistics_delegate	无状态变化
+仓库入库	5	/warehouse/stock-in/{id}/confirm	仓储方	t_stock_order	更新：status→2（CONFIRMED）
+确认交付	6	/api/v1/logistics/delivery/confirm	受让方/承运方	t_logistics_delegate	更新：status→4（DELIVERED）
+场景三：发货入库
+阶段	步骤	接口	执行方	涉及表	数据变化
+创建委派单	1	/api/v1/logistics/create	货主	t_logistics_delegate	新增：voucherNo、ownerEntId、carrierEntId、targetWhId、transportQuantity、businessScene=3、status=1
+执行委派	2	/api/v1/logistics/assign	承运方	t_logistics_delegate	更新：driverId、driverName、vehicleNo、status→2
+执行委派	3	/api/v1/logistics/pickup	承运方	t_logistics_delegate	更新：status→3（IN_TRANSIT）
+到达仓库	4	/api/v1/logistics/arrive	承运方	t_logistics_delegate	无状态变化，仅记录到达时间
+仓库入库	5	/warehouse/stock-in/{id}/apply	承运方	t_stock_order	新增：warehouseEntId、entId（货主）、userId、goodsName、weight、unit、status=1（PENDING）
+仓库入库	6	/warehouse/stock-in/{id}/confirm	仓储方	t_stock_order	更新：status→2（CONFIRMED）、actualWarehouseId
+仓库入库	7	/warehouse/receipt/mint	仓储方	t_warehouse_receipt<br>t_logistics_delegate	新增仓单：warehouseId、stockOrderId、ownerEntId、warehouseEntId、weight、status=1<br>更新delegate.receiptId为新仓单ID
+确认交付	8	/api/v1/logistics/delivery/confirm	货主	t_logistics_delegate	更新：status→4（DELIVERED）
+四阶段说明
+阶段	说明	直接移库	转让后移库	发货入库
+创建委派单	货主/受让方创建委派单	✅	✅	✅
+执行委派	承运方指派司机、提货	✅	✅	✅
+到达仓库	承运方通知货物到达仓库	✅	✅	✅
+仓库入库	仓储方审核、签发仓单	✅（mint-direct）	✅（仅确认）	✅（申请+确认+mint）
+确认交付	货主/受让方确认交付完成	✅	✅	✅
+
+
+-----------------------------------------------------------------------------------------------------------------
+直接移库操作
+1. 申请入库
+curl -X 'POST' \
+  'http://localhost:8081/api/v1/auth/login' \
+  -H 'accept: */*' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "username": "core_auto_mfg",
+  "password": "Auto2024@123",
+  "loginType": "ENNTERPRISE"
+}'
+{
+  "code": 200,
+  "data": {
+    "accessToken": "eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiRU5URVJQUklTRSIsImVudElkIjoiMjA0MzY4OTM5MDY2MzgyMzM2MSIsImVudFJvbGUiOjEsInNjb3BlIjo1LCJ0b2tlblR5cGUiOiJhY2Nlc3MiLCJqdGkiOiI0YzVhZWFlZi1jM2NkLTQzOGUtYWU5NS1jYzljNDMzMTFjYjciLCJzdWIiOiIyMDQzNjg5MzkwNjYzODIzMzYxIiwiaWF0IjoxNzc2Njg4NzE4LCJleHAiOjE3NzY2OTU5MTh9.iAFWTOAlwr_UDTF1bjLFfPvXjD5dqCbrCvUtPXAwxOhXYrk7nAkZE5NJ7A7akxJLMPSqSd0Zzl8IfQ20VvjIUg",
+    "refreshToken": "eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiRU5URVJQUklTRSIsImVudElkIjoiMjA0MzY4OTM5MDY2MzgyMzM2MSIsImVudFJvbGUiOjEsInNjb3BlIjo1LCJ0b2tlblR5cGUiOiJyZWZyZXNoIiwianRpIjoiNGM1YWVhZWYtYzNjZC00MzhlLWFlOTUtY2M5YzQzMzExY2I3Iiwic3ViIjoiMjA0MzY4OTM5MDY2MzgyMzM2MSIsImlhdCI6MTc3NjY4ODcxOCwiZXhwIjoxNzc3MjkzNTE4fQ.5LTFKIJ8pKr6ovAObNfzF2PQ7qPmWc2EQULOuuL3rsDKJJWvjP-abYpVGSpmBUj2PRw690Tjt1eGAOlKnudVvw",
+    "expirationSeconds": 7200,
+    "userId": 2043689390663823400,
+    "entId": 2043689390663823400
+  },
+  "message": "登录成功"
+}
+curl -X 'POST' \
+  'http://localhost:8083/api/v1/warehouse/stock-in/apply' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiRU5URVJQUklTRSIsImVudElkIjoiMjA0MzY4OTM5MDY2MzgyMzM2MSIsImVudFJvbGUiOjEsInNjb3BlIjo1LCJ0b2tlblR5cGUiOiJhY2Nlc3MiLCJqdGkiOiI0YzVhZWFlZi1jM2NkLTQzOGUtYWU5NS1jYzljNDMzMTFjYjciLCJzdWIiOiIyMDQzNjg5MzkwNjYzODIzMzYxIiwiaWF0IjoxNzc2Njg4NzE4LCJleHAiOjE3NzY2OTU5MTh9.iAFWTOAlwr_UDTF1bjLFfPvXjD5dqCbrCvUtPXAwxOhXYrk7nAkZE5NJ7A7akxJLMPSqSd0Zzl8IfQ20VvjIUg' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "warehouseEntId": 2043692838935359490,
+  "goodsName": "轮胎",
+  "weight": 200,
+  "unit": "个",
+  "attachmentUrl": "https://example.com/attachment.jpg"
+}'
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": 1,
+  "timestamp": 1776688808466,
+  "txHash": null,
+  "errorStack": null
+}
+curl -X 'POST' \
+  'http://localhost:8081/api/v1/auth/login' \
+  -H 'accept: */*' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "username": "warehouse_parts_sh",
+  "password": "Auto2024@123",
+  "loginType": "ENNTERPRISE"
+}'
+{
+  "code": 200,
+  "data": {
+    "accessToken": "eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiRU5URVJQUklTRSIsImVudElkIjoiMjA0MzY5MjgzODkzNTM1OTQ5MCIsImVudFJvbGUiOjksInNjb3BlIjo1LCJ0b2tlblR5cGUiOiJhY2Nlc3MiLCJqdGkiOiJjNjA1YTA0Zi1mZWZkLTQxNzUtODVhNS04NjQ4NGUwYmYyNDYiLCJzdWIiOiIyMDQzNjkyODM4OTM1MzU5NDkwIiwiaWF0IjoxNzc2Njg4ODQyLCJleHAiOjE3NzY2OTYwNDJ9.8t584iMKGdSarP6r-s-Ey7uF5ucXS6dhLQUrEQoIB_0jTtGbu0pn41XMfjwnjqRboidF0iBIrsuW9bhDxxspMA",
+    "refreshToken": "eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiRU5URVJQUklTRSIsImVudElkIjoiMjA0MzY5MjgzODkzNTM1OTQ5MCIsImVudFJvbGUiOjksInNjb3BlIjo1LCJ0b2tlblR5cGUiOiJyZWZyZXNoIiwianRpIjoiYzYwNWEwNGYtZmVmZC00MTc1LTg1YTUtODY0ODRlMGJmMjQ2Iiwic3ViIjoiMjA0MzY5MjgzODkzNTM1OTQ5MCIsImlhdCI6MTc3NjY4ODg0MiwiZXhwIjoxNzc3MjkzNjQyfQ.xFGG0PGl1bJX3Ph_UZh5m30nzeBxAs-lAcTPwr_K7P0bGgNkp_yhW036EU-f6uIJzpXHWUHSrETvlPW-Foq2cQ",
+    "expirationSeconds": 7200,
+    "userId": 2043692838935359500,
+    "entId": 2043692838935359500
+  },
+  "message": "登录成功"
+}
+curl -X 'POST' \
+  'http://localhost:8083/api/v1/warehouse/stock-in/2042829218189479950/confirm?warehouseId=3' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiRU5URVJQUklTRSIsImVudElkIjoiMjA0MzY5MjgzODkzNTM1OTQ5MCIsImVudFJvbGUiOjksInNjb3BlIjo1LCJ0b2tlblR5cGUiOiJhY2Nlc3MiLCJqdGkiOiIyOGVjYTI3Ny04MzE1LTRlYjEtYTVjZS1jNTU4M2UyMDVjN2UiLCJzdWIiOiIyMDQzNjkyODM4OTM1MzU5NDkwIiwiaWF0IjoxNzc2NjczNzMzLCJleHAiOjE3NzY2ODA5MzN9.3xqdPH6cBJeDE745z6muMDcbRmQKEha9MBQb_K55AE6pa_zWOICpLbx6z8fkP9Esk_qVPyEE_vVt3LQeWfiKXQ' \
+  -d ''
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": "2042829397927989258",
+  "timestamp": 1776673840161,
+  "txHash": null,
+  "errorStack": null
+}
+curl -X 'POST' \
+  'http://localhost:8083/api/v1/warehouse/receipt/mint' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiRU5URVJQUklTRSIsImVudElkIjoiMjA0MzY5MjgzODkzNTM1OTQ5MCIsImVudFJvbGUiOjksInNjb3BlIjo1LCJ0b2tlblR5cGUiOiJhY2Nlc3MiLCJqdGkiOiI4OGJhNmU1Ny02Njg1LTQ3MTQtOWQ2MC0xMzZlNDMxODhlMjMiLCJzdWIiOiIyMDQzNjkyODM4OTM1MzU5NDkwIiwiaWF0IjoxNzc2NTAyMjQ2LCJleHAiOjE3NzY1MDk0NDZ9.X_dKe9bQBr8_nRhRmYfq60-wEPNBECcms0w5UaoUD6xdCiIJHTcfvNzB_2jRX-wBSnaW_mSpY9KuuLQKjOVvCA' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "stockOrderId": 2042829218189479946
+}'
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": "2042829397927989255",
+  "timestamp": 1776503021480,
+  "txHash": null,
+  "errorStack": null
+}
+curl -X 'POST' \
+  'http://localhost:8084/api/v1/logistics/create' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiRU5URVJQUklTRSIsImVudElkIjoiMjA0MzY4OTM5MDY2MzgyMzM2MSIsImVudFJvbGUiOjEsInNjb3BlIjo1LCJ0b2tlblR5cGUiOiJhY2Nlc3MiLCJqdGkiOiIyOGEwYWFmYy1kOTEwLTQ1YTItOWY0Yy0zMDg2OTFlOWM4OTQiLCJzdWIiOiIyMDQzNjg5MzkwNjYzODIzMzYxIiwiaWF0IjoxNzc2Njc1NTkxLCJleHAiOjE3NzY2ODI3OTF9.N1hVzcQoNR7xYmaFwMh7FegQK4NPCKFZRJnQsDT-dVk1RhGam9XwOZYkYFlgFmc_A67vIOWJDE0UzKOhoDYYDg' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "businessScene": 1,
+  "receiptId": 2042829397927989258,
+  "transportQuantity": 100,
+  "unit": "个",
+  "carrierEntId": 2043693246546210818,
+  "sourceWhId": 3,
+  "targetWhId": 5
+}'
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "id": "6",
+    "voucherNo": "DPDO202604209CA284C7",
+    "businessScene": 1,
+    "receiptId": "2042829397927989258",
+    "endorseId": null,
+    "transportQuantity": 100,
+    "unit": "个",
+    "ownerEntId": "2043689390663823361",
+    "carrierEntId": "2043693246546210818",
+    "sourceWhId": "3",
+    "targetWhId": "5",
+    "targetReceiptId": null,
+    "driverId": null,
+    "driverName": null,
+    "vehicleNo": null,
+    "authCode": null,
+    "pickupQrCode": null,
+    "authSignature": null,
+    "status": 1,
+    "validUntil": "2026-04-27T17:03:15.38753",
+    "chainTxHash": "0x6dfdfce42be353cc211727342421b21bf1bd7f140361238924f239d482a77aee",
+    "remark": null,
+    "createTime": "2026-04-20T17:03:15.47483",
+    "updateTime": "2026-04-20T17:03:15.478632",
+    "valid": true,
+    "invalid": false,
+    "statusDesc": "待指派",
+    "businessSceneDesc": "直接移库",
+    "pending": true,
+    "inTransit": false,
+    "delivered": false
+  },
+  "timestamp": "1776675795686",
+  "txHash": null,
+  "errorStack": null
+}
+curl -X 'POST' \
+  'http://localhost:8084/api/v1/logistics/assign' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiRU5URVJQUklTRSIsImVudElkIjoiMjA0MzY5MzI0NjU0NjIxMDgxOCIsImVudFJvbGUiOjEyLCJzY29wZSI6NSwidG9rZW5UeXBlIjoiYWNjZXNzIiwianRpIjoiMzlkZmM3NWItNTYyOS00YzgxLTk1YWItN2RlYzhhNzJjMGI0Iiwic3ViIjoiMjA0MzY5MzI0NjU0NjIxMDgxOCIsImlhdCI6MTc3NjY3NjM0MiwiZXhwIjoxNzc2NjgzNTQyfQ.KewGSqZYak4-1s8jr3jWcC9-2NnJzocoj8qzNYrldvV4cjZ8vbQw-4wIgogajK13I8XD1dEIbdJ_M4e58xHB0A' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "voucherNo": "DPDO202604209CA284C7",
+  "driverId": "D001",
+  "driverName": "张三",
+  "vehicleNo": "粤B12345"
+}'
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "id": "6",
+    "voucherNo": "DPDO202604209CA284C7",
+    "businessScene": 1,
+    "receiptId": "2042829397927989258",
+    "endorseId": null,
+    "transportQuantity": 100,
+    "unit": "个",
+    "ownerEntId": "2043689390663823361",
+    "carrierEntId": "2043693246546210818",
+    "sourceWhId": "3",
+    "targetWhId": "5",
+    "targetReceiptId": null,
+    "driverId": "D001",
+    "driverName": "张三",
+    "vehicleNo": "粤B12345",
+    "authCode": "PYVRLCTR",
+    "pickupQrCode": "eyJ2b3VjaGVyTm8iOiJEUERPMjAyNjA0MjA5Q0EyODRDNyIsImV4cGlyZXMiOjE3NzcyODEyMTU5ODIsImF1dGhDb2RlIjoiUFlWUkxDVFIiLCJkcml2ZXJJZCI6IkQwMDEiLCJ0aW1lc3RhbXAiOjE3NzY2NzY0MTU5ODJ9",
+    "authSignature": null,
+    "status": 2,
+    "validUntil": "2026-04-27T17:03:15",
+    "chainTxHash": "0x6dfdfce42be353cc211727342421b21bf1bd7f140361238924f239d482a77aee",
+    "remark": null,
+    "createTime": "2026-04-20T17:03:15",
+    "updateTime": "2026-04-20T17:03:15",
+    "valid": true,
+    "invalid": false,
+    "statusDesc": "已调度",
+    "businessSceneDesc": "直接移库",
+    "pending": false,
+    "inTransit": false,
+    "delivered": false
+  },
+  "timestamp": "1776676416132",
+  "txHash": null,
+  "errorStack": null
+}
+curl -X 'POST' \
+  'http://localhost:8084/api/v1/logistics/pickup' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiRU5URVJQUklTRSIsImVudElkIjoiMjA0MzY5MzI0NjU0NjIxMDgxOCIsImVudFJvbGUiOjEyLCJzY29wZSI6NSwidG9rZW5UeXBlIjoiYWNjZXNzIiwianRpIjoiYzE3MTIyMmEtOTQ5MC00MzRhLTg1ODgtNzcyY2I1MGExNGZmIiwic3ViIjoiMjA0MzY5MzI0NjU0NjIxMDgxOCIsImlhdCI6MTc3NjUyNDg0OSwiZXhwIjoxNzc2NTMyMDQ5fQ.tikVTAiTJWxDY-44xAUFsTh9-AxbXRLpoaIAPu4-qtdr3q7M29vs-2Jw_Vz0kIWw-wflFphIy0j1wdU83FTsSw' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "voucherNo": "DPDO20260418697B0A32",
+  "authCode": "THX9A6EK"
+}'
+curl -X 'POST' \
+  'http://localhost:8084/api/v1/logistics/pickup' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiRU5URVJQUklTRSIsImVudElkIjoiMjA0MzY5MzI0NjU0NjIxMDgxOCIsImVudFJvbGUiOjEyLCJzY29wZSI6NSwidG9rZW5UeXBlIjoiYWNjZXNzIiwianRpIjoiMzlkZmM3NWItNTYyOS00YzgxLTk1YWItN2RlYzhhNzJjMGI0Iiwic3ViIjoiMjA0MzY5MzI0NjU0NjIxMDgxOCIsImlhdCI6MTc3NjY3NjM0MiwiZXhwIjoxNzc2NjgzNTQyfQ.KewGSqZYak4-1s8jr3jWcC9-2NnJzocoj8qzNYrldvV4cjZ8vbQw-4wIgogajK13I8XD1dEIbdJ_M4e58xHB0A' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "voucherNo": "DPDO202604209CA284C7",
+  "authCode": "PYVRLCTR"
+}'
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "id": "6",
+    "voucherNo": "DPDO202604209CA284C7",
+    "businessScene": 1,
+    "receiptId": "2042829397927989258",
+    "endorseId": null,
+    "transportQuantity": 100,
+    "unit": "个",
+    "ownerEntId": "2043689390663823361",
+    "carrierEntId": "2043693246546210818",
+    "sourceWhId": "3",
+    "targetWhId": "5",
+    "targetReceiptId": null,
+    "driverId": "D001",
+    "driverName": "张三",
+    "vehicleNo": "粤B12345",
+    "authCode": "PYVRLCTR",
+    "pickupQrCode": "eyJ2b3VjaGVyTm8iOiJEUERPMjAyNjA0MjA5Q0EyODRDNyIsImV4cGlyZXMiOjE3NzcyODEyMTU5ODIsImF1dGhDb2RlIjoiUFlWUkxDVFIiLCJkcml2ZXJJZCI6IkQwMDEiLCJ0aW1lc3RhbXAiOjE3NzY2NzY0MTU5ODJ9",
+    "authSignature": null,
+    "status": 3,
+    "validUntil": "2026-04-27T17:03:15",
+    "chainTxHash": "0x6dfdfce42be353cc211727342421b21bf1bd7f140361238924f239d482a77aee",
+    "remark": null,
+    "createTime": "2026-04-20T17:03:15",
+    "updateTime": "2026-04-20T17:03:15",
+    "valid": true,
+    "invalid": false,
+    "businessSceneDesc": "直接移库",
+    "statusDesc": "运输中",
+    "pending": false,
+    "inTransit": true,
+    "delivered": false
+  },
+  "timestamp": "1776681995463",
+  "txHash": null,
+  "errorStack": null
+}
+curl -X 'POST' \
+  'http://localhost:8084/api/v1/logistics/arrive' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiRU5URVJQUklTRSIsImVudElkIjoiMjA0MzY5MjgzODkzNTM1OTQ5MCIsImVudFJvbGUiOjksInNjb3BlIjo1LCJ0b2tlblR5cGUiOiJhY2Nlc3MiLCJqdGkiOiIxYTEzYzI2Yi1mNzYxLTQ3NTUtODcxNi0wMGRhMWRmNmE2MjciLCJzdWIiOiIyMDQzNjkyODM4OTM1MzU5NDkwIiwiaWF0IjoxNzc2NTI4MTMxLCJleHAiOjE3NzY1MzUzMzF9.p-DI0J7lhUtO1wANe6ICLuCIpwOUFtBZIGv6S_orrg94KgN6fGlzgj7JznqcuuT_4ThlUD9h9Wn25Tg_vIO2JQ' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "voucherNo": "DPDO20260418697B0A32"
+}'
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "id": "4",
+    "voucherNo": "DPDO20260418697B0A32",
+    "businessScene": 1,
+    "receiptId": "2042829397927989255",
+    "endorseId": null,
+    "transportQuantity": 100,
+    "unit": "个",
+    "ownerEntId": "2043689390663823361",
+    "carrierEntId": "2043693246546210818",
+    "sourceWhId": "3",
+    "targetWhId": "5",
+    "actionOnArrival": 1,
+    "targetReceiptId": "2042829218189479948",
+    "driverId": "D001",
+    "driverName": "张三",
+    "vehicleNo": "粤B12345",
+    "authCode": "THX9A6EK",
+    "pickupQrCode": "eyJ2b3VjaGVyTm8iOiJEUERPMjAyNjA0MTg2OTdCMEEzMiIsImV4cGlyZXMiOjE3NzcxMTAzMTM5NTksImF1dGhDb2RlIjoiVEhYOUE2RUsiLCJkcml2ZXJJZCI6IkQwMDEiLCJ0aW1lc3RhbXAiOjE3NzY1MDU1MTM5NTl9",
+    "authSignature": null,
+    "status": 3,
+    "validUntil": "2026-04-25T17:18:03",
+    "chainTxHash": null,
+    "remark": "arrive_records=[{\"warehouseId\":5,\"weight\":100.0000,\"unit\":\"个\"}]",
+    "createTime": "2026-04-18T17:18:03",
+    "updateTime": "2026-04-19T00:04:09",
+    "valid": true,
+    "invalid": false,
+    "businessSceneDesc": "直接移库",
+    "pending": false,
+    "inTransit": true,
+    "delivered": false,
+    "statusDesc": "运输中"
+  },
+  "timestamp": "1776528253108",
+  "txHash": null,
+  "errorStack": null
+}

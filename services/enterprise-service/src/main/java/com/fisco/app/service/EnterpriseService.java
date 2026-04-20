@@ -64,6 +64,14 @@ public interface EnterpriseService {
     boolean isFinancialInstitution(Long entId);
 
     /**
+     * 验证企业是否为物流企业
+     *
+     * @param entId 企业ID
+     * @return true=是物流企业(entRole=12), false=否
+     */
+    boolean isLogisticsEnterprise(Long entId);
+
+    /**
      * 根据用户名查询企业
      *
      * @param username 用户名

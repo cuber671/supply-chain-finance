@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fisco.app.feign.BlockchainFeignClient;
 import com.fisco.app.feign.CreditFeignClient;
+import com.fisco.app.feign.EnterpriseFeignClient;
 import com.fisco.app.entity.LogisticsAssignHistory;
 import com.fisco.app.entity.LogisticsDeviationCreditRecord;
 import com.fisco.app.entity.LogisticsDelegate;
@@ -61,6 +62,9 @@ public class LogisticsServiceImpl implements LogisticsService {
     private CreditFeignClient creditFeignClient;
 
     @Autowired(required = false)
+    private EnterpriseFeignClient enterpriseFeignClient;
+
+    @Autowired(required = false)
     private LogisticsDeviationDetector logisticsDeviationDetector;
 
     private static final DateTimeFormatter VOUCHER_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd");
@@ -76,7 +80,7 @@ public class LogisticsServiceImpl implements LogisticsService {
         delegate.setStatus(LogisticsDelegate.STATUS_PENDING);
 
         validateBusinessScene(delegate);
-        validateWarehouseOwnership(delegate);
+        validateCarrierIsLogisticsEnterprise(delegate.getCarrierEntId(), delegate.getVoucherNo());
 
         switch (delegate.getBusinessScene()) {
             case LogisticsDelegate.SCENE_DIRECT_TRANSFER:
@@ -143,15 +147,15 @@ public class LogisticsServiceImpl implements LogisticsService {
                 }
             } catch (Exception e) {
                 logger.error("物流委派单上链失败: voucherNo={}", voucherNo, e);
-                // 区块链失败时，直接移库场景需解锁仓单作为补偿
+                // 区块链失败时，直接移库场景需清除待物流状态作为补偿
                 if (delegate.getBusinessScene() == LogisticsDelegate.SCENE_DIRECT_TRANSFER
                     && delegate.getReceiptId() != null && warehouseFeignClient != null) {
                     try {
-                        warehouseFeignClient.unlockReceipt(delegate.getReceiptId());
-                        logger.warn("区块链失败已补偿解锁仓单: receiptId={}, voucherNo={}",
+                        warehouseFeignClient.clearWaitLogistics(delegate.getReceiptId());
+                        logger.warn("区块链失败已补偿清除待物流状态: receiptId={}, voucherNo={}",
                             delegate.getReceiptId(), voucherNo);
                     } catch (Exception unlockEx) {
-                        logger.error("仓单解锁补偿失败，需要人工干预: receiptId={}, voucherNo={}",
+                        logger.error("仓单待物流状态清除补偿失败，需要人工干预: receiptId={}, voucherNo={}",
                             delegate.getReceiptId(), voucherNo, unlockEx);
                     }
                 }
@@ -178,14 +182,14 @@ public class LogisticsServiceImpl implements LogisticsService {
                 "仓单服务不可用，无法执行直接移库操作。请确保仓库服务已启动。");
         }
 
-        try {
-            Map<String, String> params = new HashMap<>();
-            params.put("loanId", "LOGISTICS_LOCK_" + delegate.getVoucherNo());
-            params.put("voucherNo", delegate.getVoucherNo());
-            params.put("sourceWhId", String.valueOf(delegate.getSourceWhId()));
-            params.put("targetWhId", String.valueOf(delegate.getTargetWhId()));
+        // 校验仓单归属：receiptId 必须属于 ownerEntId
+        validateReceiptOwnership(delegate.getReceiptId(), delegate.getOwnerEntId(), delegate.getVoucherNo());
 
-            Map<String, Object> lockResult = warehouseFeignClient.lockReceipt(delegate.getReceiptId(), params);
+        // 校验运输数量不超过仓单总量
+        validateTransportQuantityAgainstReceipt(delegate.getReceiptId(), delegate.getTransportQuantity(), delegate.getVoucherNo());
+
+        try {
+            Map<String, Object> lockResult = warehouseFeignClient.markWaitLogistics(delegate.getReceiptId(), delegate.getVoucherNo());
 
             if (lockResult == null || lockResult.get("code") == null) {
                 throw new IllegalStateException("仓单服务响应异常");
@@ -196,15 +200,15 @@ public class LogisticsServiceImpl implements LogisticsService {
                 : Integer.parseInt(lockResult.get("code").toString());
 
             if (code != 0) {
-                throw new IllegalStateException("锁定仓单失败: " + lockResult.get("msg"));
+                throw new IllegalStateException("标记仓单为待物流失败: " + lockResult.get("msg"));
             }
 
-            logger.info("直接移库-仓单已锁定: receiptId={}, 锁定数量={}, result={}",
-                delegate.getReceiptId(), delegate.getTransportQuantity(), lockResult);
+            logger.info("直接移库-仓单已标记为待物流: receiptId={}, voucherNo={}, result={}",
+                delegate.getReceiptId(), delegate.getVoucherNo(), lockResult);
         } catch (Exception e) {
-            logger.error("直接移库-仓单锁定失败: receiptId={}, voucherNo={}",
+            logger.error("直接移库-仓单标记待物流失败: receiptId={}, voucherNo={}",
                 delegate.getReceiptId(), delegate.getVoucherNo(), e);
-            throw new IllegalStateException("仓单锁定失败，无法创建直接移库委派单: " + e.getMessage());
+            throw new IllegalStateException("仓单标记待物流失败，无法创建直接移库委派单: " + e.getMessage());
         }
     }
 
@@ -220,6 +224,123 @@ public class LogisticsServiceImpl implements LogisticsService {
         validateTargetWarehouseOwnership(delegate);
 
         logger.info("转让后移库-背书关联: endorseId={}, targetWhId={}", delegate.getEndorseId(), delegate.getTargetWhId());
+    }
+
+    /**
+     * 校验仓单归属
+     * 确保 receiptId 属于当前企业（ownerEntId），防止越权操作他人仓单
+     */
+    private void validateReceiptOwnership(Long receiptId, Long ownerEntId, String voucherNo) {
+        if (receiptId == null || warehouseFeignClient == null) {
+            return;
+        }
+
+        try {
+            Map<String, Object> receiptResult = warehouseFeignClient.getReceiptById(receiptId);
+            if (receiptResult == null || receiptResult.isEmpty()) {
+                throw new IllegalArgumentException("仓单不存在: receiptId=" + receiptId);
+            }
+
+            Object codeObj = receiptResult.get("code");
+            if (codeObj instanceof Integer && (Integer) codeObj != 0) {
+                throw new IllegalArgumentException("仓单查询失败: receiptId=" + receiptId + ", code=" + codeObj);
+            }
+
+            Object dataObj = receiptResult.get("data");
+            if (!(dataObj instanceof Map)) {
+                throw new IllegalArgumentException("仓单数据格式不正确: receiptId=" + receiptId);
+            }
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> data = (Map<String, Object>) dataObj;
+            Object receiptOwnerEntIdObj = data.get("ownerEntId");
+            if (receiptOwnerEntIdObj == null) {
+                throw new IllegalArgumentException("仓单信息缺少ownerEntId字段: receiptId=" + receiptId);
+            }
+
+            Long receiptOwnerEntId;
+            if (receiptOwnerEntIdObj instanceof Integer) {
+                receiptOwnerEntId = ((Integer) receiptOwnerEntIdObj).longValue();
+            } else if (receiptOwnerEntIdObj instanceof Long) {
+                receiptOwnerEntId = (Long) receiptOwnerEntIdObj;
+            } else {
+                receiptOwnerEntId = Long.parseLong(receiptOwnerEntIdObj.toString());
+            }
+
+            if (!receiptOwnerEntId.equals(ownerEntId)) {
+                throw new IllegalArgumentException(
+                    "仓单不属于当前企业，无法创建物流委派单。" +
+                    "仓单归属企业ID=" + receiptOwnerEntId + ", 当前企业ID=" + ownerEntId +
+                    (voucherNo != null ? ", voucherNo=" + voucherNo : ""));
+            }
+
+            logger.debug("仓单归属校验通过: receiptId={}, ownerEntId={}", receiptId, ownerEntId);
+
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Exception e) {
+            logger.error("仓单归属校验异常: receiptId={}", receiptId, e);
+            throw new IllegalStateException("仓单归属校验失败，请稍后重试", e);
+        }
+    }
+
+    /**
+     * 校验运输数量不超过仓单总量
+     * 防止部分出货场景下传入超出实际库存的数量
+     */
+    private void validateTransportQuantityAgainstReceipt(Long receiptId, BigDecimal transportQuantity, String voucherNo) {
+        if (receiptId == null || transportQuantity == null || warehouseFeignClient == null) {
+            return;
+        }
+
+        try {
+            Map<String, Object> receiptResult = warehouseFeignClient.getReceiptById(receiptId);
+            if (receiptResult == null || receiptResult.isEmpty()) {
+                throw new IllegalArgumentException("仓单不存在: receiptId=" + receiptId);
+            }
+
+            Object codeObj = receiptResult.get("code");
+            if (codeObj instanceof Integer && (Integer) codeObj != 0) {
+                throw new IllegalArgumentException("仓单查询失败: receiptId=" + receiptId + ", code=" + codeObj);
+            }
+
+            Object dataObj = receiptResult.get("data");
+            if (!(dataObj instanceof Map)) {
+                throw new IllegalArgumentException("仓单数据格式不正确: receiptId=" + receiptId);
+            }
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> data = (Map<String, Object>) dataObj;
+            Object weightObj = data.get("weight");
+            if (weightObj == null) {
+                throw new IllegalArgumentException("仓单信息缺少weight字段: receiptId=" + receiptId);
+            }
+
+            BigDecimal receiptWeight;
+            if (weightObj instanceof BigDecimal) {
+                receiptWeight = (BigDecimal) weightObj;
+            } else if (weightObj instanceof Number) {
+                receiptWeight = new BigDecimal(weightObj.toString());
+            } else {
+                receiptWeight = new BigDecimal(weightObj.toString());
+            }
+
+            if (transportQuantity.compareTo(receiptWeight) > 0) {
+                throw new IllegalArgumentException(
+                    "运输数量超过仓单总量，无法创建物流委派单。" +
+                    "运输数量=" + transportQuantity + ", 仓单总量=" + receiptWeight +
+                    (voucherNo != null ? ", voucherNo=" + voucherNo : ""));
+            }
+
+            logger.debug("运输数量校验通过: receiptId={}, transportQuantity={}, receiptWeight={}",
+                receiptId, transportQuantity, receiptWeight);
+
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Exception e) {
+            logger.error("运输数量校验异常: receiptId={}", receiptId, e);
+            throw new IllegalStateException("运输数量校验失败，请稍后重试", e);
+        }
     }
 
     /**
@@ -278,12 +399,46 @@ public class LogisticsServiceImpl implements LogisticsService {
         if (delegate.getTargetWhId() == null) {
             throw new IllegalArgumentException("发货入库场景必须指定入库仓库");
         }
+        // 校验目标仓库归属：必须属于当前企业
+        validateTargetWarehouseOwnership(delegate);
         // 发货入库场景没有源仓库，设置默认值为0
         if (delegate.getSourceWhId() == null) {
             delegate.setSourceWhId(0L);
         }
         logger.info("发货入库-创建委派单: voucherNo={}, targetWhId={}",
             delegate.getVoucherNo(), delegate.getTargetWhId());
+    }
+
+    /**
+     * 校验承运企业是否为物流企业
+     * 确保 carrierEntId 是物流企业（entRole=12），防止假冒物流企业接单
+     */
+    private void validateCarrierIsLogisticsEnterprise(Long carrierEntId, String voucherNo) {
+        if (carrierEntId == null || enterpriseFeignClient == null) {
+            return;
+        }
+
+        try {
+            var result = enterpriseFeignClient.isLogisticsEnterprise(carrierEntId);
+            if (result == null || result.getCode() == null) {
+                throw new IllegalStateException("企业服务响应异常");
+            }
+
+            if (result.getCode() == 0 && result.getData() != null && !result.getData()) {
+                throw new IllegalArgumentException(
+                    "承运企业不是物流企业，无法创建物流委派单。" +
+                    "carrierEntId=" + carrierEntId +
+                    (voucherNo != null ? ", voucherNo=" + voucherNo : ""));
+            }
+
+            logger.debug("承运企业物流资质校验通过: carrierEntId={}", carrierEntId);
+
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Exception e) {
+            logger.error("承运企业物流资质校验异常: carrierEntId={}", carrierEntId, e);
+            throw new IllegalStateException("承运企业资质校验失败，请稍后重试", e);
+        }
     }
 
     private void validateBusinessScene(LogisticsDelegate delegate) {
@@ -305,80 +460,6 @@ public class LogisticsServiceImpl implements LogisticsService {
                 break;
             default:
                 throw new IllegalArgumentException("无效的业务场景: " + delegate.getBusinessScene());
-        }
-    }
-
-    /**
-     * 校验起运地仓库归属
-     * 确保sourceWhId属于当前企业，防止越权操作
-     *
-     * 【P2-1修复】仓库归属校验不匹配时应阻断流程，而非仅警告
-     */
-    private void validateWarehouseOwnership(LogisticsDelegate delegate) {
-        if (delegate.getSourceWhId() == null) {
-            return;
-        }
-
-        if (warehouseFeignClient == null) {
-            throw new IllegalStateException(
-                "仓单服务不可用，无法验证仓库归属。请确保仓库服务已启动。");
-        }
-
-        try {
-            Map<String, Object> warehouse = warehouseFeignClient.getWarehouseById(delegate.getSourceWhId());
-            if (warehouse == null || warehouse.isEmpty()) {
-                throw new IllegalArgumentException("起运地仓库不存在: warehouseId=" + delegate.getSourceWhId());
-            }
-
-            // 检查返回结果是否表示成功
-            Object codeObj = warehouse.get("code");
-            if (codeObj instanceof Integer && (Integer) codeObj != 0) {
-                throw new IllegalArgumentException("仓库查询失败: warehouseId=" + delegate.getSourceWhId() + ", code=" + codeObj);
-            }
-
-            // 获取仓库所属企业ID (entId在data对象内)
-            Object dataObj = warehouse.get("data");
-            if (!(dataObj instanceof Map)) {
-                throw new IllegalArgumentException("仓库数据格式不正确: warehouseId=" + delegate.getSourceWhId());
-            }
-            Map<?, ?> rawData = (Map<?, ?>) dataObj;
-            Map<String, Object> data = new java.util.HashMap<>();
-            for (Map.Entry<?, ?> entry : rawData.entrySet()) {
-                if (entry.getKey() instanceof String) {
-                    data.put((String) entry.getKey(), entry.getValue());
-                }
-            }
-            if (data.isEmpty()) {
-                throw new IllegalArgumentException("仓库数据为空: warehouseId=" + delegate.getSourceWhId());
-            }
-            Object warehouseEntIdObj = data.get("entId");
-            if (warehouseEntIdObj == null) {
-                throw new IllegalArgumentException("仓库信息缺少entId字段: warehouseId=" + delegate.getSourceWhId());
-            }
-
-            Long warehouseEntId;
-            if (warehouseEntIdObj instanceof Integer) {
-                warehouseEntId = ((Integer) warehouseEntIdObj).longValue();
-            } else if (warehouseEntIdObj instanceof Long) {
-                warehouseEntId = (Long) warehouseEntIdObj;
-            } else {
-                warehouseEntId = Long.parseLong(warehouseEntIdObj.toString());
-            }
-
-            // 【P2-1修复】归属不匹配时阻断，而非仅警告
-            if (!warehouseEntId.equals(delegate.getOwnerEntId())) {
-                throw new IllegalArgumentException(
-                    "起运地仓库不属于当前企业，无法创建物流委派单。" +
-                    "仓库归属企业ID=" + warehouseEntId + ", 当前企业ID=" + delegate.getOwnerEntId());
-            }
-
-            logger.debug("仓库归属校验通过: sourceWhId={}, ownerEntId={}", delegate.getSourceWhId(), delegate.getOwnerEntId());
-
-        } catch (IllegalArgumentException e) {
-            throw e;
-        } catch (Exception e) {
-            logger.error("仓库归属校验异常: warehouseId={}", delegate.getSourceWhId(), e);
-            throw new IllegalStateException("仓库归属校验失败，请稍后重试", e);
         }
     }
 
@@ -466,6 +547,29 @@ public class LogisticsServiceImpl implements LogisticsService {
 
         delegateMapper.updateById(delegate);
 
+        // 【修复】调用区块链更新物流委派单状态为已指派
+        if (blockchainFeignClient != null) {
+            try {
+                BlockchainFeignClient.LogisticsAssignCarrierRequest request =
+                        new BlockchainFeignClient.LogisticsAssignCarrierRequest();
+                request.setVoucherNo(voucherNo);
+                request.setCarrierHash(delegate.getCarrierEntId() != null
+                        ? delegate.getCarrierEntId().toString() : null);
+                var result = blockchainFeignClient.assignCarrier(request);
+                if (result == null || result.getCode() != 0) {
+                    String errMsg = "物流委派单区块链指派失败: voucherNo=" + voucherNo + ", result=" + result;
+                    logger.error(errMsg);
+                    throw new RuntimeException(errMsg);
+                }
+                logger.info("物流委派单区块链指派成功: voucherNo={}, result={}", voucherNo, result);
+            } catch (Exception e) {
+                logger.error("物流委派单区块链指派异常: voucherNo={}", voucherNo, e);
+                throw new RuntimeException("物流委派单区块链指派失败: " + e.getMessage(), e);
+            }
+        } else {
+            logger.warn("区块链网关服务不可用，跳过链上指派状态更新: voucherNo={}", voucherNo);
+        }
+
         // 【P2-4修复】记录指派历史
         if (assignHistoryMapper != null) {
             LogisticsAssignHistory history = new LogisticsAssignHistory();
@@ -480,6 +584,17 @@ public class LogisticsServiceImpl implements LogisticsService {
             assignHistoryMapper.insert(history);
             logger.info("指派历史已记录: voucherNo={}, assignType={}, driverId={}",
                 voucherNo, history.getAssignTypeDesc(), driverId);
+        }
+
+        // 更新仓单备注，记录承运信息
+        if (delegate.getReceiptId() != null && warehouseFeignClient != null) {
+            String remark = "物流委派单创建中: " + voucherNo + ", 承运司机: " + driverName + ", 车牌: " + vehicleNo;
+            try {
+                warehouseFeignClient.updateReceiptRemark(delegate.getReceiptId(), remark);
+                logger.info("仓单备注已更新: receiptId={}, remark={}", delegate.getReceiptId(), remark);
+            } catch (Exception e) {
+                logger.warn("仓单备注更新失败，不阻断指派流程: receiptId={}, error={}", delegate.getReceiptId(), e.getMessage());
+            }
         }
 
         logger.info("物流指派任务成功: voucherNo={}, driver={}, vehicleNo={}", voucherNo, driverName, vehicleNo);
@@ -509,8 +624,62 @@ public class LogisticsServiceImpl implements LogisticsService {
             throw new IllegalArgumentException("授权码错误");
         }
 
+        // 更新委派单状态
         delegate.setStatus(LogisticsDelegate.STATUS_IN_TRANSIT);
         delegateMapper.updateById(delegate);
+
+        // 【新增】更新原入库单状态为"转运中"
+        if (warehouseFeignClient != null && delegate.getReceiptId() != null) {
+            try {
+                // 获取原仓单关联的入库单
+                var receiptResult = warehouseFeignClient.getReceiptById(delegate.getReceiptId());
+                if (receiptResult != null && receiptResult.get("data") != null) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> receiptData = (Map<String, Object>) receiptResult.get("data");
+                    Object stockOrderIdObj = receiptData.get("stockOrderId");
+                    if (stockOrderIdObj != null) {
+                        Long stockOrderId = Long.parseLong(stockOrderIdObj.toString());
+                        // 更新入库单状态为"转运中"
+                        warehouseFeignClient.updateStockOrderStatus(stockOrderId,
+                            5, // StockOrder.STATUS_IN_TRANSIT
+                            "pickup-转运中: " + voucherNo);
+                        logger.info("提货确认-原入库单标记为转运中: stockOrderId={}, voucherNo={}", stockOrderId, voucherNo);
+                    }
+                }
+            } catch (Exception e) {
+                logger.warn("更新原入库单状态失败: voucherNo={}, error={}", voucherNo, e.getMessage());
+            }
+        }
+
+        // 【新增】调用仓单服务将区块链状态设为InTransit
+        if (warehouseFeignClient != null && delegate.getReceiptId() != null) {
+            try {
+                warehouseFeignClient.setInTransit(delegate.getReceiptId());
+                logger.info("提货确认-仓单区块链状态已设为InTransit: receiptId={}, voucherNo={}", delegate.getReceiptId(), voucherNo);
+            } catch (Exception e) {
+                logger.warn("仓单区块链设置InTransit失败，将继续执行: receiptId={}, voucherNo={}, error={}", delegate.getReceiptId(), voucherNo, e.getMessage());
+            }
+        }
+
+        // 【新增】调用区块链更新物流委派单状态为运输中
+        if (blockchainFeignClient != null) {
+            try {
+                BlockchainFeignClient.LogisticsPickupRequest request =
+                        new BlockchainFeignClient.LogisticsPickupRequest();
+                request.setVoucherNo(voucherNo);
+                request.setQuantity(delegate.getTransportQuantity() != null
+                        ? delegate.getTransportQuantity().longValue() : null);
+                var result = blockchainFeignClient.pickup(request);
+                if (result == null || result.getCode() != 0) {
+                    logger.warn("物流区块链pickup失败，将继续执行: voucherNo={}, result={}", voucherNo, result);
+                } else {
+                    logger.info("物流区块链pickup成功: voucherNo={}, txHash={}", voucherNo, result.getData());
+                }
+            } catch (Exception e) {
+                logger.warn("物流区块链pickup异常，将继续执行: voucherNo={}, error={}", voucherNo, e.getMessage());
+            }
+        }
+
         logger.info("仓库提货确认成功: voucherNo={}", voucherNo);
 
         return delegate;
@@ -616,7 +785,7 @@ public class LogisticsServiceImpl implements LogisticsService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public LogisticsDelegate arrive(String voucherNo, Integer actionType, Long targetReceiptId) {
+    public LogisticsDelegate arrive(String voucherNo, Integer actionType, Long targetReceiptId, Long warehouseId, BigDecimal arrivedWeight) {
         LogisticsDelegate delegate = delegateMapper.selectByVoucherNo(voucherNo);
         if (delegate == null) {
             throw new IllegalArgumentException("委派单不存在: " + voucherNo);
@@ -626,151 +795,228 @@ public class LogisticsServiceImpl implements LogisticsService {
             throw new IllegalArgumentException("当前状态不允许到货操作，当前状态: " + delegate.getStatusDesc());
         }
 
-        // 调用仓单服务创建或合并仓单
+        // 使用默认值：warehouseId 未传则从委派单获取
+        // 注意：arrivedWeight 不再提供默认值，由原始仓单重量判断全量/部分交付
+        if (warehouseId == null) {
+            warehouseId = delegate.getTargetWhId();
+            logger.info("warehouseId未传，使用委派单默认值: targetWhId={}", warehouseId);
+        }
+        // arrivedWeight 如果未传，默认使用 transportQuantity（用于入库申请）
+
+        // 自动判断 actionType：到货重量 == 原始仓单重量 → 全量交付(1)，否则 → 部分交付(2)
+        // 注意：使用原始仓单重量判断，而非 transportQuantity，因为委派单可能只运输部分货物
+
+        // 调用仓单服务申请入库（标准流程：申请入库 → 仓库确认 → 签发仓单）
+        // 注意：delegate.receiptId 保持为原始仓单ID，供后续 confirmDelivery 使用
+        if (delegate.getTargetWhId() == null) {
+            throw new IllegalArgumentException("目标仓库不能为空");
+        }
+        if (delegate.getTransportQuantity() == null) {
+            throw new IllegalArgumentException("运输数量不能为空");
+        }
+
+        if (warehouseFeignClient == null) {
+            throw new IllegalStateException("仓单服务不可用，无法执行入库申请");
+        }
+
+        // 获取目标仓库信息（需要 warehouseEntId）
+        Map<String, Object> warehouseResult = warehouseFeignClient.getWarehouseById(delegate.getTargetWhId());
+        if (warehouseResult == null || warehouseResult.get("code") == null) {
+            throw new RuntimeException("获取仓库信息失败");
+        }
+        Integer whCode = warehouseResult.get("code") instanceof Integer
+            ? (Integer) warehouseResult.get("code")
+            : Integer.parseInt(warehouseResult.get("code").toString());
+        if (whCode != 0) {
+            throw new RuntimeException("仓库不存在: " + warehouseResult.get("msg"));
+        }
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> warehouseData = (Map<String, Object>) warehouseResult.get("data");
+        Long warehouseEntId = Long.parseLong(warehouseData.get("entId").toString());
+
+        // 获取货物信息（从原始仓单获取，用于入库申请）
+        String goodsName = null;
+        if (delegate.getReceiptId() != null) {
+            // 直接转运场景：从原始仓单获取货物信息
+            Map<String, Object> receiptResult = warehouseFeignClient.getReceiptById(delegate.getReceiptId());
+            if (receiptResult != null && receiptResult.get("code") != null) {
+                Integer rc = receiptResult.get("code") instanceof Integer
+                    ? (Integer) receiptResult.get("code")
+                    : Integer.parseInt(receiptResult.get("code").toString());
+                if (rc == 0) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> receiptData = (Map<String, Object>) receiptResult.get("data");
+                    goodsName = (String) receiptData.get("goodsName");
+                    logger.info("到货入库申请: voucherNo={}, goodsName={}, warehouseEntId={}",
+                        voucherNo, goodsName, warehouseEntId);
+                }
+            }
+        }
+
+        // 获取原始仓单重量（用于判断全量/部分交付）
+        BigDecimal originalWeight = null;
+        if (delegate.getReceiptId() != null) {
+            Map<String, Object> receiptResult = warehouseFeignClient.getReceiptById(delegate.getReceiptId());
+            if (receiptResult != null && receiptResult.get("code") != null) {
+                Integer rc = receiptResult.get("code") instanceof Integer
+                    ? (Integer) receiptResult.get("code")
+                    : Integer.parseInt(receiptResult.get("code").toString());
+                if (rc == 0) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> receiptData = (Map<String, Object>) receiptResult.get("data");
+                    Object weightObj = receiptData.get("weight");
+                    if (weightObj != null) {
+                        originalWeight = new BigDecimal(weightObj.toString());
+                    }
+                    logger.info("获取原始仓单信息: receiptId={}, weight={}", delegate.getReceiptId(), originalWeight);
+                }
+            }
+        }
+
+        if (goodsName == null) {
+            throw new IllegalStateException("无法获取货物名称，请检查委派单关联的原始仓单");
+        }
+
+        // arrivedWeight 如果未传，默认使用 transportQuantity（用于入库申请）
+        if (arrivedWeight == null) {
+            arrivedWeight = delegate.getTransportQuantity();
+            logger.info("arrivedWeight未传，使用委派单的运输数量: transportQuantity={}", arrivedWeight);
+        }
+
+        // 自动判断 actionType：到货重量 == 原始仓单重量 → 全量交付(1)，否则 → 部分交付(2)
+        // 注意：使用原始仓单重量判断，而非 transportQuantity
+        if (actionType == null) {
+            if (originalWeight != null && arrivedWeight != null
+                && arrivedWeight.compareTo(originalWeight) == 0) {
+                actionType = LogisticsDelegate.ACTION_CREATE_NEW_RECEIPT; // 1
+                logger.info("自动判断actionType为全量交付: voucherNo={}, arrivedWeight={}, originalWeight={}",
+                    voucherNo, arrivedWeight, originalWeight);
+            } else {
+                actionType = LogisticsDelegate.ACTION_MERGE_EXISTING_RECEIPT; // 2
+                logger.info("自动判断actionType为部分交付: voucherNo={}, arrivedWeight={}, originalWeight={}",
+                    voucherNo, arrivedWeight, originalWeight);
+            }
+        }
+
+        // 【修改后】arrive：只为全量交付创建入库单，部分交付不创建
+        // 原入库单状态更新移至 confirmDelivery（全量交付时）
         if (actionType == LogisticsDelegate.ACTION_CREATE_NEW_RECEIPT) {
-            // 验证必要字段
-            if (delegate.getTargetWhId() == null) {
-                throw new IllegalArgumentException("创建新仓单时目标仓库不能为空");
-            }
-            if (delegate.getTransportQuantity() == null) {
-                throw new IllegalArgumentException("创建新仓单时运输数量不能为空");
-            }
-
-            if (warehouseFeignClient == null) {
-                throw new IllegalStateException("仓单服务不可用，无法创建新仓单");
-            }
-
-            // 调用仓单服务创建新仓单（物流直接入库接口）
-            Map<String, Object> mintParams = new HashMap<>();
-            mintParams.put("logisticsVoucherNo", voucherNo);
-            mintParams.put("warehouseId", delegate.getTargetWhId());
-            mintParams.put("transportQuantity", delegate.getTransportQuantity());
-            mintParams.put("unit", delegate.getUnit());
-            mintParams.put("ownerEntId", delegate.getOwnerEntId());
+            // 全量交付：创建已确认状态的入库单（不签发仓单）
+            Map<String, Object> stockInParams = new HashMap<>();
+            stockInParams.put("warehouseEntId", warehouseEntId);
+            stockInParams.put("goodsName", goodsName);
+            stockInParams.put("weight", arrivedWeight);
+            stockInParams.put("unit", delegate.getUnit());
 
             try {
-                Map<String, Object> mintResult = warehouseFeignClient.mintDirectReceipt(mintParams);
-                if (mintResult == null || mintResult.get("code") == null) {
-                    throw new RuntimeException("仓单服务响应异常");
-                }
-                Integer code = mintResult.get("code") instanceof Integer
-                    ? (Integer) mintResult.get("code")
-                    : Integer.parseInt(mintResult.get("code").toString());
-                if (code != 0) {
-                    throw new RuntimeException("创建仓单失败: " + mintResult.get("msg"));
-                }
-                logger.info("到货生成新仓单: voucherNo={}, targetWhId={}, result={}",
-                    voucherNo, delegate.getTargetWhId(), mintResult);
+                Map<String, Object> stockInResult;
+                stockInResult = warehouseFeignClient.createStockInConfirmed(stockInParams, warehouseId);
+                logger.info("到货入库（创建已确认入库单）: voucherNo={}, warehouseId={}, actionType={}",
+                    voucherNo, warehouseId, actionType);
 
-                // 【P0-新问题修复】提取 mintResult 中的 receiptId 并设置到 delegate
-                Object receiptIdObj = mintResult.get("data");
-                if (receiptIdObj != null) {
-                    Long newReceiptId = Long.parseLong(receiptIdObj.toString());
-                    delegate.setReceiptId(newReceiptId);
-                    logger.info("到货生成新仓单ID: receiptId={}", newReceiptId);
+                if (stockInResult == null || stockInResult.get("code") == null) {
+                    throw new RuntimeException("入库申请服务响应异常");
+                }
+                Integer code = stockInResult.get("code") instanceof Integer
+                    ? (Integer) stockInResult.get("code")
+                    : Integer.parseInt(stockInResult.get("code").toString());
+                if (code != 0) {
+                    throw new RuntimeException("创建入库单失败: " + stockInResult.get("msg"));
+                }
+
+                // 返回的是 stockOrderId，不是 receiptId
+                Object stockOrderIdObj = stockInResult.get("data");
+                if (stockOrderIdObj != null) {
+                    Long stockOrderId = Long.parseLong(stockOrderIdObj.toString());
+                    delegate.setTargetReceiptId(stockOrderId);
+                    // 记录到 remark 供后续 confirmDelivery 使用
+                    String existingRemark = delegate.getRemark();
+                    String newRecord = "{\"stockOrderId\":" + stockOrderId + ",\"warehouseId\":" + warehouseId + ",\"weight\":" + arrivedWeight + ",\"unit\":\"" + delegate.getUnit() + "\"}";
+                    if (existingRemark == null || existingRemark.isEmpty()) {
+                        delegate.setRemark("arrive_records=[" + newRecord + "]");
+                    } else {
+                        if (existingRemark.contains("arrive_records=")) {
+                            int start = existingRemark.indexOf("arrive_records=[");
+                            String before = existingRemark.substring(0, start);
+                            String records = existingRemark.substring(start + "arrive_records=".length());
+                            delegate.setRemark(before + "arrive_records=[" + newRecord + "," + records.substring(1, records.length() - 1) + "]");
+                        } else {
+                            delegate.setRemark(existingRemark + ";arrive_records=[" + newRecord + "]");
+                        }
+                    }
+                    logger.info("到货入库处理完成（全量交付）: voucherNo={}, stockOrderId={}, actionType={}",
+                        voucherNo, stockOrderId, actionType);
                 }
             } catch (Exception e) {
-                logger.error("到货创建仓单失败: voucherNo={}", voucherNo, e);
-                throw new RuntimeException("创建仓单失败: " + e.getMessage(), e);
+                logger.error("到货入库失败: voucherNo={}, actionType={}", voucherNo, actionType, e);
+                throw new RuntimeException("入库申请失败: " + e.getMessage(), e);
             }
-
-        } else if (actionType == LogisticsDelegate.ACTION_MERGE_EXISTING_RECEIPT) {
-            if (targetReceiptId == null) {
-                throw new IllegalArgumentException("增量入库时必须指定目标仓单ID");
+        } else {
+            // 部分交付：仅记录到货信息到remark，不创建入库单
+            // 入库单由 confirmDelivery 调用仓单拆分时创建
+            String existingRemark = delegate.getRemark();
+            String newRecord = "{\"warehouseId\":" + warehouseId + ",\"weight\":" + arrivedWeight + ",\"unit\":\"" + delegate.getUnit() + "\"}";
+            if (existingRemark == null || existingRemark.isEmpty()) {
+                delegate.setRemark("arrive_records=[" + newRecord + "]");
+            } else {
+                if (existingRemark.contains("arrive_records=")) {
+                    int start = existingRemark.indexOf("arrive_records=[");
+                    String before = existingRemark.substring(0, start);
+                    String records = existingRemark.substring(start + "arrive_records=".length());
+                    delegate.setRemark(before + "arrive_records=[" + newRecord + "," + records.substring(1, records.length() - 1) + "]");
+                } else {
+                    delegate.setRemark(existingRemark + ";arrive_records=[" + newRecord + "]");
+                }
             }
-            if (warehouseFeignClient == null) {
-                throw new IllegalStateException("仓单服务不可用，无法合并仓单");
-            }
+            logger.info("部分交付仅记录到货信息: voucherNo={}, warehouseId={}, arrivedWeight={}", voucherNo, warehouseId, arrivedWeight);
+        }
 
-            // 调用仓单服务合并仓单
-            Map<String, Object> mergeParams = new HashMap<>();
-            mergeParams.put("receiptId", targetReceiptId);
-            mergeParams.put("logisticsVoucherNo", voucherNo);
-            mergeParams.put("additionalQuantity", delegate.getTransportQuantity());
-            mergeParams.put("unit", delegate.getUnit());
-
+        // 【修复P1-1】调用区块链更新物流委派单状态为已到达(4)
+        // confirmDelivery的合约要求物流状态必须为4，此处必须上链
+        if (blockchainFeignClient != null) {
             try {
-                // 检查 mergeReceipt 方法是否存在
-                Map<String, Object> mergeResult = warehouseFeignClient.mergeReceipt(mergeParams);
-                if (mergeResult == null || mergeResult.get("code") == null) {
-                    throw new RuntimeException("仓单服务响应异常");
+                if (actionType != null && actionType == LogisticsDelegate.ACTION_CREATE_NEW_RECEIPT) {
+                    // 全量交付：调用arriveAndCreateReceipt
+                    BlockchainFeignClient.LogisticsArriveCreateRequest request =
+                            new BlockchainFeignClient.LogisticsArriveCreateRequest();
+                    request.setVoucherNo(voucherNo);
+                    request.setNewReceiptId(delegate.getReceiptId() != null
+                            ? delegate.getReceiptId().toString() : "0");
+                    request.setWeight(arrivedWeight != null ? arrivedWeight.longValue() : 0L);
+                    request.setUnit(delegate.getUnit());
+                    request.setOwnerHash("0");  // 合约不使用此字段
+                    request.setWarehouseHash("0");  // 合约不使用此字段
+                    var result = blockchainFeignClient.arriveAndCreateReceipt(request);
+                    if (result == null || result.getCode() != 0) {
+                        logger.warn("物流区块链arriveAndCreateReceipt失败: voucherNo={}, result={}", voucherNo, result);
+                    } else {
+                        logger.info("物流区块链arriveAndCreateReceipt成功: voucherNo={}, txHash={}", voucherNo, result.getData());
+                    }
+                } else {
+                    // 部分交付：调用arriveAndAddQuantity
+                    BlockchainFeignClient.LogisticsArriveAddRequest request =
+                            new BlockchainFeignClient.LogisticsArriveAddRequest();
+                    request.setVoucherNo(voucherNo);
+                    request.setTargetReceiptId(delegate.getReceiptId() != null
+                            ? delegate.getReceiptId().toString() : "0");
+                    request.setQuantity(arrivedWeight != null ? arrivedWeight.longValue() : 0L);
+                    var result = blockchainFeignClient.arriveAndAddQuantity(request);
+                    if (result == null || result.getCode() != 0) {
+                        logger.warn("物流区块链arriveAndAddQuantity失败: voucherNo={}, result={}", voucherNo, result);
+                    } else {
+                        logger.info("物流区块链arriveAndAddQuantity成功: voucherNo={}, txHash={}", voucherNo, result.getData());
+                    }
                 }
-                Integer code = mergeResult.get("code") instanceof Integer
-                    ? (Integer) mergeResult.get("code")
-                    : Integer.parseInt(mergeResult.get("code").toString());
-                if (code != 0) {
-                    throw new RuntimeException("合并仓单失败: " + mergeResult.get("msg"));
-                }
-                logger.info("并入已有仓单: receiptId={}, 增加数量={}, result={}",
-                    targetReceiptId, delegate.getTransportQuantity(), mergeResult);
             } catch (Exception e) {
-                logger.error("并入仓单失败: receiptId={}, voucherNo={}", targetReceiptId, voucherNo, e);
-                throw new RuntimeException("合并仓单失败: " + e.getMessage(), e);
+                logger.error("物流区块链arrive调用异常: voucherNo={}, error={}", voucherNo, e.getMessage());
+                // 注意：此处不抛出异常，避免阻塞主流程，但会导致confirmDelivery区块链调用失败
             }
+        } else {
+            logger.warn("区块链网关服务不可用，arrive接口无法上链: voucherNo={}", voucherNo);
         }
 
-        // 【P1-3修复】到货入库必须上链存证
-        if (blockchainFeignClient == null) {
-            throw new IllegalStateException("区块链网关服务不可用，无法执行到货入库操作。请确保 fisco-gateway-service 已启动。");
-        }
-
-        try {
-            // 根据actionType调用对应的区块链接口
-            if (actionType == LogisticsDelegate.ACTION_CREATE_NEW_RECEIPT) {
-                BlockchainFeignClient.LogisticsArriveCreateRequest request =
-                    new BlockchainFeignClient.LogisticsArriveCreateRequest();
-                request.setVoucherNo(voucherNo);
-                // 【修复】设置 newReceiptId（合约参数虽不使用，但需非空）
-                request.setNewReceiptId("NEW_" + voucherNo);
-                request.setWeight(delegate.getTransportQuantity() != null
-                    ? delegate.getTransportQuantity().longValue() : 0L);
-                request.setUnit(delegate.getUnit());
-                // 【修复】提供默认值而非 null，防止 entityIdToBytes32 抛异常
-                request.setOwnerHash(delegate.getOwnerEntId() != null
-                    ? delegate.getOwnerEntId().toString() : "0");
-                request.setWarehouseHash(delegate.getTargetWhId() != null
-                    ? delegate.getTargetWhId().toString() : "0");
-
-                // 【新问题修复】添加result.getCode()检查
-                var result = blockchainFeignClient.arriveAndCreateReceipt(request);
-                if (result == null || result.getCode() != 0) {
-                    String errMsg = "到货入库（新建仓单）区块链失败: voucherNo=" + voucherNo + ", result=" + result;
-                    logger.error(errMsg);
-                    throw new RuntimeException(errMsg);
-                }
-                // 【新问题修复】保存txHash用于追溯
-                if (result.getData() != null) {
-                    delegate.setChainTxHash(result.getData());
-                }
-                logger.info("到货入库（新建仓单）上链成功: voucherNo={}, txHash={}", voucherNo, result.getData());
-            } else if (actionType == LogisticsDelegate.ACTION_MERGE_EXISTING_RECEIPT) {
-                BlockchainFeignClient.LogisticsArriveAddRequest request =
-                    new BlockchainFeignClient.LogisticsArriveAddRequest();
-                request.setVoucherNo(voucherNo);
-                request.setTargetReceiptId(targetReceiptId != null
-                    ? targetReceiptId.toString() : null);
-                request.setQuantity(delegate.getTransportQuantity() != null
-                    ? delegate.getTransportQuantity().longValue() : 0L);
-
-                // 【新问题修复】添加result.getCode()检查
-                var result = blockchainFeignClient.arriveAndAddQuantity(request);
-                if (result == null || result.getCode() != 0) {
-                    String errMsg = "到货入库（合并仓单）区块链失败: voucherNo=" + voucherNo + ", result=" + result;
-                    logger.error(errMsg);
-                    throw new RuntimeException(errMsg);
-                }
-                // 【新问题修复】保存txHash用于追溯
-                if (result.getData() != null) {
-                    delegate.setChainTxHash(result.getData());
-                }
-                logger.info("到货入库（合并仓单）上链成功: voucherNo={}, txHash={}", voucherNo, result.getData());
-            }
-        } catch (RuntimeException e) {
-            throw e;
-        } catch (Exception e) {
-            logger.error("到货入库上链失败: voucherNo={}", voucherNo, e);
-            throw new RuntimeException("区块链上链失败，到货入库操作已回滚", e);
-        }
+        // 注意：delegate.receiptId 保持为原始仓单ID，不在此处修改
 
         // 【P1-1修复】arrive只执行仓单创建/合并操作，保持IN_TRANSIT状态
         // 状态推进到DELIVERED由confirmDelivery方法负责，确保仓单解锁与货物到达一致
@@ -952,6 +1198,14 @@ public class LogisticsServiceImpl implements LogisticsService {
     // ==================== 物流追踪 ====================
 
     @Override
+    public Map<String, Object> getWarehouseById(Long warehouseId) {
+        if (warehouseFeignClient == null) {
+            throw new IllegalStateException("仓单服务不可用");
+        }
+        return warehouseFeignClient.getWarehouseById(warehouseId);
+    }
+
+    @Override
     public Map<String, Object> trackLogistics(String voucherNo) {
         LogisticsDelegate delegate = delegateMapper.selectByVoucherNo(voucherNo);
         if (delegate == null) {
@@ -1017,7 +1271,7 @@ public class LogisticsServiceImpl implements LogisticsService {
             throw new IllegalArgumentException("当前状态不允许确认交付: " + delegate.getStatusDesc());
         }
 
-        // 直接移库场景：到货后解锁仓单
+        // 直接移库场景：处理仓单操作
         if (delegate.getBusinessScene() == LogisticsDelegate.SCENE_DIRECT_TRANSFER) {
             if (delegate.getReceiptId() == null) {
                 throw new IllegalStateException("直接移库场景缺少关联仓单");
@@ -1027,18 +1281,163 @@ public class LogisticsServiceImpl implements LogisticsService {
                 throw new IllegalStateException("仓单服务不可用，无法完成交付确认");
             }
 
-            Map<String, Object> unlockResult = warehouseFeignClient.unlockReceipt(delegate.getReceiptId());
-            if (unlockResult == null || unlockResult.get("code") == null) {
-                throw new RuntimeException("仓单服务响应异常");
-            }
-            Integer code = unlockResult.get("code") instanceof Integer
-                ? (Integer) unlockResult.get("code")
-                : Integer.parseInt(unlockResult.get("code").toString());
-            if (code != 0) {
-                throw new RuntimeException("解锁仓单失败: " + unlockResult.get("msg"));
-            }
+            // 【新流程】全量交付与部分交付的处理
+            if (action != null && action == 2) {
+                // 【部分交付】action=2：
+                // - arrive时已记录到货信息到arrive_records
+                // - confirmDelivery时清除待物流状态，仓单从IN_TRANSIT恢复到IN_STOCK
+                // - 自动调用仓单拆分，将已到达货物拆分出来
+                Map<String, Object> unlockResult = warehouseFeignClient.clearWaitLogistics(delegate.getReceiptId());
+                if (unlockResult == null || unlockResult.get("code") == null) {
+                    throw new RuntimeException("仓单服务响应异常");
+                }
+                Integer code = unlockResult.get("code") instanceof Integer
+                    ? (Integer) unlockResult.get("code")
+                    : Integer.parseInt(unlockResult.get("code").toString());
+                if (code != 0) {
+                    throw new RuntimeException("清除仓单待物流状态失败: " + unlockResult.get("msg"));
+                }
+                logger.info("部分交付-仓单已清除待物流状态: receiptId={}, voucherNo={}", delegate.getReceiptId(), voucherNo);
 
-            logger.info("直接移库-仓单已解锁: receiptId={}, voucherNo={}", delegate.getReceiptId(), voucherNo);
+                // 【新增】自动执行仓单拆分
+                // 解析arrive_records获取已到达的仓库和重量
+                if (delegate.getRemark() != null && delegate.getRemark().contains("arrive_records=")) {
+                    try {
+                        String arriveRecords = delegate.getRemark();
+                        int start = arriveRecords.indexOf("arrive_records=[");
+                        int end = arriveRecords.indexOf("]", start);
+                        if (start >= 0 && end > start) {
+                            String recordsContent = arriveRecords.substring(start + "arrive_records=[".length(), end);
+                            // 解析最后一条记录（最新的到达记录）
+                            String lastRecord = recordsContent;
+                            if (recordsContent.contains("{")) {
+                                int lastBraceStart = recordsContent.lastIndexOf("{");
+                                lastRecord = recordsContent.substring(lastBraceStart);
+                            }
+                            // 简单解析JSON格式的记录
+                            Long arrivedWarehouseId = null;
+                            BigDecimal arrivedWeightVal = null;
+                            // 解析warehouseId
+                            int whIdStart = lastRecord.indexOf("\"warehouseId\":");
+                            if (whIdStart >= 0) {
+                                int valStart = lastRecord.indexOf(":", whIdStart) + 1;
+                                int valEnd = lastRecord.indexOf(",", valStart);
+                                if (valEnd < 0) valEnd = lastRecord.indexOf("}", valStart);
+                                arrivedWarehouseId = Long.parseLong(lastRecord.substring(valStart, valEnd).trim());
+                            }
+                            // 解析weight
+                            int weightStart = lastRecord.indexOf("\"weight\":");
+                            if (weightStart >= 0) {
+                                int valStart = lastRecord.indexOf(":", weightStart) + 1;
+                                int valEnd = lastRecord.indexOf(",", valStart);
+                                if (valEnd < 0) valEnd = lastRecord.indexOf("}", valStart);
+                                arrivedWeightVal = new BigDecimal(lastRecord.substring(valStart, valEnd).trim());
+                            }
+
+                            if (arrivedWarehouseId != null && arrivedWeightVal != null) {
+                                // 获取原仓单信息
+                                var origReceiptResult = warehouseFeignClient.getReceiptById(delegate.getReceiptId());
+                                if (origReceiptResult != null && origReceiptResult.get("data") != null) {
+                                    @SuppressWarnings("unchecked")
+                                    Map<String, Object> origReceiptData = (Map<String, Object>) origReceiptResult.get("data");
+                                    Object origWeightObj = origReceiptData.get("weight");
+                                    Object origWarehouseIdObj = origReceiptData.get("warehouseId");
+                                    if (origWeightObj != null) {
+                                        BigDecimal originalWeight = new BigDecimal(origWeightObj.toString());
+                                        BigDecimal remainingWeight = originalWeight.subtract(arrivedWeightVal);
+
+                                        if (remainingWeight.compareTo(BigDecimal.ZERO) > 0) {
+                                            // 需要拆分：已到达重量 + 剩余重量
+                                            java.util.Map<String, Object> splitParams = new java.util.HashMap<>();
+                                            splitParams.put("receiptId", delegate.getReceiptId());
+                                            // targetWeights: [已到达重量, 剩余重量]
+                                            splitParams.put("targetWeights", new BigDecimal[]{arrivedWeightVal, remainingWeight});
+                                            // warehouseIds: [到达仓库, 原仓库]
+                                            if (origWarehouseIdObj != null) {
+                                                Long originalWarehouseId = Long.parseLong(origWarehouseIdObj.toString());
+                                                splitParams.put("warehouseIds", new Long[]{arrivedWarehouseId, originalWarehouseId});
+                                            }
+                                            Map<String, Object> splitResult = warehouseFeignClient.applySplit(splitParams);
+                                            if (splitResult != null && "0".equals(String.valueOf(splitResult.get("code")))) {
+                                                logger.info("部分交付-自动拆分仓单成功: receiptId={}, arrivedWeight={}, remainingWeight={}, arrivedWhId={}, voucherNo={}",
+                                                        delegate.getReceiptId(), arrivedWeightVal, remainingWeight, arrivedWarehouseId, voucherNo);
+                                            } else {
+                                                logger.warn("部分交付-自动拆分仓单失败: receiptId={}, result={}, voucherNo={}",
+                                                        delegate.getReceiptId(), splitResult, voucherNo);
+                                            }
+                                        } else {
+                                            logger.info("部分交付-已全部到达无需拆分: receiptId={}, originalWeight={}, arrivedWeight={}, voucherNo={}",
+                                                    delegate.getReceiptId(), originalWeight, arrivedWeightVal, voucherNo);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } catch (Exception e) {
+                        logger.error("部分交付-解析arrive_records或拆分仓单异常: voucherNo={}, error={}", voucherNo, e.getMessage());
+                        // 不抛出异常，避免阻塞主流程
+                    }
+                }
+            } else {
+                // 【全量交付】action=1 或 action=null：
+                // 1. 获取原仓单信息
+                var receiptResult = warehouseFeignClient.getReceiptById(delegate.getReceiptId());
+                if (receiptResult == null || receiptResult.get("code") == null) {
+                    throw new RuntimeException("仓单服务响应异常");
+                }
+                Integer receiptCode = receiptResult.get("code") instanceof Integer
+                    ? (Integer) receiptResult.get("code")
+                    : Integer.parseInt(receiptResult.get("code").toString());
+                if (receiptCode != 0) {
+                    throw new RuntimeException("获取仓单信息失败: " + receiptResult.get("msg"));
+                }
+
+                @SuppressWarnings("unchecked")
+                Map<String, Object> receiptData = (Map<String, Object>) receiptResult.get("data");
+                Object stockOrderIdObj = receiptData.get("stockOrderId");
+
+                // 2. 废除原仓单（货主在WAIT_LOGISTICS状态可跳过FI校验）
+                var voidResult = warehouseFeignClient.voidReceipt(delegate.getReceiptId(), "direct_transfer_delivered");
+                if (voidResult == null || voidResult.get("code") == null) {
+                    throw new RuntimeException("仓单服务响应异常");
+                }
+                Integer voidCode = voidResult.get("code") instanceof Integer
+                    ? (Integer) voidResult.get("code")
+                    : Integer.parseInt(voidResult.get("code").toString());
+                if (voidCode != 0) {
+                    throw new RuntimeException("废除仓单失败: " + voidResult.get("msg"));
+                }
+                logger.info("全量交付-原仓单已废除: receiptId={}, voucherNo={}", delegate.getReceiptId(), voucherNo);
+
+                // 3. 核销原入库单
+                if (stockOrderIdObj != null) {
+                    Long originalStockOrderId = Long.parseLong(stockOrderIdObj.toString());
+                    var stockOrderResult = warehouseFeignClient.updateStockOrderStatus(originalStockOrderId, 6, "confirmDelivery-已核销: " + voucherNo);
+                    if (stockOrderResult == null || stockOrderResult.get("code") == null) {
+                        throw new RuntimeException("仓单服务响应异常");
+                    }
+                    Integer stockOrderCode = stockOrderResult.get("code") instanceof Integer
+                        ? (Integer) stockOrderResult.get("code")
+                        : Integer.parseInt(stockOrderResult.get("code").toString());
+                    if (stockOrderCode != 0) {
+                        throw new RuntimeException("核销入库单失败: " + stockOrderResult.get("msg"));
+                    }
+                    logger.info("全量交付-原入库单已核销: stockOrderId={}, voucherNo={}", originalStockOrderId, voucherNo);
+                }
+
+                // 4. 清除待物流状态
+                Map<String, Object> unlockResult = warehouseFeignClient.clearWaitLogistics(delegate.getReceiptId());
+                if (unlockResult == null || unlockResult.get("code") == null) {
+                    throw new RuntimeException("仓单服务响应异常");
+                }
+                Integer code = unlockResult.get("code") instanceof Integer
+                    ? (Integer) unlockResult.get("code")
+                    : Integer.parseInt(unlockResult.get("code").toString());
+                if (code != 0) {
+                    throw new RuntimeException("清除仓单待物流状态失败: " + unlockResult.get("msg"));
+                }
+                logger.info("全量交付-仓单已清除待物流状态: receiptId={}, voucherNo={}", delegate.getReceiptId(), voucherNo);
+            }
         }
 
         // 转让后移库场景：记录日志（背书转让由仓单服务处理）
@@ -1102,15 +1501,15 @@ public class LogisticsServiceImpl implements LogisticsService {
                 "当前货物正在运输中，禁止执行失效操作。请等待货物到达目的地后再尝试，或联系客服处理异常情况。");
         }
 
-        // 直接移库场景：必须先解锁仓单，否则仓单永久锁死
+        // 直接移库场景：必须先清除待物流状态，否则仓单永久阻塞
         if (delegate.getBusinessScene() == LogisticsDelegate.SCENE_DIRECT_TRANSFER
             && delegate.getReceiptId() != null) {
 
             if (warehouseFeignClient == null) {
-                throw new IllegalStateException("仓单服务不可用，无法解锁仓单，委派单无法失效");
+                throw new IllegalStateException("仓单服务不可用，无法清除待物流状态，委派单无法失效");
             }
 
-            Map<String, Object> unlockResult = warehouseFeignClient.unlockReceipt(delegate.getReceiptId());
+            Map<String, Object> unlockResult = warehouseFeignClient.clearWaitLogistics(delegate.getReceiptId());
             if (unlockResult == null || unlockResult.get("code") == null) {
                 throw new RuntimeException("仓单服务响应异常");
             }
@@ -1118,10 +1517,10 @@ public class LogisticsServiceImpl implements LogisticsService {
                 ? (Integer) unlockResult.get("code")
                 : Integer.parseInt(unlockResult.get("code").toString());
             if (code != 0) {
-                throw new RuntimeException("解锁仓单失败: " + unlockResult.get("msg"));
+                throw new RuntimeException("清除仓单待物流状态失败: " + unlockResult.get("msg"));
             }
 
-            logger.info("直接移库-委派单失效-仓单已解锁: receiptId={}, voucherNo={}",
+            logger.info("直接移库-委派单失效-仓单已清除待物流: receiptId={}, voucherNo={}",
                 delegate.getReceiptId(), voucherNo);
         }
 

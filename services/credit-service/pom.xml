@@ -71,6 +71,12 @@
             <artifactId>spring-cloud-starter-openfeign</artifactId>
         </dependency>
 
+        <!-- Nacos Service Discovery -->
+        <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
+        </dependency>
+
         <!-- OpenAPI 3 / Swagger 3 (替换 SpringFox) -->
         <dependency>
             <groupId>org.springdoc</groupId>

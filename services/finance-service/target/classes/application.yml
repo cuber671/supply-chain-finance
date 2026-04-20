@@ -19,18 +19,11 @@ spring:
   flyway:
     enabled: false
   cloud:
-    discovery:
-      client:
-        simple:
-          instances:
-            warehouse-service:
-              - uri: http://warehouse-service:8083
-            fisco-gateway-service:
-              - uri: http://fisco-gateway-service:8087
-            logistics-service:
-              - uri: http://logistics-service:8084
-            enterprise-service:
-              - uri: http://enterprise-service:8082
+    nacos:
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR:nacos:8848}
+        enabled: true
+        register-enabled: true
 
 mybatis-plus:
   mapper-locations: classpath:mapper/**/*.xml

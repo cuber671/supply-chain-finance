@@ -29,8 +29,11 @@ public interface EnterpriseFeignClient {
     @GetMapping("/api/v1/enterprise/blockchain-address/{address}")
     Result<Object> getEnterpriseByBlockchainAddress(@PathVariable("address") String address);
 
-    @GetMapping("/api/v1/enterprise/check-financial-institution/{entId}")
+    @GetMapping("/api/v1/enterprise/check-financial-institution/simple/{entId}")
     Result<Boolean> isFinancialInstitution(@PathVariable("entId") Long entId);
+
+    @GetMapping("/api/v1/enterprise/check-logistics-enterprise/{entId}")
+    Result<Boolean> isLogisticsEnterprise(@PathVariable("entId") Long entId);
 
     @GetMapping("/api/v1/enterprise/validate-invite-code")
     Result<Boolean> validateInviteCode(@RequestParam("inviteCode") String inviteCode);

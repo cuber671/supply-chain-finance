@@ -1294,25 +1294,29 @@ public class WarehouseReceiptOps extends Contract {
 
         public List<byte[]> ownerHashes;
 
+        public List<byte[]> warehouseHashes;
+
         public String unit;
 
         public SplitInput(Utf8String originalReceiptId, DynamicArray<Utf8String> newReceiptIds,
-                DynamicArray<Uint256> weights, DynamicArray<Bytes32> ownerHashes, Utf8String unit) {
-            super(originalReceiptId,newReceiptIds,weights,ownerHashes,unit);
+                DynamicArray<Uint256> weights, DynamicArray<Bytes32> ownerHashes, DynamicArray<Bytes32> warehouseHashes, Utf8String unit) {
+            super(originalReceiptId,newReceiptIds,weights,ownerHashes,warehouseHashes,unit);
             this.originalReceiptId = originalReceiptId.getValue();
             this.newReceiptIds = newReceiptIds.getValue().stream().map(org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String::getValue).collect(java.util.stream.Collectors.toList());
             this.weights = weights.getValue().stream().map(org.fisco.bcos.sdk.v3.codec.datatypes.generated.Uint256::getValue).collect(java.util.stream.Collectors.toList());
             this.ownerHashes = ownerHashes.getValue().stream().map(org.fisco.bcos.sdk.v3.codec.datatypes.generated.Bytes32::getValue).collect(java.util.stream.Collectors.toList());
+            this.warehouseHashes = warehouseHashes.getValue().stream().map(org.fisco.bcos.sdk.v3.codec.datatypes.generated.Bytes32::getValue).collect(java.util.stream.Collectors.toList());
             this.unit = unit.getValue();
         }
 
         public SplitInput(String originalReceiptId, List<String> newReceiptIds,
-                List<BigInteger> weights, List<byte[]> ownerHashes, String unit) {
-            super(new org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String(originalReceiptId),new org.fisco.bcos.sdk.v3.codec.datatypes.DynamicArray<org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String>(org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String.class, newReceiptIds.stream().map(org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String::new).collect(java.util.stream.Collectors.toList())),new org.fisco.bcos.sdk.v3.codec.datatypes.DynamicArray<org.fisco.bcos.sdk.v3.codec.datatypes.generated.Uint256>(org.fisco.bcos.sdk.v3.codec.datatypes.generated.Uint256.class, weights.stream().map(org.fisco.bcos.sdk.v3.codec.datatypes.generated.Uint256::new).collect(java.util.stream.Collectors.toList())),new org.fisco.bcos.sdk.v3.codec.datatypes.DynamicArray<org.fisco.bcos.sdk.v3.codec.datatypes.generated.Bytes32>(org.fisco.bcos.sdk.v3.codec.datatypes.generated.Bytes32.class, ownerHashes.stream().map(org.fisco.bcos.sdk.v3.codec.datatypes.generated.Bytes32::new).collect(java.util.stream.Collectors.toList())),new org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String(unit));
+                List<BigInteger> weights, List<byte[]> ownerHashes, List<byte[]> warehouseHashes, String unit) {
+            super(new org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String(originalReceiptId),new org.fisco.bcos.sdk.v3.codec.datatypes.DynamicArray<org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String>(org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String.class, newReceiptIds.stream().map(org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String::new).collect(java.util.stream.Collectors.toList())),new org.fisco.bcos.sdk.v3.codec.datatypes.DynamicArray<org.fisco.bcos.sdk.v3.codec.datatypes.generated.Uint256>(org.fisco.bcos.sdk.v3.codec.datatypes.generated.Uint256.class, weights.stream().map(org.fisco.bcos.sdk.v3.codec.datatypes.generated.Uint256::new).collect(java.util.stream.Collectors.toList())),new org.fisco.bcos.sdk.v3.codec.datatypes.DynamicArray<org.fisco.bcos.sdk.v3.codec.datatypes.generated.Bytes32>(org.fisco.bcos.sdk.v3.codec.datatypes.generated.Bytes32.class, ownerHashes.stream().map(org.fisco.bcos.sdk.v3.codec.datatypes.generated.Bytes32::new).collect(java.util.stream.Collectors.toList())),new org.fisco.bcos.sdk.v3.codec.datatypes.DynamicArray<org.fisco.bcos.sdk.v3.codec.datatypes.generated.Bytes32>(org.fisco.bcos.sdk.v3.codec.datatypes.generated.Bytes32.class, warehouseHashes.stream().map(org.fisco.bcos.sdk.v3.codec.datatypes.generated.Bytes32::new).collect(java.util.stream.Collectors.toList())),new org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String(unit));
             this.originalReceiptId = originalReceiptId;
             this.newReceiptIds = newReceiptIds;
             this.weights = weights;
             this.ownerHashes = ownerHashes;
+            this.warehouseHashes = warehouseHashes;
             this.unit = unit;
         }
     }

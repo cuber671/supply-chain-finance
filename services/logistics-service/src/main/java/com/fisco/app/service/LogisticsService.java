@@ -131,7 +131,7 @@ public interface LogisticsService {
      * @return 更新后的委派单
      * @throws IllegalArgumentException 委派单不存在或状态不允许该操作
      */
-    LogisticsDelegate arrive(String voucherNo, Integer actionType, Long targetReceiptId);
+    LogisticsDelegate arrive(String voucherNo, Integer actionType, Long targetReceiptId, Long warehouseId, java.math.BigDecimal arrivedWeight);
 
     /**
      * 更新委派单状态
@@ -190,6 +190,14 @@ public interface LogisticsService {
      * @return 包含委派单信息、轨迹列表、当前位置等
      */
     Map<String, Object> trackLogistics(String voucherNo);
+
+    /**
+     * 获取仓库信息
+     *
+     * @param warehouseId 仓库ID
+     * @return 仓库信息（包含 entId）
+     */
+    Map<String, Object> getWarehouseById(Long warehouseId);
 
     /**
      * 确认交货

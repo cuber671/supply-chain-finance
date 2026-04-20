@@ -1037,6 +1037,45 @@ public class EnterpriseController {
     }
 
     /**
+     * 验证企业是否为金融机构（Feign专用，仅返回布尔值）
+     */
+    @Operation(summary = "验证金融机构(Feign专用)", description = "检查企业是否为金融机构(entRole=6)，仅返回布尔值供Feign调用。")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "查询成功"),
+        @ApiResponse(responseCode = "500", description = "服务端异常")
+    })
+    @GetMapping("/check-financial-institution/simple/{entId}")
+    public ResponseEntity<Result<Boolean>> checkFinancialInstitutionSimple(
+            @Parameter(description = "企业ID", required = true) @PathVariable Long entId) {
+        try {
+            boolean isFinInst = enterpriseService.isFinancialInstitution(entId);
+            return ResponseEntity.ok(Result.success(isFinInst));
+        } catch (Exception e) {
+            logger.error("验证金融机构异常: entId={}", entId, e);
+            return ResponseEntity.ok(Result.error(500, "验证失败"));
+        }
+    }
+
+    @Operation(summary = "验证是否为物流企业", description = "根据企业ID验证该企业是否为物流企业（entRole=12）。")
+    @SecurityRequirement(name = "bearerAuth")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "查询成功"),
+        @ApiResponse(responseCode = "401", description = "未登录或Token无效"),
+        @ApiResponse(responseCode = "500", description = "服务端异常")
+    })
+    @GetMapping("/check-logistics-enterprise/{entId}")
+    public ResponseEntity<Result<Boolean>> checkLogisticsEnterprise(
+            @Parameter(description = "企业ID", required = true) @PathVariable Long entId) {
+        try {
+            boolean isLogistics = enterpriseService.isLogisticsEnterprise(entId);
+            return ResponseEntity.ok(Result.success(isLogistics));
+        } catch (Exception e) {
+            logger.error("验证物流企业异常: entId={}", entId, e);
+            return ResponseEntity.ok(Result.error(500, "验证失败"));
+        }
+    }
+
+    /**
      * 通过信用代码查询链上企业地址（实际查区块链）
      */
     @Operation(summary = "通过信用代码查询链上企业地址", description = "根据统一社会信用代码查询区块链上注册的企业地址。")

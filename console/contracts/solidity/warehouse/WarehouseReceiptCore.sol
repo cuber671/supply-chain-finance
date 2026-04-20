@@ -354,6 +354,44 @@ contract WarehouseReceiptCore is IWarehouseReceiptCore {
     }
 
     /**
+     * @dev 设置仓单为物流转运中状态（物流提货确认时调用）
+     * @param receiptId 仓单ID
+     * @return success 是否成功
+     */
+    function setInTransit(string calldata receiptId)
+        external onlyValidReceipt(receiptId) onlyActiveReceipt(receiptId) returns (bool success)
+    {
+        Receipt storage r = receipts[receiptId];
+        require(r.core.status == ReceiptStatus.InStorage, "Not in storage or already in transit");
+
+        r.core.status = ReceiptStatus.InTransit;
+        r.core.updatedAt = block.timestamp;
+
+        emit ReceiptStatusChanged(receiptId, uint8(ReceiptStatus.InStorage), uint8(ReceiptStatus.InTransit), msg.sender, block.timestamp);
+
+        return true;
+    }
+
+    /**
+     * @dev 从物流转运中状态恢复到在库状态（部分交付确认时调用）
+     * @param receiptId 仓单ID
+     * @return success 是否成功
+     */
+    function restoreFromTransit(string calldata receiptId)
+        external onlyValidReceipt(receiptId) returns (bool success)
+    {
+        Receipt storage r = receipts[receiptId];
+        require(r.core.status == ReceiptStatus.InTransit, "Not in transit or already restored");
+
+        r.core.status = ReceiptStatus.InStorage;
+        r.core.updatedAt = block.timestamp;
+
+        emit ReceiptStatusChanged(receiptId, uint8(ReceiptStatus.InTransit), uint8(ReceiptStatus.InStorage), msg.sender, block.timestamp);
+
+        return true;
+    }
+
+    /**
      * @dev 注销仓单
      * @param receiptId 仓单ID
      * @param reason 注销原因
@@ -381,9 +419,10 @@ contract WarehouseReceiptCore is IWarehouseReceiptCore {
     /**
      * @dev 核销仓单（提货出库）
      * @param receiptId 仓单ID
+     * @param signatureHash 签名哈希（预留参数，用于未来签名验证）
      * @return success 是否成功
      */
-    function burnReceipt(string calldata receiptId)
+    function burnReceipt(string calldata receiptId, bytes32 signatureHash)
         external onlyValidReceipt(receiptId) returns (bool success)
     {
         Receipt storage r = receipts[receiptId];
@@ -490,6 +529,7 @@ contract WarehouseReceiptCore is IWarehouseReceiptCore {
         // 验证拆分数量
         require(input.newReceiptIds.length > 0 && input.newReceiptIds.length <= MAX_SPLIT_COUNT, "Invalid split count");
         require(input.newReceiptIds.length == input.weights.length, "Length mismatch");
+        require(input.newReceiptIds.length == input.warehouseHashes.length, "Warehouse hashes length mismatch");
 
         // 获取原仓单
         Receipt storage original = receipts[input.originalReceiptId];
@@ -504,7 +544,7 @@ contract WarehouseReceiptCore is IWarehouseReceiptCore {
         require(totalWeight == original.core.weight, "Weight mismatch");
 
         // 记录拆分事件（链上存证）
-        emit ReceiptSplit(input.originalReceiptId, input.newReceiptIds, input.weights, block.timestamp);
+        emit ReceiptSplit(input.originalReceiptId, input.newReceiptIds, input.weights, input.warehouseHashes, block.timestamp);
 
         return true;
     }
@@ -578,6 +618,7 @@ contract WarehouseReceiptCore is IWarehouseReceiptCore {
         string indexed originalReceiptId,
         string[] newReceiptIds,
         uint256[] weights,
+        bytes32[] warehouseHashes,
         uint256 timestamp
     );
 

@@ -93,6 +93,12 @@ public interface BlockchainFeignClient {
     @PostMapping("/api/v1/blockchain/receipt/unlock")
     Result<String> unlockReceipt(@RequestBody ReceiptOperationRequest request);
 
+    @PostMapping("/api/v1/blockchain/receipt/set-in-transit")
+    Result<String> setInTransit(@RequestBody ReceiptOperationRequest request);
+
+    @PostMapping("/api/v1/blockchain/receipt/restore-from-transit")
+    Result<String> restoreFromTransit(@RequestBody ReceiptOperationRequest request);
+
     @PostMapping("/api/v1/blockchain/receipt/burn")
     Result<String> burnReceipt(@RequestBody BurnReceiptRequest request);
 
@@ -326,6 +332,7 @@ public interface BlockchainFeignClient {
         private List<String> newReceiptIds;
         private List<Long> weights;
         private List<String> ownerHashes;
+        private List<String> warehouseHashes;
         private String unit;
 
         public String getOriginalReceiptId() { return originalReceiptId; }
@@ -336,6 +343,8 @@ public interface BlockchainFeignClient {
         public void setWeights(List<Long> v) { this.weights = v; }
         public List<String> getOwnerHashes() { return ownerHashes; }
         public void setOwnerHashes(List<String> v) { this.ownerHashes = v; }
+        public List<String> getWarehouseHashes() { return warehouseHashes; }
+        public void setWarehouseHashes(List<String> v) { this.warehouseHashes = v; }
         public String getUnit() { return unit; }
         public void setUnit(String v) { this.unit = v; }
     }

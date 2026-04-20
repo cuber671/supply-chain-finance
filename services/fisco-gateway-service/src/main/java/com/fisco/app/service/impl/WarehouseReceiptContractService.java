@@ -258,6 +258,7 @@ public class WarehouseReceiptContractService extends BaseContractService {
             List<String> newReceiptIds,
             List<BigInteger> weights,
             List<byte[]> ownerHashes,
+            List<byte[]> warehouseHashes,
             String unit) {
         checkCoreContract();
 
@@ -273,12 +274,19 @@ public class WarehouseReceiptContractService extends BaseContractService {
         while (ownerHashes.size() < newReceiptIds.size()) {
             ownerHashes.add(new byte[32]);
         }
+        if (warehouseHashes == null) {
+            warehouseHashes = new ArrayList<>();
+        }
+        while (warehouseHashes.size() < newReceiptIds.size()) {
+            warehouseHashes.add(new byte[32]);
+        }
 
         SplitInput input = new SplitInput(
                 originalReceiptId,
                 newReceiptIds,
                 weights,
                 ownerHashes,
+                warehouseHashes,
                 unit != null ? unit : "吨"
         );
 
@@ -371,6 +379,48 @@ public class WarehouseReceiptContractService extends BaseContractService {
         if (!isTransactionSuccess(receipt)) {
             String errorMsg = getTransactionErrorMessage(receipt);
             logger.error("解除质押失败: {}", errorMsg);
+            throw new RuntimeException("链上交易失败: " + errorMsg);
+        }
+        return receipt;
+    }
+
+    public TransactionReceipt setInTransit(String receiptId) {
+        checkCoreContract();
+
+        logger.info("设置仓单为物流转运中: receiptId={}", receiptId);
+
+        TransactionResponse response = sendTransactionWithAudit(
+                warehouseCoreContract,
+                "setInTransit",
+                new Object[]{receiptId},
+                "WAREHOUSE_SET_IN_TRANSIT"
+        );
+
+        TransactionReceipt receipt = response != null ? response.getTransactionReceipt() : null;
+        if (!isTransactionSuccess(receipt)) {
+            String errorMsg = getTransactionErrorMessage(receipt);
+            logger.error("设置仓单为转运中失败: {}", errorMsg);
+            throw new RuntimeException("链上交易失败: " + errorMsg);
+        }
+        return receipt;
+    }
+
+    public TransactionReceipt restoreFromTransit(String receiptId) {
+        checkCoreContract();
+
+        logger.info("仓单从转运中恢复到在库: receiptId={}", receiptId);
+
+        TransactionResponse response = sendTransactionWithAudit(
+                warehouseCoreContract,
+                "restoreFromTransit",
+                new Object[]{receiptId},
+                "WAREHOUSE_RESTORE_FROM_TRANSIT"
+        );
+
+        TransactionReceipt receipt = response != null ? response.getTransactionReceipt() : null;
+        if (!isTransactionSuccess(receipt)) {
+            String errorMsg = getTransactionErrorMessage(receipt);
+            logger.error("仓单从转运中恢复失败: {}", errorMsg);
             throw new RuntimeException("链上交易失败: " + errorMsg);
         }
         return receipt;

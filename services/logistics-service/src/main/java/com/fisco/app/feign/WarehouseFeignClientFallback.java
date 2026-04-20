@@ -54,6 +54,42 @@ public class WarehouseFeignClientFallback implements WarehouseFeignClient {
     }
 
     @Override
+    public Map<String, Object> markWaitLogistics(Long receiptId, String voucherNo) {
+        logger.warn("仓单服务降级: markWaitLogistics, receiptId={}", receiptId);
+        Map<String, Object> result = new HashMap<>();
+        result.put("code", 503);
+        result.put("msg", "仓单服务暂不可用");
+        return result;
+    }
+
+    @Override
+    public Map<String, Object> clearWaitLogistics(Long receiptId) {
+        logger.warn("仓单服务降级: clearWaitLogistics, receiptId={}", receiptId);
+        Map<String, Object> result = new HashMap<>();
+        result.put("code", 503);
+        result.put("msg", "仓单服务暂不可用");
+        return result;
+    }
+
+    @Override
+    public Map<String, Object> setInTransit(Long receiptId) {
+        logger.warn("仓单服务降级: setInTransit, receiptId={}", receiptId);
+        Map<String, Object> result = new HashMap<>();
+        result.put("code", 503);
+        result.put("msg", "仓单服务暂不可用");
+        return result;
+    }
+
+    @Override
+    public Map<String, Object> updateReceiptRemark(Long receiptId, String remark) {
+        logger.warn("仓单服务降级: updateReceiptRemark, receiptId={}, remark={}", receiptId, remark);
+        Map<String, Object> result = new HashMap<>();
+        result.put("code", 503);
+        result.put("msg", "仓单服务暂不可用");
+        return result;
+    }
+
+    @Override
     public Map<String, Object> getWarehouseById(Long warehouseId) {
         logger.warn("仓单服务降级: getWarehouseById, warehouseId={}", warehouseId);
         Map<String, Object> result = new HashMap<>();
@@ -72,8 +108,8 @@ public class WarehouseFeignClientFallback implements WarehouseFeignClient {
     }
 
     @Override
-    public Map<String, Object> mergeReceipt(Map<String, Object> params) {
-        logger.warn("仓单服务降级: mergeReceipt");
+    public Map<String, Object> mintDirectReceipt(Map<String, Object> params) {
+        logger.warn("仓单服务降级: mintDirectReceipt");
         Map<String, Object> result = new HashMap<>();
         result.put("code", 503);
         result.put("msg", "仓单服务暂不可用");
@@ -81,8 +117,64 @@ public class WarehouseFeignClientFallback implements WarehouseFeignClient {
     }
 
     @Override
-    public Map<String, Object> mintDirectReceipt(Map<String, Object> params) {
-        logger.warn("仓单服务降级: mintDirectReceipt");
+    public Map<String, Object> applySplit(Map<String, Object> params) {
+        logger.warn("仓单服务降级: applySplit");
+        Map<String, Object> result = new HashMap<>();
+        result.put("code", 503);
+        result.put("msg", "仓单服务暂不可用");
+        return result;
+    }
+
+    @Override
+    public Map<String, Object> executeSplitMerge(Long opLogId, Boolean execute, Long authorizedCarrierEntId) {
+        logger.warn("仓单服务降级: executeSplitMerge, opLogId={}, execute={}, authorizedCarrierEntId={}",
+                opLogId, execute, authorizedCarrierEntId);
+        Map<String, Object> result = new HashMap<>();
+        result.put("code", 503);
+        result.put("msg", "仓单服务暂不可用");
+        return result;
+    }
+
+    @Override
+    public Map<String, Object> voidReceipt(Long receiptId, String reason) {
+        logger.warn("仓单服务降级: voidReceipt, receiptId={}, reason={}", receiptId, reason);
+        Map<String, Object> result = new HashMap<>();
+        result.put("code", 503);
+        result.put("msg", "仓单服务暂不可用");
+        return result;
+    }
+
+    @Override
+    public Map<String, Object> applyStockIn(Map<String, Object> params) {
+        logger.warn("仓单服务降级: applyStockIn");
+        Map<String, Object> result = new HashMap<>();
+        result.put("code", 503);
+        result.put("msg", "仓单服务暂不可用");
+        return result;
+    }
+
+    @Override
+    public Map<String, Object> applyStockInAndConfirm(Map<String, Object> params, Long actualWarehouseId) {
+        logger.warn("仓单服务降级: applyStockInAndConfirm");
+        Map<String, Object> result = new HashMap<>();
+        result.put("code", 503);
+        result.put("msg", "仓单服务暂不可用");
+        return result;
+    }
+
+    @Override
+    public Map<String, Object> createStockInConfirmed(Map<String, Object> params, Long actualWarehouseId) {
+        logger.warn("仓单服务降级: createStockInConfirmed");
+        Map<String, Object> result = new HashMap<>();
+        result.put("code", 503);
+        result.put("msg", "仓单服务暂不可用");
+        return result;
+    }
+
+    @Override
+    public Map<String, Object> updateStockOrderStatus(Long stockOrderId, Integer status, String remark) {
+        logger.warn("仓单服务降级: updateStockOrderStatus, stockOrderId={}, status={}, remark={}",
+                stockOrderId, status, remark);
         Map<String, Object> result = new HashMap<>();
         result.put("code", 503);
         result.put("msg", "仓单服务暂不可用");

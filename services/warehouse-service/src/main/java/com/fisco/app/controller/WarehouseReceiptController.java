@@ -127,7 +127,7 @@ public class WarehouseReceiptController {
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @PostMapping("/stock-in/{stockOrderId}/confirm")
-    public Result<Boolean> confirmStockOrder(
+    public Result<Long> confirmStockOrder(
             @Parameter(description = "入库单ID", required = true) @PathVariable String stockOrderId,
             @Parameter(description = "选择的仓库ID（Warehouse.id）", required = true) @RequestParam Long warehouseId) {
         try {
@@ -161,13 +161,164 @@ public class WarehouseReceiptController {
                 return Result.error(403, "无权限操作：选择的仓库不属于您所在的企业");
             }
 
-            boolean success = warehouseReceiptService.confirmStockOrder(order.getId(), warehouseId);
-            return Result.success(success);
+            Long receiptId = warehouseReceiptService.confirmStockOrder(order.getId(), warehouseId);
+            return Result.success(receiptId);
         } catch (IllegalArgumentException e) {
             return Result.error(400, e.getMessage());
         } catch (Exception e) {
             logger.error("确认入库单失败", e);
-            return Result.error(500, "确认入库单失败");
+            return Result.error(500, "确认入库单失败: " + e.getMessage());
+        }
+    }
+
+    @Operation(summary = "快速入库确认（物流直接移库场景）", description = "仓储公司直接确认入库并签发仓单，跳过待确认状态。适用于物流直接移库场景，仓库已确认收到货物时使用。")
+    @SecurityRequirement(name = "bearerAuth")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "操作成功，返回仓单ID"),
+        @ApiResponse(responseCode = "400", description = "参数错误：仓储公司ID、货物名称、重量、单位、仓库ID不能为空"),
+        @ApiResponse(responseCode = "401", description = "未登录或Token无效"),
+        @ApiResponse(responseCode = "403", description = "无权限：普通用户无权操作"),
+        @ApiResponse(responseCode = "404", description = "仓库不存在"),
+        @ApiResponse(responseCode = "500", description = "服务端异常")
+    })
+    @PostMapping("/stock-in/apply-and-confirm")
+    public Result<Long> applyStockInAndConfirm(
+            @Parameter(description = "快速入库确认信息", required = true) @RequestBody StockInApplyRequest request,
+            @Parameter(description = "实际仓库ID（Warehouse.id）", required = true) @RequestParam Long actualWarehouseId) {
+        try {
+            // 参数校验
+            if (request.getWarehouseEntId() == null) {
+                return Result.error(400, "仓储公司ID不能为空");
+            }
+            if (request.getGoodsName() == null || request.getGoodsName().isEmpty()) {
+                return Result.error(400, "货物名称不能为空");
+            }
+            if (request.getWeight() == null) {
+                return Result.error(400, "货物重量不能为空");
+            }
+            if (request.getUnit() == null || request.getUnit().isEmpty()) {
+                return Result.error(400, "计量单位不能为空");
+            }
+            if (actualWarehouseId == null) {
+                return Result.error(400, "实际仓库ID不能为空");
+            }
+
+            // 仅从JWT获取用户信息，防止越权
+            Long entId = CurrentUser.getEntId();
+            Long userId = CurrentUser.getUserId();
+            String role = CurrentUser.getRole();
+            Integer scope = CurrentUser.getScope();
+
+            if (entId == null || userId == null) {
+                return Result.error(401, "无法获取当前用户信息，请先登录");
+            }
+
+            // 权限校验：仅企业登录或管理员可操作
+            boolean isEnterpriseLogin = "ENTERPRISE".equals(role);
+            boolean isAdmin = scope != null && (scope == 1 || scope == 2);
+            if (!isEnterpriseLogin && !isAdmin) {
+                return Result.error(403, "普通用户无权操作，请以管理员或企业账号操作");
+            }
+
+            Long receiptId = warehouseReceiptService.applyStockInAndConfirm(
+                    request.getWarehouseEntId(),
+                    entId,
+                    userId,
+                    request.getGoodsName(),
+                    request.getWeight(),
+                    request.getUnit(),
+                    request.getAttachmentUrl(),
+                    actualWarehouseId
+            );
+            logger.info("快速入库确认成功: receiptId={}, actualWarehouseId={}", receiptId, actualWarehouseId);
+            return Result.success(receiptId);
+        } catch (IllegalArgumentException e) {
+            return Result.error(400, e.getMessage());
+        } catch (Exception e) {
+            logger.error("快速入库确认失败", e);
+            return Result.error(500, "快速入库确认失败: " + e.getMessage());
+        }
+    }
+
+    @Operation(summary = "创建已确认入库单(物流到货)", description = "物流服务调用，arrive到货后直接创建已确认状态的入库单，不签发仓单。仓单签发由后续confirmDelivery或仓储方手动操作完成。权限校验由调用方(logistics-service)保障。")
+    @SecurityRequirement(name = "bearerAuth")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "创建成功，返回入库单ID"),
+        @ApiResponse(responseCode = "400", description = "参数错误"),
+        @ApiResponse(responseCode = "401", description = "未登录或Token无效"),
+        @ApiResponse(responseCode = "404", description = "仓库不存在"),
+        @ApiResponse(responseCode = "500", description = "服务端异常")
+    })
+    @PostMapping("/stock-in/create-confirmed")
+    public Result<Long> createStockInConfirmed(
+            @Parameter(description = "已确认入库信息", required = true) @RequestBody StockInApplyRequest request,
+            @Parameter(description = "实际仓库ID（Warehouse.id）", required = true) @RequestParam Long actualWarehouseId) {
+        try {
+            // 参数校验
+            if (request.getWarehouseEntId() == null) {
+                return Result.error(400, "仓储公司ID不能为空");
+            }
+            if (request.getGoodsName() == null || request.getGoodsName().isEmpty()) {
+                return Result.error(400, "货物名称不能为空");
+            }
+            if (request.getWeight() == null) {
+                return Result.error(400, "货物重量不能为空");
+            }
+            if (request.getUnit() == null || request.getUnit().isEmpty()) {
+                return Result.error(400, "计量单位不能为空");
+            }
+            if (actualWarehouseId == null) {
+                return Result.error(400, "实际仓库ID不能为空");
+            }
+
+            // 注意：此接口由 logistics-service 内部调用，权限校验在 logistics/arrive 接口已完成
+            // 此处不再校验，由调用方保障安全性
+            Long entId = CurrentUser.getEntId();
+
+            // entId可以为null（物流服务调用时不带货主信息）
+            Long stockOrderId = warehouseReceiptService.createStockInConfirmed(
+                    request.getWarehouseEntId(),
+                    entId,  // 可为null
+                    request.getGoodsName(),
+                    request.getWeight(),
+                    request.getUnit(),
+                    actualWarehouseId
+            );
+            logger.info("创建已确认入库单成功(物流到货): stockOrderId={}, actualWarehouseId={}", stockOrderId, actualWarehouseId);
+            return Result.success(stockOrderId);
+        } catch (IllegalArgumentException e) {
+            return Result.error(400, e.getMessage());
+        } catch (Exception e) {
+            logger.error("创建已确认入库单失败", e);
+            return Result.error(500, "创建已确认入库单失败: " + e.getMessage());
+        }
+    }
+
+    @Operation(summary = "更新入库单状态", description = "物流服务调用，更新入库单状态（pickup时标记转运中，arrive时标记已核销）。")
+    @SecurityRequirement(name = "bearerAuth")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "更新成功"),
+        @ApiResponse(responseCode = "400", description = "参数错误"),
+        @ApiResponse(responseCode = "401", description = "未登录或Token无效"),
+        @ApiResponse(responseCode = "403", description = "无权限"),
+        @ApiResponse(responseCode = "404", description = "入库单不存在"),
+        @ApiResponse(responseCode = "500", description = "服务端异常")
+    })
+    @PostMapping("/stock-in/{stockOrderId}/update-status")
+    public Result<Boolean> updateStockOrderStatus(
+            @Parameter(description = "入库单ID", required = true) @PathVariable String stockOrderId,
+            @Parameter(description = "状态", required = true) @RequestParam Integer status,
+            @Parameter(description = "备注", required = false) @RequestParam(required = false) String remark) {
+        try {
+            Long id = parseId(stockOrderId, "入库单ID");
+            boolean result = warehouseReceiptService.updateStockOrderStatus(id, status, remark);
+            logger.info("更新入库单状态成功: stockOrderId={}, status={}, remark={}", id, status, remark);
+            return Result.success(result);
+        } catch (IllegalArgumentException e) {
+            return Result.error(400, e.getMessage());
+        } catch (Exception e) {
+            logger.error("更新入库单状态失败", e);
+            return Result.error(500, "更新入库单状态失败: " + e.getMessage());
         }
     }
 
@@ -675,7 +826,7 @@ public class WarehouseReceiptController {
                 return Result.error(401, "无法获取当前用户信息，请先登录");
             }
 
-            // FIX: 校验仓单归属 - 仅仓单所有者企业可发起拆分
+            // 校验仓单归属 - 仅仓单所有者企业可发起拆分
             WarehouseReceipt receipt = warehouseReceiptService.getReceiptById(request.getReceiptId());
             if (receipt == null) {
                 return Result.error(404, "仓单不存在");
@@ -687,11 +838,72 @@ public class WarehouseReceiptController {
             Long opLogId = warehouseReceiptService.applySplit(
                     request.getReceiptId(),
                     userId,
-                    request.getTargetWeights()
+                    request.getTargetWeights(),
+                    request.getWarehouseIds()
             );
             return Result.success(opLogId);
         } catch (Exception e) {
             logger.error("发起拆分申请失败", e);
+            return Result.error(500, e.getMessage());
+        }
+    }
+
+    /**
+     * 内部接口：发起拆分申请（供其他服务Feign调用）
+     * 参数通过Map传递，避免DTO依赖
+     */
+    @Operation(summary = "内部接口-发起拆分申请", description = "供物流服务等内部调用，发起仓单拆分申请。")
+    @SecurityRequirement(name = "bearerAuth")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "申请成功，返回操作记录ID"),
+        @ApiResponse(responseCode = "400", description = "参数错误"),
+        @ApiResponse(responseCode = "401", description = "未登录或Token无效"),
+        @ApiResponse(responseCode = "403", description = "无权操作该仓单"),
+        @ApiResponse(responseCode = "404", description = "仓单不存在"),
+        @ApiResponse(responseCode = "500", description = "服务端异常")
+    })
+    @PostMapping("/internal/split/apply")
+    public Result<Long> applySplitInternal(
+            @Parameter(description = "拆分申请信息", required = true) @RequestBody Map<String, Object> params) {
+        try {
+            Long userId = CurrentUser.getUserId();
+            Long entId = CurrentUser.getEntId();
+            if (userId == null || entId == null) {
+                return Result.error(401, "无法获取当前用户信息，请先登录");
+            }
+
+            // 从params解析参数
+            Long receiptId = params.get("receiptId") != null ? Long.parseLong(params.get("receiptId").toString()) : null;
+            BigDecimal[] targetWeights = null;
+            if (params.get("targetWeights") != null) {
+                Object[] arr = ((java.util.List<?>) params.get("targetWeights")).toArray();
+                targetWeights = new BigDecimal[arr.length];
+                for (int i = 0; i < arr.length; i++) {
+                    targetWeights[i] = new BigDecimal(arr[i].toString());
+                }
+            }
+            Long[] warehouseIds = null;
+            if (params.get("warehouseIds") != null) {
+                Object[] arr = ((java.util.List<?>) params.get("warehouseIds")).toArray();
+                warehouseIds = new Long[arr.length];
+                for (int i = 0; i < arr.length; i++) {
+                    warehouseIds[i] = Long.parseLong(arr[i].toString());
+                }
+            }
+
+            // 校验仓单归属
+            WarehouseReceipt receipt = warehouseReceiptService.getReceiptById(receiptId);
+            if (receipt == null) {
+                return Result.error(404, "仓单不存在");
+            }
+            if (!receipt.getOwnerEntId().equals(entId)) {
+                return Result.error(403, "无权操作该仓单");
+            }
+
+            Long opLogId = warehouseReceiptService.applySplit(receiptId, userId, targetWeights, warehouseIds);
+            return Result.success(opLogId);
+        } catch (Exception e) {
+            logger.error("内部发起拆分申请失败", e);
             return Result.error(500, e.getMessage());
         }
     }
@@ -752,7 +964,8 @@ public class WarehouseReceiptController {
     @PostMapping("/split-merge/{opLogId}/execute")
     public Result<Boolean> executeSplitMerge(
             @Parameter(description = "操作记录ID", required = true) @PathVariable String opLogId,
-            @Parameter(description = "是否执行", required = true) @RequestParam Boolean execute) {
+            @Parameter(description = "是否执行", required = true) @RequestParam Boolean execute,
+            @Parameter(description = "授权承运企业ID（可选，货主授权的承运企业可执行仓单拆分）", example = "2043693246546210818") @RequestParam(required = false) Long authorizedCarrierEntId) {
         try {
             Long entId = CurrentUser.getEntId();
             if (entId == null) {
@@ -766,14 +979,16 @@ public class WarehouseReceiptController {
                 return Result.error(401, "无法获取当前用户信息，请先登录");
             }
 
-            // FIX: 校验仓储方身份 - 仅仓单所属仓库的企业可执行拆分合并
+            // 仓单拆分/合并应由仓单所有人（applyEntId）或货主授权的承运企业（authorizedCarrierEntId）执行
+            // 【修复】原 executeEntId 校验不合理：货主授权的操作不应被仓储方阻塞
             ReceiptOperationLog opLog = warehouseReceiptService.getOperationLogById(id);
             if (opLog == null) {
                 return Result.error(404, "操作记录不存在");
             }
-            // executeEntId 为执行方企业ID（仓储方），只有仓储方才能执行
-            if (!opLog.getExecuteEntId().equals(entId)) {
-                return Result.error(403, "无权限操作：仅仓储方可以执行拆分合并");
+            boolean isOwner = opLog.getApplyEntId().equals(entId);
+            boolean isAuthorizedCarrier = (authorizedCarrierEntId != null && authorizedCarrierEntId.equals(entId));
+            if (!isOwner && !isAuthorizedCarrier) {
+                return Result.error(403, "无权限操作：仅仓单所有人或授权承运企业可以执行拆分合并");
             }
 
             boolean success = warehouseReceiptService.executeSplitMerge(id, userId, execute);
@@ -946,7 +1161,105 @@ public class WarehouseReceiptController {
         }
     }
 
-    @Operation(summary = "作废仓单", description = "仓单所有者企业作废签发的仓单。仅在库、未锁定、无待处理背书或拆分合并申请的仓单可作废。")
+    @Operation(summary = "标记仓单为待物流状态", description = "物流服务创建委派单时调用，将仓单标记为待物流状态，防止并发操作。")
+    @SecurityRequirement(name = "bearerAuth")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "标记成功"),
+        @ApiResponse(responseCode = "400", description = "参数错误或仓单状态不允许"),
+        @ApiResponse(responseCode = "401", description = "未登录或Token无效"),
+        @ApiResponse(responseCode = "500", description = "服务端异常")
+    })
+    @PostMapping("/receipt/{receiptId}/mark-wait-logistics")
+    public Result<Boolean> markWaitLogistics(
+            @Parameter(description = "仓单ID", required = true) @PathVariable String receiptId,
+            @Parameter(description = "物流委托单号", required = true) @RequestParam String voucherNo) {
+        try {
+            Long id = parseId(receiptId, "仓单ID");
+            boolean success = warehouseReceiptService.markWaitLogistics(id, voucherNo);
+            return Result.success(success);
+        } catch (IllegalArgumentException e) {
+            return Result.error(400, e.getMessage());
+        } catch (IllegalStateException e) {
+            return Result.error(400, e.getMessage());
+        } catch (Exception e) {
+            logger.error("标记仓单为待物流状态失败", e);
+            return Result.error(500, "标记失败: " + e.getMessage());
+        }
+    }
+
+    @Operation(summary = "清除仓单的待物流状态", description = "物流委派单交付确认或取消时调用，恢复仓单为在库状态。")
+    @SecurityRequirement(name = "bearerAuth")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "清除成功"),
+        @ApiResponse(responseCode = "400", description = "仓单不在待物流状态"),
+        @ApiResponse(responseCode = "401", description = "未登录或Token无效"),
+        @ApiResponse(responseCode = "500", description = "服务端异常")
+    })
+    @PostMapping("/receipt/{receiptId}/clear-wait-logistics")
+    public Result<Boolean> clearWaitLogistics(
+            @Parameter(description = "仓单ID", required = true) @PathVariable String receiptId) {
+        try {
+            Long id = parseId(receiptId, "仓单ID");
+            boolean success = warehouseReceiptService.clearWaitLogistics(id);
+            return Result.success(success);
+        } catch (IllegalArgumentException e) {
+            return Result.error(400, e.getMessage());
+        } catch (IllegalStateException e) {
+            return Result.error(400, e.getMessage());
+        } catch (Exception e) {
+            logger.error("清除仓单待物流状态失败", e);
+            return Result.error(500, "清除失败: " + e.getMessage());
+        }
+    }
+
+    @Operation(summary = "设置仓单为物流转运中", description = "物流提货确认时调用，将仓单区块链状态设为InTransit。")
+    @SecurityRequirement(name = "bearerAuth")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "操作成功"),
+        @ApiResponse(responseCode = "400", description = "参数错误"),
+        @ApiResponse(responseCode = "401", description = "未登录或Token无效"),
+        @ApiResponse(responseCode = "500", description = "服务端异常")
+    })
+    @PostMapping("/receipt/{receiptId}/set-in-transit")
+    public Result<Boolean> setInTransit(
+            @Parameter(description = "仓单ID", required = true) @PathVariable String receiptId) {
+        try {
+            Long id = parseId(receiptId, "仓单ID");
+            boolean success = warehouseReceiptService.setInTransit(id);
+            return Result.success(success);
+        } catch (IllegalArgumentException e) {
+            return Result.error(400, e.getMessage());
+        } catch (Exception e) {
+            logger.error("设置仓单为物流转运中失败", e);
+            return Result.error(500, "操作失败: " + e.getMessage());
+        }
+    }
+
+    @Operation(summary = "更新仓单备注", description = "物流服务在指派司机后调用，记录承运信息到仓单备注。")
+    @SecurityRequirement(name = "bearerAuth")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "更新成功"),
+        @ApiResponse(responseCode = "400", description = "仓单不存在"),
+        @ApiResponse(responseCode = "401", description = "未登录或Token无效"),
+        @ApiResponse(responseCode = "500", description = "服务端异常")
+    })
+    @PostMapping("/receipt/{receiptId}/update-remark")
+    public Result<Boolean> updateReceiptRemark(
+            @Parameter(description = "仓单ID", required = true) @PathVariable String receiptId,
+            @Parameter(description = "备注内容", required = true) @RequestParam String remark) {
+        try {
+            Long id = parseId(receiptId, "仓单ID");
+            boolean success = warehouseReceiptService.updateReceiptRemark(id, remark);
+            return Result.success(success);
+        } catch (IllegalArgumentException e) {
+            return Result.error(400, e.getMessage());
+        } catch (Exception e) {
+            logger.error("更新仓单备注失败", e);
+            return Result.error(500, "更新失败: " + e.getMessage());
+        }
+    }
+
+    @Operation(summary = "作废仓单", description = "仓单所有者企业作废签发的仓单。仅在库、未锁定、无待处理背书或拆分合并申请的仓单可作废。物流服务在仓单处于待物流状态时也可调用（货主已授权物流介入）。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "作废成功"),
@@ -973,8 +1286,14 @@ public class WarehouseReceiptController {
             if (receipt == null) {
                 return Result.error(404, "仓单不存在");
             }
-            if (!receipt.getOwnerEntId().equals(entId)) {
-                return Result.error(403, "无权限操作该仓单");
+
+            // 【权限优化】当仓单处于待物流(WAIT_LOGISTICS)状态时，
+            // 说明货主已授权物流企业进行操作，此时跳过归属校验，由物流服务代为调用。
+            // 其他情况仍需校验归属：仅仓单所有者可作废。
+            if (receipt.getStatus() != WarehouseReceipt.STATUS_WAIT_LOGISTICS) {
+                if (!receipt.getOwnerEntId().equals(entId)) {
+                    return Result.error(403, "无权限操作该仓单");
+                }
             }
 
             boolean success = warehouseReceiptService.voidReceipt(id, userId, reason);
@@ -1274,6 +1593,8 @@ public class WarehouseReceiptController {
         private Long applyUserId;
         @Schema(description = "拆分后的目标重量数组", example = "[50.25, 50.25]")
         private BigDecimal[] targetWeights;
+        @Schema(description = "拆分后各子仓单所属仓库ID数组（可选，为空时使用原仓单仓库）", example = "[5, 3]")
+        private Long[] warehouseIds;
 
         public Long getReceiptId() { return receiptId; }
         public void setReceiptId(Long receiptId) { this.receiptId = receiptId; }
@@ -1281,6 +1602,8 @@ public class WarehouseReceiptController {
         public void setApplyUserId(Long applyUserId) { this.applyUserId = applyUserId; }
         public BigDecimal[] getTargetWeights() { return targetWeights; }
         public void setTargetWeights(BigDecimal[] targetWeights) { this.targetWeights = targetWeights; }
+        public Long[] getWarehouseIds() { return warehouseIds; }
+        public void setWarehouseIds(Long[] warehouseIds) { this.warehouseIds = warehouseIds; }
     }
 
     public static class ApplyMergeRequest {

@@ -43,13 +43,14 @@ public interface WarehouseReceiptService {
      * 确认入库单（仓库方操作）
      *
      * 仓库管理人员核实货物到库后，确认入库单生效，并指定具体仓库。
+     * 确认后自动签发仓单。
      *
      * @param stockOrderId 入库单ID
      * @param actualWarehouseId 实际入库的仓库ID（Warehouse.id）
-     * @return 确认是否成功
+     * @return 新签发的仓单ID
      * @throws IllegalArgumentException 入库单不存在或状态不允许确认
      */
-    boolean confirmStockOrder(Long stockOrderId, Long actualWarehouseId);
+    Long confirmStockOrder(Long stockOrderId, Long actualWarehouseId);
 
     /**
      * 取消入库单
@@ -63,12 +64,60 @@ public interface WarehouseReceiptService {
     boolean cancelStockOrder(Long stockOrderId);
 
     /**
+     * 快速入库确认（合并申请和确认步骤）
+     *
+     * 仓储公司在收到货物后，直接确认入库并签发仓单，跳过待确认状态。
+     * 适用于物流直接移库场景，仓库已确认收到货物。
+     *
+     * @param warehouseEntId 仓储公司ID
+     * @param entId 货主企业ID
+     * @param userId 货主用户ID
+     * @param goodsName 货物名称
+     * @param weight 货物重量
+     * @param unit 计量单位
+     * @param attachmentUrl 附件URL（可选）
+     * @param actualWarehouseId 实际仓库ID
+     * @return 新创建的仓单ID
+     * @throws IllegalArgumentException 参数不合法或仓库不存在
+     */
+    Long applyStockInAndConfirm(Long warehouseEntId, Long entId, Long userId, String goodsName,
+            BigDecimal weight, String unit, String attachmentUrl, Long actualWarehouseId);
+
+    /**
+     * 创建已确认状态的入库单（不签发仓单）
+     *
+     * 适用于物流直接移库场景：arrive到货后直接创建已确认的入库单，
+     * 仓单签发由后续confirmDelivery或仓储方手动操作完成。
+     *
+     * @param warehouseEntId 仓储公司ID
+     * @param entId 货主企业ID（可为null）
+     * @param goodsName 货物名称
+     * @param weight 货物重量
+     * @param unit 计量单位
+     * @param actualWarehouseId 实际仓库ID
+     * @return 新创建的入库单ID
+     * @throws IllegalArgumentException 参数不合法或仓库不存在
+     */
+    Long createStockInConfirmed(Long warehouseEntId, Long entId, String goodsName,
+            BigDecimal weight, String unit, Long actualWarehouseId);
+
+    /**
      * 查询入库单
      *
      * @param stockOrderId 入库单ID
      * @return 入库单记录，不存在返回null
      */
     StockOrder getStockOrderById(Long stockOrderId);
+
+    /**
+     * 更新入库单状态
+     *
+     * @param stockOrderId 入库单ID
+     * @param status 新状态
+     * @param remark 备注（可选）
+     * @return 更新是否成功
+     */
+    boolean updateStockOrderStatus(Long stockOrderId, Integer status, String remark);
 
     /**
      * 查询企业的入库单列表
@@ -264,10 +313,11 @@ public interface WarehouseReceiptService {
      * @param receiptId 原仓单ID
      * @param applyUserId 申请人用户ID
      * @param targetWeights 目标各子仓单重量数组
+     * @param warehouseIds 目标各子仓单所属仓库ID数组（可为null，为null时使用原仓单仓库）
      * @return 创建的操作记录ID
      * @throws IllegalArgumentException 仓单不存在或重量分配不合法
      */
-    Long applySplit(Long receiptId, Long applyUserId, BigDecimal[] targetWeights);
+    Long applySplit(Long receiptId, Long applyUserId, BigDecimal[] targetWeights, Long[] warehouseIds);
 
     /**
      * 发起合并申请
@@ -335,6 +385,59 @@ public interface WarehouseReceiptService {
      * @return 解锁是否成功
      */
     boolean forceUnlockReceipt(Long receiptId, String reason);
+
+    /**
+     * 设置仓单为物流转运中状态（物流提货确认时调用）
+     *
+     * 物流服务调用此方法将仓单区块链状态设为InTransit(5)。
+     *
+     * @param receiptId 仓单ID
+     * @return 操作是否成功
+     */
+    boolean setInTransit(Long receiptId);
+
+    /**
+     * 从物流转运中恢复到在库状态（部分交付确认时调用）
+     *
+     * @param receiptId 仓单ID
+     * @return 操作是否成功
+     */
+    boolean restoreFromTransit(Long receiptId);
+
+    /**
+     * 标记仓单为待物流状态
+     *
+     * 物流服务创建委派单时调用，防止仓单在物流操作期间被拆分/转让/再次创建物流。
+     *
+     * @param receiptId 仓单ID
+     * @param voucherNo 物流委托单号
+     * @return 操作是否成功
+     * @throws IllegalStateException 仓单状态不允许（如已锁定/已作废/已有待物流）
+     */
+    boolean markWaitLogistics(Long receiptId, String voucherNo);
+
+    /**
+     * 清除仓单的待物流状态
+     *
+     * 物流委派单交付确认或取消时调用，恢复仓单可操作状态。
+     *
+     * @param receiptId 仓单ID
+     * @return 操作是否成功
+     * @throws IllegalStateException 仓单不在待物流状态
+     */
+    boolean clearWaitLogistics(Long receiptId);
+
+    /**
+     * 更新仓单备注
+     *
+     * 物流服务在指派司机后调用，记录承运信息到仓单备注。
+     *
+     * @param receiptId 仓单ID
+     * @param remark 备注内容
+     * @return 更新是否成功
+     * @throws IllegalArgumentException 仓单不存在
+     */
+    boolean updateReceiptRemark(Long receiptId, String remark);
 
     /**
      * 作废仓单
