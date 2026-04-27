@@ -142,6 +142,15 @@
         </dependencies>
     </dependencyManagement>
 
+    <!-- Red Hat 仓库（用于获取 Red Hat 定制版依赖） -->
+    <repositories>
+        <repository>
+            <id>redhat</id>
+            <name>Red Hat Maven Repository</name>
+            <url>https://maven.repository.redhat.com/ga/</url>
+        </repository>
+    </repositories>
+
     <build>
         <plugins>
             <plugin>

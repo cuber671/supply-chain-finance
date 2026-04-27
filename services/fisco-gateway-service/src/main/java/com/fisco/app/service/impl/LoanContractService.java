@@ -48,14 +48,14 @@ public class LoanContractService extends BaseContractService {
         }
 
         if (loanCoreAddress != null && !loanCoreAddress.isEmpty()) {
-            this.loanCoreContract = LoanCore.load(loanCoreAddress, client, cryptoKeyPair);
+            this.loanCoreContract = LoanCore.load(loanCoreAddress, client);
             logger.info("贷款核心合约加载成功，地址: {}", loanCoreAddress);
         } else {
             logger.warn("贷款核心合约地址未配置");
         }
 
         if (loanRepaymentAddress != null && !loanRepaymentAddress.isEmpty()) {
-            this.loanRepaymentContract = LoanRepayment.load(loanRepaymentAddress, client, cryptoKeyPair);
+            this.loanRepaymentContract = LoanRepayment.load(loanRepaymentAddress, client);
             logger.info("贷款还款合约加载成功，地址: {}", loanRepaymentAddress);
         } else {
             logger.warn("贷款还款合约地址未配置");
@@ -63,7 +63,7 @@ public class LoanContractService extends BaseContractService {
 
         if (warehouseCoreExtAddress != null && !warehouseCoreExtAddress.isEmpty()) {
             this.warehouseCoreExtContract = WarehouseReceiptCoreExt.load(
-                    warehouseCoreExtAddress, client, cryptoKeyPair);
+                    warehouseCoreExtAddress, client);
             logger.info("仓单核心扩展合约加载成功，地址: {}", warehouseCoreExtAddress);
         } else {
             logger.warn("仓单核心扩展合约地址未配置");
@@ -125,9 +125,9 @@ public class LoanContractService extends BaseContractService {
     @SuppressWarnings("unchecked")
     protected <T extends Contract> T loadContract(String contractAddress) {
         if (contractAddress.equals(loanCoreAddress)) {
-            return (T) LoanCore.load(contractAddress, client, cryptoKeyPair);
+            return (T) LoanCore.load(contractAddress, client);
         } else if (contractAddress.equals(loanRepaymentAddress)) {
-            return (T) LoanRepayment.load(contractAddress, client, cryptoKeyPair);
+            return (T) LoanRepayment.load(contractAddress, client);
         }
         return null;
     }
@@ -185,14 +185,16 @@ public class LoanContractService extends BaseContractService {
             String loanNo,
             BigInteger approvedAmount,
             BigInteger interestRate,
-            BigInteger loanDays) {
+            BigInteger loanDays,
+            String financeEntHash) {
         checkCoreContract();
 
-        logger.info("审批贷款上链: loanNo={}, approvedAmount={}, interestRate={}",
-                loanNo, approvedAmount, interestRate);
+        logger.info("审批贷款上链: loanNo={}, approvedAmount={}, interestRate={}, financeEntHash={}",
+                loanNo, approvedAmount, interestRate, financeEntHash);
 
-        // Call contract method directly with dataHash
-        byte[] dataHash = new byte[32];
+        // 【D3-1修复】将 financeEntHash 编码到 dataHash 中
+        // 由于合约 approveLoan 没有 financeEntHash 参数，通过 dataHash 字段传递
+        byte[] dataHash = encodeFinanceEntHash(financeEntHash);
         TransactionReceipt receipt = loanCoreContract.approveLoan(
                 loanNo, approvedAmount, interestRate, loanDays, dataHash);
 
@@ -202,6 +204,38 @@ public class LoanContractService extends BaseContractService {
             throw new RuntimeException("操作失败: " + errorMsg);
         }
         return receipt;
+    }
+
+    /**
+     * 将金融机构哈希编码为 bytes32
+     * 用于在 approveLoan 时通过 dataHash 字段传递 financeEntHash
+     * @param financeEntHash 金融机构哈希（实体ID字符串）
+     * @return 编码后的 bytes32
+     */
+    private byte[] encodeFinanceEntHash(String financeEntHash) {
+        if (financeEntHash == null || financeEntHash.isEmpty()) {
+            return new byte[32];
+        }
+        try {
+            // 将字符串转换为 BigInteger 再转换为 bytes32
+            BigInteger value = new BigInteger(financeEntHash);
+            byte[] bytes = value.toByteArray();
+            byte[] result = new byte[32];
+            // bytes 可能比 32 长（包含符号位），需要处理
+            int start = (bytes.length > 32) ? bytes.length - 32 : 0;
+            int length = Math.min(bytes.length, 32);
+            System.arraycopy(bytes, start, result, 32 - length, length);
+            return result;
+        } catch (NumberFormatException e) {
+            // 如果不是数字字符串，使用其 hashCode
+            int hash = financeEntHash.hashCode();
+            byte[] result = new byte[32];
+            byte[] hashBytes = BigInteger.valueOf(hash).toByteArray();
+            int start = (hashBytes.length > 32) ? hashBytes.length - 32 : 0;
+            int length = Math.min(hashBytes.length, 32);
+            System.arraycopy(hashBytes, start, result, 32 - length, length);
+            return result;
+        }
     }
 
     public TransactionReceipt cancelLoan(String loanNo, String reason) {

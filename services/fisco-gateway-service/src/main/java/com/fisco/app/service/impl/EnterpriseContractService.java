@@ -45,8 +45,7 @@ public class EnterpriseContractService extends BaseContractService {
         }
         this.enterpriseContract = EnterpriseRegistryV2.load(
                 enterpriseContractAddress,
-                client,
-                cryptoKeyPair
+                client
         );
         logger.info("企业合约加载成功，地址: {}", enterpriseContractAddress);
     }
@@ -60,7 +59,7 @@ public class EnterpriseContractService extends BaseContractService {
     @Override
     @SuppressWarnings("unchecked")
     protected <T extends org.fisco.bcos.sdk.v3.contract.Contract> T loadContract(String contractAddress) {
-        return (T) EnterpriseRegistryV2.load(contractAddress, client, cryptoKeyPair);
+        return (T) EnterpriseRegistryV2.load(contractAddress, client);
     }
 
     public TransactionReceipt registerEnterprise(
@@ -106,11 +105,49 @@ public class EnterpriseContractService extends BaseContractService {
         return receipt;
     }
 
+    /**
+     * 注册企业（接收 String 参数，内部进行类型转换）
+     * metadataHash 是十六进制哈希，使用 hexStringToBytes 转换
+     */
+    public TransactionReceipt registerEnterprise(
+            String enterpriseAddress,
+            String creditCode,
+            int role,
+            String metadataHash) {
+        return registerEnterprise(
+                enterpriseAddress,
+                creditCode,
+                BigInteger.valueOf(role),
+                hexStringToBytes(metadataHash)
+        );
+    }
+
+    /**
+     * 将十六进制字符串转换为 byte[]
+     */
+    protected byte[] hexStringToBytes(String hex) {
+        if (hex == null || hex.isEmpty()) {
+            return new byte[32];
+        }
+        if (hex.startsWith("0x")) {
+            hex = hex.substring(2);
+        }
+        if (hex.length() % 2 != 0) {
+            hex = "0" + hex;
+        }
+        byte[] data = new byte[hex.length() / 2];
+        for (int i = 0; i < data.length; i++) {
+            data[i] = (byte) ((Character.digit(hex.charAt(i * 2), 16) << 4)
+                    + Character.digit(hex.charAt(i * 2 + 1), 16));
+        }
+        return data;
+    }
+
     public EnterpriseInfo getEnterprise(String enterpriseAddress) throws ContractException {
         checkContract();
         logger.debug("查询企业信息: {}", enterpriseAddress);
         var result = enterpriseContract.getEnterprise(enterpriseAddress);
-        return new EnterpriseInfo(result);
+        return new EnterpriseInfo(enterpriseAddress, result);
     }
 
     public String getEnterpriseByCreditCode(String creditCode) {
@@ -243,15 +280,16 @@ public class EnterpriseContractService extends BaseContractService {
         private byte[] metadataHash;
 
         public EnterpriseInfo(
+                String address,
                 org.fisco.bcos.sdk.v3.codec.datatypes.generated.tuples.generated.Tuple8<
                         String, BigInteger, BigInteger, BigInteger, BigInteger, BigInteger, BigInteger, byte[]> tuple) {
-            this.address = tuple.getValue1();
-            this.creditCode = tuple.getValue2() != null ? tuple.getValue2().toString() : null;
-            this.role = tuple.getValue3();
-            this.status = tuple.getValue4();
+            this.address = address;
+            this.creditCode = tuple.getValue1() != null ? tuple.getValue1().toString() : null;
+            this.role = tuple.getValue2();
+            this.status = tuple.getValue3();
             this.creditLimit = tuple.getValue5();
-            this.creditRating = tuple.getValue6();
-            this.createdAt = tuple.getValue7();
+            this.creditRating = tuple.getValue4();
+            this.createdAt = tuple.getValue6();
             this.metadataHash = tuple.getValue8();
         }
 

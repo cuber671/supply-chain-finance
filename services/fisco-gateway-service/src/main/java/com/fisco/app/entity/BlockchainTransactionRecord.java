@@ -63,4 +63,7 @@ public class BlockchainTransactionRecord {
 
     // 最后重试时间
     private LocalDateTime lastRetryTime;
+
+    // 幂等键，用于防止重复上链操作
+    private String idempotencyKey;
 }

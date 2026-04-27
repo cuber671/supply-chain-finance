@@ -50,8 +50,7 @@ public class WarehouseReceiptContractService extends BaseContractService {
         if (warehouseCoreAddress != null && !warehouseCoreAddress.isEmpty()) {
             this.warehouseCoreContract = WarehouseReceiptCore.load(
                     warehouseCoreAddress,
-                    client,
-                    cryptoKeyPair
+                    client
             );
             logger.info("仓单核心合约加载成功，地址: {}", warehouseCoreAddress);
         } else {
@@ -60,8 +59,7 @@ public class WarehouseReceiptContractService extends BaseContractService {
         if (warehouseOpsAddress != null && !warehouseOpsAddress.isEmpty()) {
             this.warehouseOpsContract = WarehouseReceiptOps.load(
                     warehouseOpsAddress,
-                    client,
-                    cryptoKeyPair
+                    client
             );
             logger.info("仓单运营合约加载成功，地址: {}", warehouseOpsAddress);
         } else {
@@ -125,10 +123,24 @@ public class WarehouseReceiptContractService extends BaseContractService {
         return "0x" + sb.toString();
     }
 
+    /**
+     * 将十六进制字符串转换为 byte[]
+     */
+    private byte[] hexToBytes(String hex) {
+        if (hex == null || hex.isEmpty()) return new byte[32];
+        String clean = hex.startsWith("0x") ? hex.substring(2) : hex;
+        if (clean.length() % 2 != 0) clean = "0" + clean;
+        byte[] bytes = new byte[clean.length() / 2];
+        for (int i = 0; i < bytes.length; i++) {
+            bytes[i] = (byte) Integer.parseInt(clean.substring(i * 2, i * 2 + 2), 16);
+        }
+        return bytes;
+    }
+
     @Override
     @SuppressWarnings("unchecked")
     protected <T extends org.fisco.bcos.sdk.v3.contract.Contract> T loadContract(String contractAddress) {
-        return (T) WarehouseReceiptCore.load(contractAddress, client, cryptoKeyPair);
+        return (T) WarehouseReceiptCore.load(contractAddress, client);
     }
 
     public ReceiptInfo getReceipt(String receiptId) throws ContractException {
@@ -209,6 +221,123 @@ public class WarehouseReceiptContractService extends BaseContractService {
         return receipt;
     }
 
+    // ==================== String 参数重载（供 Controller 调用） ====================
+
+    public TransactionReceipt issueReceipt(
+            String receiptId,
+            String ownerHash,
+            String warehouseHash,
+            String goodsDetailHash,
+            String locationPhotoHash,
+            String contractHash,
+            BigInteger weight,
+            String unit,
+            BigInteger quantity,
+            Long storageDate,
+            Long expiryDate) {
+        return issueReceipt(
+                receiptId,
+                hexToBytes(ownerHash),
+                hexToBytes(warehouseHash),
+                hexToBytes(goodsDetailHash),
+                hexToBytes(locationPhotoHash),
+                hexToBytes(contractHash),
+                weight,
+                unit,
+                quantity,
+                storageDate != null ? BigInteger.valueOf(storageDate) : null,
+                expiryDate != null ? BigInteger.valueOf(expiryDate) : null
+        );
+    }
+
+    public TransactionReceipt launchEndorsement(String receiptId, String fromHash, String toHash) {
+        return launchEndorsement(receiptId, hexToBytes(fromHash), hexToBytes(toHash));
+    }
+
+    public TransactionReceipt confirmEndorsement(String receiptId, String fromHash, String toHash) {
+        return confirmEndorsement(receiptId, hexToBytes(fromHash), hexToBytes(toHash));
+    }
+
+    public TransactionReceipt splitReceipt(
+            String originalReceiptId,
+            List<String> newReceiptIds,
+            List<Long> weights,
+            List<String> ownerHashes,
+            List<String> warehouseHashes,
+            String unit) {
+        checkCoreContract();
+
+        if (newReceiptIds == null || newReceiptIds.isEmpty()) {
+            throw new IllegalArgumentException("新仓单ID列表不能为空");
+        }
+        if (weights == null || weights.size() != newReceiptIds.size()) {
+            throw new IllegalArgumentException("重量列表长度必须与新仓单ID列表一致");
+        }
+
+        List<BigInteger> bigWeights = weights.stream()
+                .map(w -> BigInteger.valueOf(w == null ? 0L : w))
+                .collect(java.util.stream.Collectors.toList());
+
+        List<byte[]> bytesOwnerHashes = new ArrayList<>();
+        List<String> safeOwnerHashes = ownerHashes != null ? ownerHashes : new ArrayList<>();
+        for (int i = 0; i < newReceiptIds.size(); i++) {
+            bytesOwnerHashes.add(i < safeOwnerHashes.size()
+                    ? hexToBytes(safeOwnerHashes.get(i)) : new byte[32]);
+        }
+
+        List<byte[]> bytesWarehouseHashes = new ArrayList<>();
+        List<String> safeWarehouseHashes = warehouseHashes != null ? warehouseHashes : new ArrayList<>();
+        for (int i = 0; i < newReceiptIds.size(); i++) {
+            bytesWarehouseHashes.add(i < safeWarehouseHashes.size()
+                    ? hexToBytes(safeWarehouseHashes.get(i)) : new byte[32]);
+        }
+
+        SplitInput input = new SplitInput(
+                originalReceiptId,
+                newReceiptIds,
+                bigWeights,
+                bytesOwnerHashes,
+                bytesWarehouseHashes,
+                unit != null ? unit : "吨"
+        );
+
+        logger.info("拆分仓单(String): original={}, newCount={}", originalReceiptId, newReceiptIds.size());
+
+        TransactionResponse response = sendTransactionWithAudit(
+                warehouseCoreContract,
+                "splitReceipt",
+                new Object[]{input},
+                "WAREHOUSE_SPLIT"
+        );
+
+        TransactionReceipt receipt = response != null ? response.getTransactionReceipt() : null;
+        if (!isTransactionSuccess(receipt)) {
+            String errorMsg = getTransactionErrorMessage(receipt);
+            logger.error("拆分仓单失败: {}", errorMsg);
+            throw new RuntimeException("链上交易失败: " + errorMsg);
+        }
+        return receipt;
+    }
+
+    public TransactionReceipt mergeReceipts(List<String> sourceReceiptIds, String targetReceiptId,
+            String targetOwnerHash, String unit, Long totalWeight) {
+        return mergeReceipts(
+                sourceReceiptIds,
+                targetReceiptId,
+                hexToBytes(targetOwnerHash),
+                unit,
+                totalWeight != null ? BigInteger.valueOf(totalWeight) : null
+        );
+    }
+
+    public TransactionReceipt burnReceipt(String receiptId, String signatureHash) {
+        return burnReceipt(receiptId, hexToBytes(signatureHash));
+    }
+
+    public TransactionReceipt transferReceipt(String receiptId, String newOwnerHash) {
+        return transferReceipt(receiptId, hexToBytes(newOwnerHash));
+    }
+
     public TransactionReceipt launchEndorsement(String receiptId, byte[] fromHash, byte[] toHash) {
         checkOpsContract();
 
@@ -248,61 +377,6 @@ public class WarehouseReceiptContractService extends BaseContractService {
         if (!isTransactionSuccess(receipt)) {
             String errorMsg = getTransactionErrorMessage(receipt);
             logger.error("确认背书失败: {}", errorMsg);
-            throw new RuntimeException("链上交易失败: " + errorMsg);
-        }
-        return receipt;
-    }
-
-    public TransactionReceipt splitReceipt(
-            String originalReceiptId,
-            List<String> newReceiptIds,
-            List<BigInteger> weights,
-            List<byte[]> ownerHashes,
-            List<byte[]> warehouseHashes,
-            String unit) {
-        checkCoreContract();
-
-        if (newReceiptIds == null || newReceiptIds.isEmpty()) {
-            throw new IllegalArgumentException("新仓单ID列表不能为空");
-        }
-        if (weights == null || weights.size() != newReceiptIds.size()) {
-            throw new IllegalArgumentException("重量列表长度必须与新仓单ID列表一致");
-        }
-        if (ownerHashes == null) {
-            ownerHashes = new ArrayList<>();
-        }
-        while (ownerHashes.size() < newReceiptIds.size()) {
-            ownerHashes.add(new byte[32]);
-        }
-        if (warehouseHashes == null) {
-            warehouseHashes = new ArrayList<>();
-        }
-        while (warehouseHashes.size() < newReceiptIds.size()) {
-            warehouseHashes.add(new byte[32]);
-        }
-
-        SplitInput input = new SplitInput(
-                originalReceiptId,
-                newReceiptIds,
-                weights,
-                ownerHashes,
-                warehouseHashes,
-                unit != null ? unit : "吨"
-        );
-
-        logger.info("拆分仓单: original={}, newCount={}", originalReceiptId, newReceiptIds.size());
-
-        TransactionResponse response = sendTransactionWithAudit(
-                warehouseCoreContract,
-                "splitReceipt",
-                new Object[]{input},
-                "WAREHOUSE_SPLIT"
-        );
-
-        TransactionReceipt receipt = response != null ? response.getTransactionReceipt() : null;
-        if (!isTransactionSuccess(receipt)) {
-            String errorMsg = getTransactionErrorMessage(receipt);
-            logger.error("拆分仓单失败: {}", errorMsg);
             throw new RuntimeException("链上交易失败: " + errorMsg);
         }
         return receipt;

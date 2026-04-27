@@ -36,6 +36,9 @@ public class SignatureService {
     @Value("${fisco.crypto-type:0}")
     private int cryptoType;
 
+    @Value("${encrypt.aes.key:}")
+    private String aesKey;
+
     /**
      * 对数据签名并返回签名哈希
      *
@@ -152,6 +155,71 @@ public class SignatureService {
      */
     public boolean isAvailable() {
         return fiscoEnabled && cryptoKeyPair != null && cryptoSuite != null;
+    }
+
+    /**
+     * 生成新的密钥对
+     *
+     * @return 密钥对对象，包含地址和私钥
+     * @throws IllegalStateException 如果区块链功能未启用
+     */
+    public CryptoKeyPair generateKeyPair() {
+        if (!fiscoEnabled) {
+            throw new IllegalStateException("FISCO BCOS 功能已禁用，无法生成密钥对");
+        }
+
+        try {
+            CryptoSuite newSuite = new CryptoSuite(cryptoType);
+            CryptoKeyPair keyPair = newSuite.getCryptoKeyPair();
+            logger.info("成功生成新的区块链密钥对，地址: {}", keyPair.getAddress());
+            return keyPair;
+        } catch (Exception e) {
+            logger.error("生成密钥对失败: {}", e.getMessage(), e);
+            throw new IllegalStateException("生成密钥对失败: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 生成新的密钥对，返回加密后的私钥
+     *
+     * @return 加密后的私钥（Base64编码），如果加密失败则返回原始私钥
+     * @throws IllegalStateException 如果区块链功能未启用
+     */
+    public String generateEncryptedPrivateKey() {
+        CryptoKeyPair keyPair = generateKeyPair();
+        String rawPrivateKey = keyPair.getHexPrivateKey();
+
+        if (aesKey == null || aesKey.isEmpty()) {
+            logger.warn("AES加密密钥未配置，返回原始私钥");
+            return rawPrivateKey;
+        }
+
+        try {
+            return encryptWithAes(rawPrivateKey);
+        } catch (Exception e) {
+            logger.error("私钥加密失败，返回原始私钥: {}", e.getMessage());
+            return rawPrivateKey;
+        }
+    }
+
+    /**
+     * AES加密
+     */
+    private String encryptWithAes(String data) throws Exception {
+        if (data == null || data.isEmpty()) {
+            return null;
+        }
+        javax.crypto.Cipher cipher = javax.crypto.Cipher.getInstance("AES");
+        byte[] keyBytes = aesKey.getBytes();
+        if (keyBytes.length != 32) {
+            byte[] paddedKey = new byte[32];
+            System.arraycopy(keyBytes, 0, paddedKey, 0, Math.min(keyBytes.length, 32));
+            keyBytes = paddedKey;
+        }
+        javax.crypto.spec.SecretKeySpec keySpec = new javax.crypto.spec.SecretKeySpec(keyBytes, "AES");
+        cipher.init(javax.crypto.Cipher.ENCRYPT_MODE, keySpec);
+        byte[] encrypted = cipher.doFinal(data.getBytes("UTF-8"));
+        return java.util.Base64.getEncoder().encodeToString(encrypted);
     }
 
     private String bytesToHex(byte[] bytes) {

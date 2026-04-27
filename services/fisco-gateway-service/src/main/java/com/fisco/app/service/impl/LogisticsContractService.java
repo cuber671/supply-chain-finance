@@ -64,14 +64,14 @@ public class LogisticsContractService extends BaseContractService {
         }
 
         if (logisticsCoreAddress != null && !logisticsCoreAddress.isEmpty()) {
-            this.logisticsCore = LogisticsCore.load(logisticsCoreAddress, client, cryptoKeyPair);
+            this.logisticsCore = LogisticsCore.load(logisticsCoreAddress, client);
             logger.info("物流核心合约加载成功，地址: {}", logisticsCoreAddress);
         } else {
             logger.warn("物流核心合约地址未配置");
         }
 
         if (logisticsOpsAddress != null && !logisticsOpsAddress.isEmpty()) {
-            this.logisticsOps = LogisticsOps.load(logisticsOpsAddress, client, cryptoKeyPair);
+            this.logisticsOps = LogisticsOps.load(logisticsOpsAddress, client);
             logger.info("物流操作合约加载成功，地址: {}", logisticsOpsAddress);
         } else {
             logger.warn("物流操作合约地址未配置");
@@ -90,10 +90,49 @@ public class LogisticsContractService extends BaseContractService {
         }
     }
 
+    /**
+     * 将实体ID（十进制数字字符串）转换为32字节数组
+     */
+    protected byte[] entityIdToBytes32(String entityId) {
+        if (entityId == null || entityId.isEmpty()) {
+            return new byte[32];
+        }
+        try {
+            byte[] idBytes = entityId.getBytes();
+            byte[] result = new byte[32];
+            System.arraycopy(idBytes, 0, result, 0, Math.min(idBytes.length, 32));
+            return result;
+        } catch (Exception e) {
+            logger.error("entityIdToBytes32 转换失败: {}", entityId, e);
+            return new byte[32];
+        }
+    }
+
+    /**
+     * 将十六进制字符串转换为 byte[]
+     */
+    protected byte[] hexStringToBytes(String hex) {
+        if (hex == null || hex.isEmpty()) {
+            return new byte[32];
+        }
+        if (hex.startsWith("0x")) {
+            hex = hex.substring(2);
+        }
+        if (hex.length() % 2 != 0) {
+            hex = "0" + hex;
+        }
+        byte[] data = new byte[hex.length() / 2];
+        for (int i = 0; i < data.length; i++) {
+            data[i] = (byte) ((Character.digit(hex.charAt(i * 2), 16) << 4)
+                    + Character.digit(hex.charAt(i * 2 + 1), 16));
+        }
+        return data;
+    }
+
     @Override
     @SuppressWarnings("unchecked")
     protected <T extends org.fisco.bcos.sdk.v3.contract.Contract> T loadContract(String contractAddress) {
-        return (T) LogisticsCore.load(contractAddress, client, cryptoKeyPair);
+        return (T) LogisticsCore.load(contractAddress, client);
     }
 
     public TransactionReceipt createLogisticsDelegate(
@@ -127,6 +166,37 @@ public class LogisticsContractService extends BaseContractService {
         logger.info("链上创建物流委派单成功: voucherNo={}, txHash={}",
                 voucherNo, receipt != null ? receipt.getTransactionHash() : "N/A");
         return receipt;
+    }
+
+    // ==================== String 参数重载方法 ====================
+
+    /**
+     * 创建物流委托单（接收 String 参数，内部进行类型转换）
+     * ownerHash, carrierHash, sourceWhHash, targetWhHash 是 entity ID，使用 entityIdToBytes32 转换
+     */
+    public TransactionReceipt createLogisticsDelegate(
+            String voucherNo,
+            int businessScene,
+            String receiptId,
+            Long transportQuantity,
+            String unit,
+            String ownerHash,
+            String carrierHash,
+            String sourceWhHash,
+            String targetWhHash,
+            Long validUntil) {
+        return createLogisticsDelegate(
+                voucherNo,
+                businessScene,
+                receiptId,
+                transportQuantity != null ? BigInteger.valueOf(transportQuantity) : null,
+                unit,
+                entityIdToBytes32(ownerHash),
+                entityIdToBytes32(carrierHash),
+                entityIdToBytes32(sourceWhHash),
+                entityIdToBytes32(targetWhHash),
+                validUntil != null ? BigInteger.valueOf(validUntil) : null
+        );
     }
 
     public TransactionReceipt pickup(String voucherNo, BigInteger quantity) {
@@ -206,6 +276,35 @@ public class LogisticsContractService extends BaseContractService {
         logger.info("链上到货创建仓单成功: voucherNo={}, txHash={}",
                 voucherNo, receipt != null ? receipt.getTransactionHash() : "N/A");
         return receipt;
+    }
+
+    /**
+     * 到货创建仓单（接收 String 参数，内部进行类型转换）
+     * ownerHash 和 warehouseHash 是 entity ID，使用 entityIdToBytes32 转换
+     */
+    public TransactionReceipt arriveAndCreateReceipt(
+            String voucherNo,
+            String newReceiptId,
+            Long weight,
+            String unit,
+            String ownerHash,
+            String warehouseHash) {
+        return arriveAndCreateReceipt(
+                voucherNo,
+                newReceiptId,
+                weight != null ? BigInteger.valueOf(weight) : null,
+                unit,
+                entityIdToBytes32(ownerHash),
+                entityIdToBytes32(warehouseHash)
+        );
+    }
+
+    /**
+     * 分配承运人（接收 String 参数，内部进行类型转换）
+     * carrierHash 是 entity ID，使用 entityIdToBytes32 转换
+     */
+    public TransactionReceipt assignCarrier(String voucherNo, String carrierHash) {
+        return assignCarrier(voucherNo, entityIdToBytes32(carrierHash));
     }
 
     public TransactionReceipt assignCarrier(String voucherNo, byte[] carrierHash) {

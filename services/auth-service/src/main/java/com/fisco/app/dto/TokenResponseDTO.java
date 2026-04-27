@@ -1,5 +1,8 @@
 package com.fisco.app.dto;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
+
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -23,9 +26,11 @@ public class TokenResponseDTO {
     private Long expirationSeconds;
 
     @Schema(description = "用户ID", example = "1")
+    @JsonSerialize(using = ToStringSerializer.class)
     private Long userId;
 
     @Schema(description = "企业ID（管理员为null）", example = "1")
+    @JsonSerialize(using = ToStringSerializer.class)
     private Long entId;
 
     public static TokenResponseDTO of(String accessToken, String refreshToken,

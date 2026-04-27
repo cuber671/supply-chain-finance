@@ -47,8 +47,7 @@ public class ReceivableContractService extends BaseContractService {
         if (receivableCoreAddress != null && !receivableCoreAddress.isBlank()) {
             this.receivableCoreContract = ReceivableCore.load(
                     receivableCoreAddress,
-                    client,
-                    cryptoKeyPair
+                    client
             );
             logger.info("应收款核心合约加载成功，地址: {}", receivableCoreAddress);
         } else {
@@ -58,12 +57,56 @@ public class ReceivableContractService extends BaseContractService {
         if (receivableRepaymentAddress != null && !receivableRepaymentAddress.isBlank()) {
             this.receivableRepaymentContract = ReceivableRepayment.load(
                     receivableRepaymentAddress,
-                    client,
-                    cryptoKeyPair
+                    client
             );
             logger.info("应收款还款合约加载成功，地址: {}", receivableRepaymentAddress);
         } else {
             logger.warn("应收款还款合约地址未配置");
+        }
+
+        // 【D3-修复Settle】初始化合约配置：设置 receivableRepayment 地址
+        initializeContractSettings();
+    }
+
+    /**
+     * 初始化合约配置
+     * 设置 receivableRepayment 合约地址到 Core 合约中
+     */
+    private void initializeContractSettings() {
+        if (receivableCoreContract == null || receivableRepaymentContract == null) {
+            logger.warn("应收款合约未完整加载，跳过初始化");
+            return;
+        }
+
+        try {
+            String gatewayAddress = cryptoKeyPair.getAddress();
+            logger.info("应收款合约初始化: gatewayAddress={}, receivableCore={}, receivableRepayment={}",
+                    gatewayAddress, receivableCoreAddress, receivableRepaymentAddress);
+
+            // 检查并设置 receivableCore 的 admin（如果需要）
+            String currentAdmin = receivableCoreContract.admin();
+            logger.info("当前 Core 合约 admin: {}", currentAdmin);
+
+            // 设置 receivableRepayment 地址到 Core 合约
+            String currentRepayment = receivableCoreContract.receivableRepayment();
+            logger.info("当前 Core 合约 receivableRepayment: {}", currentRepayment);
+
+            if (receivableRepaymentAddress != null && !receivableRepaymentAddress.isEmpty()
+                    && !receivableRepaymentAddress.equalsIgnoreCase(currentRepayment)) {
+                logger.info("设置 receivableRepayment 地址: {}", receivableRepaymentAddress);
+                try {
+                    TransactionReceipt receipt = receivableCoreContract.setReceivableRepayment(receivableRepaymentAddress);
+                    if (isTransactionSuccess(receipt)) {
+                        logger.info("receivableRepayment 地址设置成功");
+                    } else {
+                        logger.error("receivableRepayment 地址设置失败: {}", getTransactionErrorMessage(receipt));
+                    }
+                } catch (Exception e) {
+                    logger.error("设置 receivableRepayment 地址异常: {}", e.getMessage());
+                }
+            }
+        } catch (Exception e) {
+            logger.error("应收款合约初始化异常: {}", e.getMessage());
         }
     }
 
@@ -83,9 +126,9 @@ public class ReceivableContractService extends BaseContractService {
     @SuppressWarnings("unchecked")
     protected <T extends org.fisco.bcos.sdk.v3.contract.Contract> T loadContract(String contractAddress) {
         if (contractAddress.equals(receivableCoreAddress)) {
-            return (T) ReceivableCore.load(contractAddress, client, cryptoKeyPair);
+            return (T) ReceivableCore.load(contractAddress, client);
         } else if (contractAddress.equals(receivableRepaymentAddress)) {
-            return (T) ReceivableRepayment.load(contractAddress, client, cryptoKeyPair);
+            return (T) ReceivableRepayment.load(contractAddress, client);
         }
         return null;
     }
@@ -137,7 +180,60 @@ public class ReceivableContractService extends BaseContractService {
             logger.error("创建应收款上链失败: {}", errorMsg);
             throw new RuntimeException("操作失败，请稍后重试");
         }
-        return receipt;
+return receipt;
+    }
+
+    /**
+     * 创建应收款（接收 String 参数，内部进行类型转换）
+     * buyerSellerPairHash, invoiceHash, contractHash, goodsDetailHash 是十六进制哈希
+     */
+    public TransactionReceipt createReceivable(
+            String receivableId,
+            Long initialAmount,
+            Long dueDate,
+            String buyerSellerPairHash,
+            String invoiceHash,
+            String contractHash,
+            String goodsDetailHash,
+            Integer businessScene) {
+        return createReceivable(
+                receivableId,
+                initialAmount != null ? BigInteger.valueOf(initialAmount) : null,
+                dueDate != null ? BigInteger.valueOf(dueDate) : null,
+                hexStringToBytes(buyerSellerPairHash),
+                hexStringToBytes(invoiceHash),
+                hexStringToBytes(contractHash),
+                hexStringToBytes(goodsDetailHash),
+                businessScene != null ? BigInteger.valueOf(businessScene) : null
+        );
+    }
+
+    /**
+     * 确认应收款（接收 String signature，内部进行类型转换）
+     */
+    public TransactionReceipt confirmReceivable(String receivableId, String signature) {
+        return confirmReceivable(receivableId, hexStringToBytes(signature));
+    }
+
+    /**
+     * 将十六进制字符串转换为 byte[]
+     */
+    protected byte[] hexStringToBytes(String hex) {
+        if (hex == null || hex.isEmpty()) {
+            return new byte[32];
+        }
+        if (hex.startsWith("0x")) {
+            hex = hex.substring(2);
+        }
+        if (hex.length() % 2 != 0) {
+            hex = "0" + hex;
+        }
+        byte[] data = new byte[hex.length() / 2];
+        for (int i = 0; i < data.length; i++) {
+            data[i] = (byte) ((Character.digit(hex.charAt(i * 2), 16) << 4)
+                    + Character.digit(hex.charAt(i * 2 + 1), 16));
+        }
+return data;
     }
 
     public TransactionReceipt confirmReceivable(String receivableId, byte[] signature) {
@@ -427,6 +523,22 @@ public class ReceivableContractService extends BaseContractService {
             throw new RuntimeException("操作失败，请稍后重试");
         }
         return receipt;
+    }
+
+    /**
+     * 以物抵债（接收 String 参数，内部进行类型转换）
+     */
+    public TransactionReceipt offsetDebtWithCollateral(
+            String receivableId,
+            String receiptId,
+            Long offsetAmount,
+            String signatureHash) {
+        return offsetDebtWithCollateral(
+                receivableId,
+                receiptId,
+                offsetAmount != null ? BigInteger.valueOf(offsetAmount) : null,
+                hexStringToBytes(signatureHash)
+        );
     }
 
     /**

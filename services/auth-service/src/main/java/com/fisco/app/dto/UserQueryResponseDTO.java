@@ -1,5 +1,7 @@
 package com.fisco.app.dto;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import com.fisco.app.entity.User;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
@@ -9,6 +11,7 @@ import java.time.LocalDateTime;
 @Schema(description = "用户信息响应")
 public class UserQueryResponseDTO {
     @Schema(description = "用户ID", example = "1")
+    @JsonSerialize(using = ToStringSerializer.class)
     private Long userId;
 
     @Schema(description = "用户名", example = "zhangsan")
@@ -24,12 +27,13 @@ public class UserQueryResponseDTO {
     private String email;
 
     @Schema(description = "企业ID", example = "1")
+    @JsonSerialize(using = ToStringSerializer.class)
     private Long enterpriseId;
 
     @Schema(description = "用户角色", example = "OPERATOR", allowableValues = {"ADMIN", "FINANCE", "OPERATOR"})
     private String userRole;
 
-    @Schema(description = "状态", example = "1", allowableValues = {"0", "1", "2", "3", "4"})
+    @Schema(description = "状态", example = "2", allowableValues = {"1", "2", "3", "4", "5", "6"})
     private Integer status;
 
     @Schema(description = "创建时间", example = "2026-01-01T10:00:00")

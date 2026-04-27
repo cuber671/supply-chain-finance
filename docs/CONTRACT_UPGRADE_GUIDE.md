@@ -10,7 +10,6 @@
 | LoanCore | v1 | 见docker-compose.yml |
 | LoanRepayment | v1 | 见docker-compose.yml |
 | ReceivableCore | v2 | 见docker-compose.yml |
-| BillCore | v1 | 见docker-compose.yml |
 | CreditLimitCore | v2 | 见docker-compose.yml |
 
 ## 升级流程

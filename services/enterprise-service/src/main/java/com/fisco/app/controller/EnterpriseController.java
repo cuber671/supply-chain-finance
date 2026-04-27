@@ -115,7 +115,7 @@ public class EnterpriseController {
 
             // 构建响应
             Map<String, Object> result = new HashMap<>();
-            result.put("entId", entId);
+            result.put("entId", String.valueOf(entId));
             result.put("username", enterprise.getUsername());
             result.put("enterpriseName", enterprise.getEnterpriseName());
             result.put("orgCode", enterprise.getOrgCode());
@@ -323,12 +323,12 @@ public class EnterpriseController {
             String action = request.getApproved() ? "通过" : "拒绝";
 
             Map<String, Object> result = new HashMap<>();
-            result.put("enterpriseId", entId);
+            result.put("enterpriseId", String.valueOf(entId));
             result.put("enterpriseName", enterprise.getEnterpriseName());
             result.put("action", action);
             result.put("newStatus", newStatus);
 
-            // FIX: 审核通过时执行区块链注册和状态更新
+            // 审核通过时执行区块链注册和状态更新
             if (request.getApproved()) {
                 // ① 注册企业上链
                 String registerTxHash = null;
@@ -405,7 +405,7 @@ public class EnterpriseController {
             }
 
             Map<String, Object> result = new HashMap<>();
-            result.put("entId", enterprise.getEntId());
+            result.put("entId", String.valueOf(enterprise.getEntId()));
             result.put("username", enterprise.getUsername());
             result.put("enterpriseName", enterprise.getEnterpriseName());
             result.put("entRole", enterprise.getEntRole());
@@ -416,8 +416,8 @@ public class EnterpriseController {
             if (authFeignClient != null) {
                 try {
                     Map<String, Object> tokenRequest = new HashMap<>();
-                    tokenRequest.put("userId", enterprise.getEntId());
-                    tokenRequest.put("entId", enterprise.getEntId());
+                    tokenRequest.put("userId", String.valueOf(enterprise.getEntId()));
+                    tokenRequest.put("entId", String.valueOf(enterprise.getEntId()));
                     tokenRequest.put("role", "ENTERPRISE");
                     tokenRequest.put("scope", 5);
                     tokenRequest.put("entRole", enterprise.getEntRole());
@@ -463,8 +463,10 @@ public class EnterpriseController {
     public ResponseEntity<Result<Void>> updateLoginPassword(
             @Parameter(description = "密码更新信息", required = true) @Valid @RequestBody PasswordUpdateRequest request) {
         try {
-            if (request.getEntId() == null) {
-                return ResponseEntity.ok(Result.error(400, "企业ID不能为空"));
+            // 从JWT token提取企业ID，防止伪造
+            Long entId = CurrentUser.getEntId();
+            if (entId == null) {
+                return ResponseEntity.ok(Result.error(401, "未登录或Token无效"));
             }
             if (request.getOldPassword() == null || request.getOldPassword().isEmpty()) {
                 return ResponseEntity.ok(Result.error(400, "原密码不能为空"));
@@ -474,13 +476,13 @@ public class EnterpriseController {
             }
 
             boolean success = enterpriseService.updateLoginPassword(
-                    request.getEntId(),
+                    entId,
                     request.getOldPassword(),
                     request.getNewPassword()
             );
 
             if (success) {
-                logger.info("企业登录密码已更新: entId={}", request.getEntId());
+                logger.info("企业登录密码已更新: entId={}", entId);
                 return ResponseEntity.ok(Result.success(null));
             } else {
                 return ResponseEntity.ok(Result.error(500, "修改密码失败"));
@@ -489,7 +491,7 @@ public class EnterpriseController {
         } catch (IllegalArgumentException e) {
             return ResponseEntity.ok(Result.error(400, e.getMessage()));
         } catch (Exception e) {
-            logger.error("修改登录密码异常: entId={}", request.getEntId(), e);
+            logger.error("修改登录密码异常", e);
             return ResponseEntity.ok(Result.error(500, "操作失败，请稍后重试"));
         }
     }
@@ -508,8 +510,10 @@ public class EnterpriseController {
     public ResponseEntity<Result<Void>> updatePayPassword(
             @Parameter(description = "交易密码重置信息", required = true) @Valid @RequestBody PasswordUpdateRequest request) {
         try {
-            if (request.getEntId() == null) {
-                return ResponseEntity.ok(Result.error(400, "企业ID不能为空"));
+            // 从JWT token提取企业ID，防止伪造
+            Long entId = CurrentUser.getEntId();
+            if (entId == null) {
+                return ResponseEntity.ok(Result.error(401, "未登录或Token无效"));
             }
             if (request.getOldPassword() == null || request.getOldPassword().isEmpty()) {
                 return ResponseEntity.ok(Result.error(400, "原交易密码不能为空"));
@@ -519,13 +523,13 @@ public class EnterpriseController {
             }
 
             boolean success = enterpriseService.updatePayPassword(
-                    request.getEntId(),
+                    entId,
                     request.getOldPassword(),
                     request.getNewPassword()
             );
 
             if (success) {
-                logger.info("企业交易密码已重置: entId={}", request.getEntId());
+                logger.info("企业交易密码已重置: entId={}", entId);
                 return ResponseEntity.ok(Result.success(null));
             } else {
                 return ResponseEntity.ok(Result.error(500, "重置交易密码失败"));
@@ -534,7 +538,7 @@ public class EnterpriseController {
         } catch (IllegalArgumentException e) {
             return ResponseEntity.ok(Result.error(400, e.getMessage()));
         } catch (Exception e) {
-            logger.error("重置交易密码异常: entId={}", request.getEntId(), e);
+            logger.error("重置交易密码异常", e);
             return ResponseEntity.ok(Result.error(500, "操作失败，请稍后重试"));
         }
     }
@@ -810,7 +814,12 @@ public class EnterpriseController {
     @PostMapping("/{entId}/cancellation/audit")
     public ResponseEntity<Result<Void>> auditCancellation(
             @Parameter(description = "企业ID", required = true) @PathVariable Long entId,
-            @Parameter(description = "审核结果", required = true) @RequestBody AuditRequest request) {
+            @Parameter(description = "审核结果", required = true) @RequestBody AuditRequest request,
+            javax.servlet.http.HttpServletRequest httpRequest) {
+        String role = com.fisco.app.filter.BaseJwtAuthenticationFilter.getRole(httpRequest);
+        if (!"ADMIN".equals(role)) {
+            return ResponseEntity.ok(Result.error(403, "只有管理员可以访问此接口"));
+        }
         try {
             if (entId == null) {
                 return ResponseEntity.ok(Result.error(400, "企业ID不能为空"));

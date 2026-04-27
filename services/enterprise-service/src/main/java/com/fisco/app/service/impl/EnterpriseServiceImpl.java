@@ -17,7 +17,6 @@ import org.springframework.transaction.annotation.Transactional;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.fisco.app.config.BlockchainConfig;
 import com.fisco.app.entity.Enterprise;
 import com.fisco.app.entity.InvitationCode;
 import com.fisco.app.feign.BlockchainFeignClient;
@@ -50,9 +49,6 @@ public class EnterpriseServiceImpl implements EnterpriseService {
 
     @Autowired
     private InvitationCodeMapper invitationCodeMapper;
-
-    @Autowired(required = false)
-    private BlockchainConfig blockchainConfig;
 
     @Autowired(required = false)
     private BlockchainFeignClient blockchainFeignClient;
@@ -117,20 +113,20 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         enterprise.setStatus(Enterprise.STATUS_PENDING); // 待审核状态
 
         try {
-            // 使用SDK生成密钥对（包含地址和私钥）
-            if (blockchainConfig == null) {
-                logger.warn("区块链配置不可用，使用空地址");
+            // 通过 Feign 调用 fisco-gateway-service 生成密钥对
+            if (blockchainFeignClient == null) {
+                logger.warn("区块链网关服务不可用，使用空地址");
                 enterprise.setBlockchainAddress(null);
                 enterprise.setEncryptedPrivateKey(null);
             } else {
-                BlockchainConfig.KeyPairInfo keyPairInfo = blockchainConfig.generateKeyPairWithPrivateKey();
-                if (keyPairInfo == null) {
-                    logger.warn("密钥对生成失败，使用空地址");
+                var result = blockchainFeignClient.generateKeyPair();
+                if (result == null || result.getCode() != 0 || result.getData() == null) {
+                    logger.warn("密钥对生成失败，使用空地址: result={}", result);
                     enterprise.setBlockchainAddress(null);
                     enterprise.setEncryptedPrivateKey(null);
                 } else {
-                    String blockchainAddress = keyPairInfo.getAddress();
-                    String privateKey = keyPairInfo.getPrivateKey();
+                    String blockchainAddress = result.getData().getAddress();
+                    String privateKey = result.getData().getPrivateKey();
 
                     // 加密存储私钥
                     String encryptedPrivateKey = privateKey != null
@@ -753,7 +749,10 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         try {
             BlockchainFeignClient.EnterpriseStatusRequest request = new BlockchainFeignClient.EnterpriseStatusRequest();
             request.setEnterpriseAddress(enterprise.getBlockchainAddress());
-            request.setNewStatus(status);
+            // 链下: STATUS_CANCELLED=4, STATUS_PENDING_CANCEL=5
+            // 链上: Deleted=5, PendingDeletion=4
+            int chainStatus = mapToChainStatus(status);
+            request.setNewStatus(chainStatus);
             var result = blockchainFeignClient.updateEnterpriseStatus(request);
             // 【P2-7修复】区块链响应码检查，失败时抛出异常保持一致性
             if (result == null || result.getCode() != 0) {
@@ -761,13 +760,42 @@ public class EnterpriseServiceImpl implements EnterpriseService {
                 logger.error(errMsg);
                 throw new RuntimeException(errMsg);
             }
-            logger.info("更新链上企业状态成功: entId={}, status={}, txHash={}", entId, status, result.getData());
+            logger.info("更新链上企业状态成功: entId={}, dbStatus={}, chainStatus={}, txHash={}", entId, status, chainStatus, result.getData());
             return result.getData();
         } catch (RuntimeException e) {
             throw e;
         } catch (Exception e) {
             logger.error("更新链上企业状态异常: entId={}", entId, e);
             throw new RuntimeException("更新链上企业状态异常: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 将链下企业状态映射到链上状态
+     * 链下状态定义(Enterprise.STATUS_*):
+     *   STATUS_PENDING=0, STATUS_NORMAL=1, STATUS_FROZEN=2,
+     *   STATUS_CANCELLING=3, STATUS_CANCELLED=4, STATUS_PENDING_CANCEL=5
+     * 链上状态定义(EnterpriseRegistryV2.EnterpriseStatus):
+     *   Pending=0, Active=1, Suspended=2, Blacklisted=3, PendingDeletion=4, Deleted=5
+     * @param dbStatus 链下状态值
+     * @return 链上状态值
+     */
+    private int mapToChainStatus(int dbStatus) {
+        switch (dbStatus) {
+            case Enterprise.STATUS_PENDING:
+                return 0;  // Pending
+            case Enterprise.STATUS_NORMAL:
+                return 1;  // Active
+            case Enterprise.STATUS_FROZEN:
+                return 2;  // Suspended
+            case Enterprise.STATUS_CANCELLED:
+                return 5;  // Deleted (链下4 → 链上5)
+            case Enterprise.STATUS_PENDING_CANCEL:
+                return 4;  // PendingDeletion (链下5 → 链上4)
+            default:
+                // STATUS_CANCELLING(3)无链上对应，映射为PendingDeletion(4)
+                // Blacklisted(3)在链下无对应状态
+                return dbStatus;
         }
     }
 
@@ -778,11 +806,32 @@ public class EnterpriseServiceImpl implements EnterpriseService {
             return null;
         }
         Enterprise enterprise = getEnterpriseById(entId);
-        if (enterprise == null || enterprise.getBlockchainAddress() == null) {
-            throw new IllegalArgumentException("企业不存在或未生成区块链地址");
+        if (enterprise == null) {
+            throw new IllegalArgumentException("企业不存在");
+        }
+        // 如果没有区块链地址，自动生成并回填到数据库
+        if (enterprise.getBlockchainAddress() == null) {
+            try {
+                var keyPairResult = blockchainFeignClient.generateKeyPair();
+                if (keyPairResult == null || keyPairResult.getCode() != 0 || keyPairResult.getData() == null) {
+                    throw new RuntimeException("自动生成区块链地址失败: " + keyPairResult);
+                }
+                String address = keyPairResult.getData().getAddress();
+                String privateKey = keyPairResult.getData().getPrivateKey();
+                String encryptedPrivateKey = privateKey != null ? encryptWithAes(privateKey) : null;
+                enterprise.setBlockchainAddress(address);
+                enterprise.setEncryptedPrivateKey(encryptedPrivateKey);
+                enterpriseMapper.updateById(enterprise);
+                logger.info("自动生成区块链地址并回填: entId={}, address={}", entId, address);
+            } catch (RuntimeException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new RuntimeException("自动生成区块链地址异常: " + e.getMessage(), e);
+            }
         }
         try {
             BlockchainFeignClient.EnterpriseRegisterRequest request = new BlockchainFeignClient.EnterpriseRegisterRequest();
+            request.setIdempotencyKey("enterprise_register_" + entId);
             request.setEnterpriseAddress(enterprise.getBlockchainAddress());
             request.setCreditCode(enterprise.getOrgCode());
             request.setRole(enterprise.getEntRole());

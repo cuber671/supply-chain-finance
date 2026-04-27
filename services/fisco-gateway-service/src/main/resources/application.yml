@@ -57,9 +57,6 @@ contract:
     # 应收款合约
     receivable-core: ${CONTRACT_RECEIVABLE_CORE:}
     receivable-repayment: ${CONTRACT_RECEIVABLE_REPAYMENT:}
-    # 票据合约
-    bill-core: ${CONTRACT_BILL_CORE:}
-    bill-ops: ${CONTRACT_BILL_OPS:}
     # 信用合约
     credit-core: ${CONTRACT_CREDIT_CORE:}
     credit-score: ${CONTRACT_CREDIT_SCORE:}

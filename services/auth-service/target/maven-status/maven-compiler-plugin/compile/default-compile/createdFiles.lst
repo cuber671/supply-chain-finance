@@ -3,6 +3,7 @@ com/fisco/app/config/OpenApiConfig.class
 com/fisco/app/mapper/LoginTransactionMapper.class
 com/fisco/app/service/EnterpriseLoginService.class
 com/fisco/app/dto/UserQueryResponseDTO.class
+com/fisco/app/dto/RevokeCancelRequestDTO.class
 com/fisco/app/config/AuditContext.class
 com/fisco/app/entity/User.class
 com/fisco/app/controller/LogoutController.class

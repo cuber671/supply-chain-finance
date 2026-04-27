@@ -2,7 +2,7 @@
   {
     "username": "user_logistics_admin",
     "password": "User2024@123",
-    "realName": "物流管理员",
+    "realName": "管理员",
     "phone": "13900000001",
     "email": "admin@zhongtong.com",
     "userRole": "ADMIN",
@@ -11,7 +11,7 @@
   {
     "username": "user_logistics_fin",
     "password": "User2024@123",
-    "realName": "物流财务",
+    "realName": "财务",
     "phone": "13900000002",
     "email": "fin@zhongtong.com",
     "userRole": "FINANCE",
@@ -20,7 +20,7 @@
   {
     "username": "user_logistics_op",
     "password": "User2024@123",
-    "realName": "物流操作员",
+    "realName": "操作员",
     "phone": "13900000003",
     "email": "op@zhongtong.com",
     "userRole": "OPERATOR",

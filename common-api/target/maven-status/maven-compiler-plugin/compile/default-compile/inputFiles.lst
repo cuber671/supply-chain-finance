@@ -1,5 +1,6 @@
 /home/llm_rca/fisco/supply-chain-finance/common-api/src/main/java/com/fisco/app/filter/BaseJwtAuthenticationFilter.java
 /home/llm_rca/fisco/supply-chain-finance/common-api/src/main/java/com/fisco/app/enums/UserRoleEnum.java
+/home/llm_rca/fisco/supply-chain-finance/common-api/src/main/java/com/fisco/app/util/BusinessIdGenerator.java
 /home/llm_rca/fisco/supply-chain-finance/common-api/src/main/java/com/fisco/app/enums/EnterpriseStatusEnum.java
 /home/llm_rca/fisco/supply-chain-finance/common-api/src/main/java/com/fisco/app/feign/LogisticsFeignClient.java
 /home/llm_rca/fisco/supply-chain-finance/common-api/src/main/java/com/fisco/app/dto/RegisterRequestDTO.java
@@ -8,6 +9,8 @@
 /home/llm_rca/fisco/supply-chain-finance/common-api/src/main/java/com/fisco/app/feign/EnterpriseFeignClient.java
 /home/llm_rca/fisco/supply-chain-finance/common-api/src/main/java/com/fisco/app/enums/InvitationTypeEnum.java
 /home/llm_rca/fisco/supply-chain-finance/common-api/src/main/java/com/fisco/app/feign/BlockchainFeignClient.java
+/home/llm_rca/fisco/supply-chain-finance/common-api/src/main/java/com/fisco/app/enums/ReceiptStatus.java
+/home/llm_rca/fisco/supply-chain-finance/common-api/src/main/java/com/fisco/app/enums/LogisticsStatus.java
 /home/llm_rca/fisco/supply-chain-finance/common-api/src/main/java/com/fisco/app/feign/CreditFeignClient.java
 /home/llm_rca/fisco/supply-chain-finance/common-api/src/main/java/com/fisco/app/enums/EnterpriseRoleEnum.java
 /home/llm_rca/fisco/supply-chain-finance/common-api/src/main/java/com/fisco/app/enums/ResultCodeEnum.java
@@ -17,6 +20,7 @@
 /home/llm_rca/fisco/supply-chain-finance/common-api/src/main/java/com/fisco/app/enums/LoanStatus.java
 /home/llm_rca/fisco/supply-chain-finance/common-api/src/main/java/com/fisco/app/dto/RefreshTokenRequestDTO.java
 /home/llm_rca/fisco/supply-chain-finance/common-api/src/main/java/com/fisco/app/config/FeignConfig.java
+/home/llm_rca/fisco/supply-chain-finance/common-api/src/main/java/com/fisco/app/enums/ReceivableStatus.java
 /home/llm_rca/fisco/supply-chain-finance/common-api/src/main/java/com/fisco/app/feign/WarehouseFeignClient.java
 /home/llm_rca/fisco/supply-chain-finance/common-api/src/main/java/com/fisco/app/enums/AsyncTaskStatus.java
 /home/llm_rca/fisco/supply-chain-finance/common-api/src/main/java/com/fisco/app/constant/EntRoleConstant.java

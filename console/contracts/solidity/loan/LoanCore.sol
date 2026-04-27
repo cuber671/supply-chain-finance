@@ -25,12 +25,19 @@ contract LoanCore {
     uint256 public loanCount;
     uint256 public constant VERSION = 1;
 
-    // ==================== 贷款状态枚举 ====================
+    // ==================== 贷款状态枚举（与Java端LoanStatus一一对应）====================
 
     enum LoanStatus {
-        None, Pending, Approved, Disbursed,
-        Repaying, Settled, Overdue, Defaulted,
-        Cancelled, Disposed
+        None,           // 0-不存在
+        Pending,        // 1-待审批
+        Rejected,       // 2-已拒绝
+        Cancelled,      // 3-已取消
+        PendingDisburse,// 4-待放款
+        Disbursed,      // 5-已放款
+        Repaying,       // 6-还款中
+        Settled,        // 7-已结清
+        Overdue,        // 8-逾期
+        Defaulted       // 9-已违约
     }
 
     // ==================== 存储层 ====================
@@ -221,7 +228,7 @@ contract LoanCore {
         loanInterestRate[loanNo] = interestRate;
         loanDays[loanNo] = _loanDays;
         loanDataHash[loanNo] = dataHash;
-        loanStatuses[loanNo] = uint8(LoanStatus.Approved);
+        loanStatuses[loanNo] = uint8(LoanStatus.PendingDisburse);  // 审批通过后进入待放款状态
         loanUpdateTime[loanNo] = block.timestamp;
 
         emit LoanApproved(loanNo, approvedAmount, interestRate, _loanDays, block.timestamp);
@@ -236,7 +243,7 @@ contract LoanCore {
         external onlyJavaBackend onlyValidLoan(loanNo) returns (bool success)
     {
         uint8 status = loanStatuses[loanNo];
-        require(status == uint8(LoanStatus.Pending) || status == uint8(LoanStatus.Approved) || status == uint8(LoanStatus.Disbursed), "invalid status for cancel");
+        require(status == uint8(LoanStatus.Pending) || status == uint8(LoanStatus.PendingDisburse) || status == uint8(LoanStatus.Disbursed), "invalid status for cancel");
 
         loanStatuses[loanNo] = uint8(LoanStatus.Cancelled);
         loanUpdateTime[loanNo] = block.timestamp;
@@ -257,7 +264,7 @@ contract LoanCore {
         string calldata receiptId
     ) external onlyJavaBackend onlyValidLoan(loanNo) returns (bool success)
     {
-        require(LoanStatus(loanStatuses[loanNo]) == LoanStatus.Approved, "invalid status for disburse");
+        require(LoanStatus(loanStatuses[loanNo]) == LoanStatus.PendingDisburse, "invalid status for disburse");
 
         loanDisbursedAmount[loanNo] = disbursedAmount;
         loanStartDate[loanNo] = startDate;

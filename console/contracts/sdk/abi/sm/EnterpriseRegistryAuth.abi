@@ -1,0 +1,1 @@
+[{"inputs":[],"name":"OnlyAdmin","type":"error"},{"inputs":[{"internalType":"address","name":"owner","type":"address"}],"name":"OnlyEnterpriseOwner","type":"error"},{"inputs":[],"name":"OnlyJavaBackend","type":"error"},{"inputs":[],"name":"OnlyValidEnterprise","type":"error"}]

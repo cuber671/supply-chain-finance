@@ -23,12 +23,15 @@ import org.fisco.bcos.sdk.v3.codec.datatypes.generated.tuples.generated.Tuple2;
 import org.fisco.bcos.sdk.v3.codec.datatypes.generated.tuples.generated.Tuple3;
 import org.fisco.bcos.sdk.v3.codec.datatypes.generated.tuples.generated.Tuple6;
 import org.fisco.bcos.sdk.v3.contract.Contract;
+import org.fisco.bcos.sdk.v3.contract.FunctionWrapper;
 import org.fisco.bcos.sdk.v3.crypto.CryptoSuite;
 import org.fisco.bcos.sdk.v3.crypto.keypair.CryptoKeyPair;
 import org.fisco.bcos.sdk.v3.eventsub.EventSubCallback;
 import org.fisco.bcos.sdk.v3.model.CryptoType;
 import org.fisco.bcos.sdk.v3.model.TransactionReceipt;
 import org.fisco.bcos.sdk.v3.model.callback.TransactionCallback;
+import org.fisco.bcos.sdk.v3.transaction.manager.transactionv1.ProxySignTransactionManager;
+import org.fisco.bcos.sdk.v3.transaction.manager.transactionv1.TransactionManager;
 import org.fisco.bcos.sdk.v3.transaction.model.exception.ContractException;
 
 /**
@@ -90,6 +93,12 @@ public class LogisticsCore extends Contract {
 
     protected LogisticsCore(String contractAddress, Client client, CryptoKeyPair credential) {
         super(getBinary(client.getCryptoSuite()), contractAddress, client, credential);
+        this.transactionManager = new ProxySignTransactionManager(client);
+    }
+
+    protected LogisticsCore(String contractAddress, Client client,
+            TransactionManager transactionManager) {
+        super(getBinary(client.getCryptoSuite()), contractAddress, client, transactionManager);
     }
 
     public static String getBinary(CryptoSuite cryptoSuite) {
@@ -218,6 +227,14 @@ public class LogisticsCore extends Contract {
         return function;
     }
 
+    public FunctionWrapper buildMethodArrive(String voucherNo) {
+        @SuppressWarnings("rawtypes")
+        final Function function = new Function(FUNC_ARRIVE, 
+                Arrays.<Type>asList(new org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String(voucherNo)), 
+                Arrays.<TypeReference<?>>asList(new TypeReference<Bool>() {}));
+        return new FunctionWrapper(this, function);
+    }
+
     public String getSignedTransactionForArrive(String voucherNo) {
         @SuppressWarnings("rawtypes")
         final Function function = new Function(
@@ -294,6 +311,17 @@ public class LogisticsCore extends Contract {
                 new org.fisco.bcos.sdk.v3.codec.datatypes.generated.Uint256(quantity)), 
                 Arrays.<TypeReference<?>>asList(new TypeReference<Bool>() {}));
         return function;
+    }
+
+    public FunctionWrapper buildMethodArriveAndAddQuantity(String voucherNo, String targetReceiptId,
+            BigInteger quantity) {
+        @SuppressWarnings("rawtypes")
+        final Function function = new Function(FUNC_ARRIVEANDADDQUANTITY, 
+                Arrays.<Type>asList(new org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String(voucherNo), 
+                new org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String(targetReceiptId), 
+                new org.fisco.bcos.sdk.v3.codec.datatypes.generated.Uint256(quantity)), 
+                Arrays.<TypeReference<?>>asList(new TypeReference<Bool>() {}));
+        return new FunctionWrapper(this, function);
     }
 
     public String getSignedTransactionForArriveAndAddQuantity(String voucherNo,
@@ -390,6 +418,20 @@ public class LogisticsCore extends Contract {
         return function;
     }
 
+    public FunctionWrapper buildMethodArriveAndCreateReceipt(String voucherNo, String newReceiptId,
+            BigInteger weight, String unit, byte[] ownerHash, byte[] warehouseHash) {
+        @SuppressWarnings("rawtypes")
+        final Function function = new Function(FUNC_ARRIVEANDCREATERECEIPT, 
+                Arrays.<Type>asList(new org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String(voucherNo), 
+                new org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String(newReceiptId), 
+                new org.fisco.bcos.sdk.v3.codec.datatypes.generated.Uint256(weight), 
+                new org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String(unit), 
+                new org.fisco.bcos.sdk.v3.codec.datatypes.generated.Bytes32(ownerHash), 
+                new org.fisco.bcos.sdk.v3.codec.datatypes.generated.Bytes32(warehouseHash)), 
+                Arrays.<TypeReference<?>>asList(new TypeReference<Bool>() {}));
+        return new FunctionWrapper(this, function);
+    }
+
     public String getSignedTransactionForArriveAndCreateReceipt(String voucherNo,
             String newReceiptId, BigInteger weight, String unit, byte[] ownerHash,
             byte[] warehouseHash) {
@@ -484,6 +526,15 @@ public class LogisticsCore extends Contract {
         return function;
     }
 
+    public FunctionWrapper buildMethodAssignCarrier(String voucherNo, byte[] carrierHash) {
+        @SuppressWarnings("rawtypes")
+        final Function function = new Function(FUNC_ASSIGNCARRIER, 
+                Arrays.<Type>asList(new org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String(voucherNo), 
+                new org.fisco.bcos.sdk.v3.codec.datatypes.generated.Bytes32(carrierHash)), 
+                Arrays.<TypeReference<?>>asList(new TypeReference<Bool>() {}));
+        return new FunctionWrapper(this, function);
+    }
+
     public String getSignedTransactionForAssignCarrier(String voucherNo, byte[] carrierHash) {
         @SuppressWarnings("rawtypes")
         final Function function = new Function(
@@ -564,6 +615,17 @@ public class LogisticsCore extends Contract {
                 new org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String(targetReceiptId)), 
                 Arrays.<TypeReference<?>>asList(new TypeReference<Bool>() {}));
         return function;
+    }
+
+    public FunctionWrapper buildMethodConfirmDelivery(String voucherNo, BigInteger action,
+            String targetReceiptId) {
+        @SuppressWarnings("rawtypes")
+        final Function function = new Function(FUNC_CONFIRMDELIVERY, 
+                Arrays.<Type>asList(new org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String(voucherNo), 
+                new org.fisco.bcos.sdk.v3.codec.datatypes.generated.Uint256(action), 
+                new org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String(targetReceiptId)), 
+                Arrays.<TypeReference<?>>asList(new TypeReference<Bool>() {}));
+        return new FunctionWrapper(this, function);
     }
 
     public String getSignedTransactionForConfirmDelivery(String voucherNo, BigInteger action,
@@ -667,6 +729,23 @@ public class LogisticsCore extends Contract {
                         org.fisco.bcos.sdk.v3.codec.Utils.typeMap(bytesParams, org.fisco.bcos.sdk.v3.codec.datatypes.generated.Bytes32.class))), 
                 Arrays.<TypeReference<?>>asList(new TypeReference<Bool>() {}));
         return function;
+    }
+
+    public FunctionWrapper buildMethodCreateLogisticsDelegate(List<String> stringParams,
+            List<BigInteger> uintParams, List<byte[]> bytesParams) {
+        @SuppressWarnings("rawtypes")
+        final Function function = new Function(FUNC_CREATELOGISTICSDELEGATE, 
+                Arrays.<Type>asList(new org.fisco.bcos.sdk.v3.codec.datatypes.DynamicArray<org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String>(
+                        org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String.class,
+                        org.fisco.bcos.sdk.v3.codec.Utils.typeMap(stringParams, org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String.class)), 
+                new org.fisco.bcos.sdk.v3.codec.datatypes.DynamicArray<org.fisco.bcos.sdk.v3.codec.datatypes.generated.Uint256>(
+                        org.fisco.bcos.sdk.v3.codec.datatypes.generated.Uint256.class,
+                        org.fisco.bcos.sdk.v3.codec.Utils.typeMap(uintParams, org.fisco.bcos.sdk.v3.codec.datatypes.generated.Uint256.class)), 
+                new org.fisco.bcos.sdk.v3.codec.datatypes.DynamicArray<org.fisco.bcos.sdk.v3.codec.datatypes.generated.Bytes32>(
+                        org.fisco.bcos.sdk.v3.codec.datatypes.generated.Bytes32.class,
+                        org.fisco.bcos.sdk.v3.codec.Utils.typeMap(bytesParams, org.fisco.bcos.sdk.v3.codec.datatypes.generated.Bytes32.class))), 
+                Arrays.<TypeReference<?>>asList(new TypeReference<Bool>() {}));
+        return new FunctionWrapper(this, function);
     }
 
     public String getSignedTransactionForCreateLogisticsDelegate(List<String> stringParams,
@@ -830,6 +909,14 @@ public class LogisticsCore extends Contract {
         return function;
     }
 
+    public FunctionWrapper buildMethodInvalidate(String voucherNo) {
+        @SuppressWarnings("rawtypes")
+        final Function function = new Function(FUNC_INVALIDATE, 
+                Arrays.<Type>asList(new org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String(voucherNo)), 
+                Arrays.<TypeReference<?>>asList(new TypeReference<Bool>() {}));
+        return new FunctionWrapper(this, function);
+    }
+
     public String getSignedTransactionForInvalidate(String voucherNo) {
         @SuppressWarnings("rawtypes")
         final Function function = new Function(
@@ -903,6 +990,15 @@ public class LogisticsCore extends Contract {
                 new org.fisco.bcos.sdk.v3.codec.datatypes.generated.Uint256(quantity)), 
                 Arrays.<TypeReference<?>>asList(new TypeReference<Bool>() {}));
         return function;
+    }
+
+    public FunctionWrapper buildMethodPickup(String voucherNo, BigInteger quantity) {
+        @SuppressWarnings("rawtypes")
+        final Function function = new Function(FUNC_PICKUP, 
+                Arrays.<Type>asList(new org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String(voucherNo), 
+                new org.fisco.bcos.sdk.v3.codec.datatypes.generated.Uint256(quantity)), 
+                Arrays.<TypeReference<?>>asList(new TypeReference<Bool>() {}));
+        return new FunctionWrapper(this, function);
     }
 
     public String getSignedTransactionForPickup(String voucherNo, BigInteger quantity) {
@@ -980,6 +1076,14 @@ public class LogisticsCore extends Contract {
         return function;
     }
 
+    public FunctionWrapper buildMethodSetAdmin(String newAdmin) {
+        @SuppressWarnings("rawtypes")
+        final Function function = new Function(FUNC_SETADMIN, 
+                Arrays.<Type>asList(new org.fisco.bcos.sdk.v3.codec.datatypes.Address(newAdmin)), 
+                Arrays.<TypeReference<?>>asList(new TypeReference<Bool>() {}));
+        return new FunctionWrapper(this, function);
+    }
+
     public String getSignedTransactionForSetAdmin(String newAdmin) {
         @SuppressWarnings("rawtypes")
         final Function function = new Function(
@@ -1032,15 +1136,21 @@ public class LogisticsCore extends Contract {
     }
 
     public static LogisticsCore load(String contractAddress, Client client,
-            CryptoKeyPair credential) {
-        return new LogisticsCore(contractAddress, client, credential);
+            TransactionManager transactionManager) {
+        return new LogisticsCore(contractAddress, client, transactionManager);
+    }
+
+    public static LogisticsCore load(String contractAddress, Client client) {
+        return new LogisticsCore(contractAddress, client, new ProxySignTransactionManager(client));
     }
 
     public static LogisticsCore deploy(Client client, CryptoKeyPair credential,
             String _initialAdmin) throws ContractException {
         @SuppressWarnings("rawtypes")
         byte[] encodedConstructor = FunctionEncoder.encodeConstructor(Arrays.<Type>asList(new org.fisco.bcos.sdk.v3.codec.datatypes.Address(_initialAdmin)));
-        return deploy(LogisticsCore.class, client, credential, getBinary(client.getCryptoSuite()), getABI(), encodedConstructor, null);
+        LogisticsCore contract = deploy(LogisticsCore.class, client, credential, getBinary(client.getCryptoSuite()), getABI(), encodedConstructor, null);
+        contract.setTransactionManager(new ProxySignTransactionManager(client));
+        return contract;
     }
 
     public static class CarrierAssignedEventResponse {

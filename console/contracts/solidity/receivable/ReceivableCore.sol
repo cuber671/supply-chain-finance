@@ -40,17 +40,17 @@ contract ReceivableCore is IReceivableCore {
     // ==================== 数据结构 ====================
 
     /**
-     * @dev 应收款状态枚举
+     * @dev 应收款状态枚举（与Java端ReceivableStatus一一对应）
      */
     enum ReceivableStatus {
-        None,           // 不存在
-        Created,        // 已创建
-        Confirmed,      // 已确认
-        Financing,      // 融资中
-        Repaying,       // 还款中
-        Settled,        // 已结清
-        Overdue,        // 已逾期
-        Defaulted       // 已违约
+        None,           // 0-不存在
+        Created,        // 1-已创建
+        Confirmed,      // 2-已确认
+        Financing,      // 3-融资中
+        Repaying,       // 4-还款中
+        Settled,        // 5-已结清
+        Overdue,        // 6-逾期
+        Defaulted       // 7-严重逾期
     }
 
     /**

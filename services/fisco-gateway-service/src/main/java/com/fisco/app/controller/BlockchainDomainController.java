@@ -3,8 +3,8 @@ package com.fisco.app.controller;
 import java.math.BigInteger;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
+import org.fisco.bcos.sdk.v3.crypto.keypair.CryptoKeyPair;
 import org.fisco.bcos.sdk.v3.model.TransactionReceipt;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,15 +18,24 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.fisco.app.annotation.RequireRole;
 import com.fisco.app.feign.BlockchainFeignClient.CancelReceiptRequest;
+import com.fisco.app.feign.BlockchainFeignClient.TransferReceiptRequest;
 import com.fisco.app.feign.BlockchainFeignClient.LogisticsArriveCreateRequest;
 import com.fisco.app.feign.BlockchainFeignClient.UpdateBalanceRequest;
+import com.fisco.app.feign.BlockchainFeignClient.CreditCheckLimitRequest;
+import com.fisco.app.feign.BlockchainFeignClient.CreditUseRequest;
+import com.fisco.app.feign.BlockchainFeignClient.CreditReleaseRequest;
+import com.fisco.app.feign.BlockchainFeignClient.CreditAdjustUsedRequest;
+import com.fisco.app.feign.BlockchainFeignClient.CreditReportEventRequest;
+import com.fisco.app.feign.BlockchainFeignClient.CreditCalculateScoreRequest;
 import com.fisco.app.util.Result;
 import com.fisco.app.service.impl.EnterpriseContractService;
 import com.fisco.app.service.impl.WarehouseReceiptContractService;
 import com.fisco.app.service.impl.LogisticsContractService;
 import com.fisco.app.service.impl.LoanContractService;
 import com.fisco.app.service.impl.ReceivableContractService;
+import com.fisco.app.service.impl.CreditContractService;
 import com.fisco.app.service.SignatureService;
+import com.fisco.app.service.IdempotencyService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -64,6 +73,12 @@ public class BlockchainDomainController {
     @Autowired
     private ReceivableContractService receivableContractService;
 
+    @Autowired
+    private CreditContractService creditContractService;
+
+    @Autowired
+    private IdempotencyService idempotencyService;
+
     // ==================== 企业操作 ====================
 
     @Operation(summary = "注册企业上链", description = "将企业信息注册到区块链上。需要ADMIN角色。")
@@ -72,6 +87,7 @@ public class BlockchainDomainController {
         @ApiResponse(responseCode = "200", description = "注册成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "400", description = "参数错误"),
         @ApiResponse(responseCode = "403", description = "无权限"),
+        @ApiResponse(responseCode = "409", description = "重复请求：幂等键已存在且操作成功"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @RequireRole(value = {"ADMIN"}, adminBypass = true)
@@ -79,16 +95,41 @@ public class BlockchainDomainController {
     public Result<String> registerEnterprise(
             @Parameter(description = "企业注册请求信息", required = true)
             @RequestBody EnterpriseRegisterRequest request) {
+        String idempotencyKey = request.getIdempotencyKey();
         try {
+            // 幂等性检查
+            if (idempotencyKey != null && !idempotencyKey.isEmpty()) {
+                if (idempotencyService.exists(idempotencyKey)) {
+                    String existingTxHash = idempotencyService.getTxHash(idempotencyKey);
+                    logger.info("幂等拦截：idempotencyKey={}，已有成功结果 txHash={}", idempotencyKey, existingTxHash);
+                    if (existingTxHash != null) {
+                        return Result.error(409, "重复请求，请勿重复提交");
+                    }
+                }
+            }
+
+            // 使用 String 参数重载方法，转换逻辑在 Contract Service 内部处理
             TransactionReceipt receipt = enterpriseContractService.registerEnterprise(
                     request.getEnterpriseAddress(),
                     request.getCreditCode(),
-                    BigInteger.valueOf(request.getRole()),
-                    hexStringToBytes(request.getMetadataHash())
+                    request.getRole(),
+                    request.getMetadataHash()
             );
-            return Result.success(receipt != null ? receipt.getTransactionHash() : null);
+
+            String txHash = receipt != null ? receipt.getTransactionHash() : null;
+
+            // 记录成功结果到幂等缓存
+            if (idempotencyKey != null && !idempotencyKey.isEmpty() && txHash != null) {
+                idempotencyService.markSuccess(idempotencyKey, txHash);
+            }
+
+            return Result.success(txHash);
         } catch (Exception e) {
             logger.error("注册企业上链失败", e);
+            // 记录失败，允许重试
+            if (idempotencyKey != null && !idempotencyKey.isEmpty()) {
+                idempotencyService.markFailure(idempotencyKey);
+            }
             return Result.error(500, "操作失败: " + e.getMessage());
         }
     }
@@ -245,6 +286,133 @@ public class BlockchainDomainController {
         }
     }
 
+    // ==================== 信用操作 ====================
+
+    @Operation(summary = "检查信用额度", description = "检查企业是否有足够的可用信用额度。")
+    @SecurityRequirement(name = "bearerAuth")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "查询成功", content = @Content(schema = @Schema(implementation = Boolean.class))),
+        @ApiResponse(responseCode = "500", description = "服务端异常")
+    })
+    @PostMapping("/credit/check-limit")
+    public Result<Boolean> checkCreditLimit(@RequestBody CreditCheckLimitRequest request) {
+        try {
+            boolean hasLimit = creditContractService.checkCreditLimit(
+                    request.getEnterpriseAddress(),
+                    BigInteger.valueOf(request.getAmount())
+            );
+            return Result.success(hasLimit);
+        } catch (Exception e) {
+            logger.error("检查信用额度失败", e);
+            return Result.error(500, "操作失败: " + e.getMessage());
+        }
+    }
+
+    @Operation(summary = "使用信用额度", description = "企业使用信用额度进行融资等操作。")
+    @SecurityRequirement(name = "bearerAuth")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "操作成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
+        @ApiResponse(responseCode = "500", description = "服务端异常")
+    })
+    @PostMapping("/credit/use")
+    public Result<String> useCredit(@RequestBody CreditUseRequest request) {
+        try {
+            TransactionReceipt receipt = creditContractService.useCredit(
+                    request.getEnterpriseAddress(),
+                    BigInteger.valueOf(request.getAmount()),
+                    request.getOperationType()
+            );
+            return Result.success(receipt != null ? receipt.getTransactionHash() : null);
+        } catch (Exception e) {
+            logger.error("使用信用额度失败", e);
+            return Result.error(500, "操作失败: " + e.getMessage());
+        }
+    }
+
+    @Operation(summary = "释放信用额度", description = "企业还款后释放已使用的信用额度。")
+    @SecurityRequirement(name = "bearerAuth")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "操作成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
+        @ApiResponse(responseCode = "500", description = "服务端异常")
+    })
+    @PostMapping("/credit/release")
+    public Result<String> releaseCredit(@RequestBody CreditReleaseRequest request) {
+        try {
+            TransactionReceipt receipt = creditContractService.releaseCredit(
+                    request.getEnterpriseAddress(),
+                    BigInteger.valueOf(request.getAmount()),
+                    request.getOperationType()
+            );
+            return Result.success(receipt != null ? receipt.getTransactionHash() : null);
+        } catch (Exception e) {
+            logger.error("释放信用额度失败", e);
+            return Result.error(500, "操作失败: " + e.getMessage());
+        }
+    }
+
+    @Operation(summary = "调整已用额度", description = "管理员调整企业已用信用额度。")
+    @SecurityRequirement(name = "bearerAuth")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "操作成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
+        @ApiResponse(responseCode = "500", description = "服务端异常")
+    })
+    @PostMapping("/credit/adjust-used")
+    public Result<String> adjustUsedCredit(@RequestBody CreditAdjustUsedRequest request) {
+        try {
+            TransactionReceipt receipt = creditContractService.adjustUsedCredit(
+                    request.getEnterpriseAddress(),
+                    BigInteger.valueOf(request.getAdjustment())
+            );
+            return Result.success(receipt != null ? receipt.getTransactionHash() : null);
+        } catch (Exception e) {
+            logger.error("调整已用额度失败", e);
+            return Result.error(500, "操作失败: " + e.getMessage());
+        }
+    }
+
+    @Operation(summary = "上报信用事件", description = "上报企业信用事件到区块链存证。")
+    @SecurityRequirement(name = "bearerAuth")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "操作成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
+        @ApiResponse(responseCode = "500", description = "服务端异常")
+    })
+    @PostMapping("/credit/report-event")
+    public Result<String> reportCreditEvent(@RequestBody CreditReportEventRequest request) {
+        try {
+            byte[] eventDataHash = request.getEventDataHash() != null ?
+                    request.getEventDataHash().getBytes() : null;
+            TransactionReceipt receipt = creditContractService.reportCreditEvent(
+                    request.getEnterpriseAddress(),
+                    BigInteger.valueOf(request.getEventType()),
+                    BigInteger.valueOf(request.getImpact()),
+                    eventDataHash
+            );
+            return Result.success(receipt != null ? receipt.getTransactionHash() : null);
+        } catch (Exception e) {
+            logger.error("上报信用事件失败", e);
+            return Result.error(500, "操作失败: " + e.getMessage());
+        }
+    }
+
+    @Operation(summary = "计算信用评分", description = "根据信用事件计算企业信用评分。")
+    @SecurityRequirement(name = "bearerAuth")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "操作成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
+        @ApiResponse(responseCode = "500", description = "服务端异常")
+    })
+    @PostMapping("/credit/calculate-score")
+    public Result<String> calculateCreditScore(@RequestBody CreditCalculateScoreRequest request) {
+        try {
+            TransactionReceipt receipt = creditContractService.calculateScore(
+                    request.getEnterpriseAddress()
+            );
+            return Result.success(receipt != null ? receipt.getTransactionHash() : null);
+        } catch (Exception e) {
+            logger.error("计算信用评分失败", e);
+            return Result.error(500, "操作失败: " + e.getMessage());
+        }
+    }
+
     // ==================== 仓单操作 ====================
 
     @Operation(summary = "签发仓单", description = "将仓单信息签发上链。需要ADMIN或WAREHOUSE角色。")
@@ -253,6 +421,7 @@ public class BlockchainDomainController {
         @ApiResponse(responseCode = "200", description = "签发成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "400", description = "参数错误"),
         @ApiResponse(responseCode = "403", description = "无权限"),
+        @ApiResponse(responseCode = "409", description = "重复请求：幂等键已存在且操作成功"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @RequireRole(value = {"ADMIN", "WAREHOUSE"}, adminBypass = true)
@@ -260,47 +429,48 @@ public class BlockchainDomainController {
     public Result<String> issueReceipt(
             @Parameter(description = "仓单签发请求信息", required = true)
             @RequestBody ReceiptIssueRequest request) {
+        String idempotencyKey = request.getIdempotencyKey();
         try {
-            // 【诊断】记录接收到的原始字符串值
-            logger.info("【网关接收】issueReceipt: receiptId={}, ownerHash='{}', warehouseHash='{}', weight={}",
-                request.getReceiptId(), request.getOwnerHash(), request.getWarehouseHash(), request.getWeight());
-            // 【YX-01修复】ownerHash和warehouseHash是entity ID（decimal数字），应使用entityIdToBytes32
-            // 其他hash字段（goodsDetailHash, locationPhotoHash, contractHash）是真正的哈希值，使用hexStringToBytes
-            byte[] ownerHashBytes = entityIdToBytes32(request.getOwnerHash());
-            byte[] warehouseHashBytes = entityIdToBytes32(request.getWarehouseHash());
-            // 【诊断】转换后的bytes32值（显示全部32字节）
-            logger.info("【转换诊断】ownerHashBytes.length={}, 十六进制={}", ownerHashBytes.length, bytesToHexFull(ownerHashBytes));
-            logger.info("【转换诊断】warehouseHashBytes.length={}, 十六进制={}", warehouseHashBytes.length, bytesToHexFull(warehouseHashBytes));
+            // 幂等性检查
+            if (idempotencyKey != null && !idempotencyKey.isEmpty()) {
+                if (idempotencyService.exists(idempotencyKey)) {
+                    String existingTxHash = idempotencyService.getTxHash(idempotencyKey);
+                    if (existingTxHash != null) {
+                        logger.info("幂等拦截：idempotencyKey={}，已有成功结果 txHash={}", idempotencyKey, existingTxHash);
+                        return Result.error(409, "重复请求，请勿重复提交");
+                    }
+                }
+            }
+
             TransactionReceipt receipt = warehouseReceiptContractService.issueReceipt(
                     request.getReceiptId(),
-                    ownerHashBytes,
-                    warehouseHashBytes,
-                    hexStringToBytes(request.getGoodsDetailHash()),
-                    hexStringToBytes(request.getLocationPhotoHash()),
-                    hexStringToBytes(request.getContractHash()),
+                    request.getOwnerHash(),
+                    request.getWarehouseHash(),
+                    request.getGoodsDetailHash(),
+                    request.getLocationPhotoHash(),
+                    request.getContractHash(),
                     BigInteger.valueOf(request.getWeight()),
                     request.getUnit(),
                     BigInteger.valueOf(request.getQuantity()),
-                    BigInteger.valueOf(request.getStorageDate()),
-                    BigInteger.valueOf(request.getExpiryDate())
+                    request.getStorageDate() != null ? Long.valueOf(request.getStorageDate()) : null,
+                    request.getExpiryDate() != null ? Long.valueOf(request.getExpiryDate()) : null
             );
-            return Result.success(receipt != null ? receipt.getTransactionHash() : null);
+
+            String txHash = receipt != null ? receipt.getTransactionHash() : null;
+
+            // 记录成功结果到幂等缓存
+            if (idempotencyKey != null && !idempotencyKey.isEmpty() && txHash != null) {
+                idempotencyService.markSuccess(idempotencyKey, txHash);
+            }
+
+            return Result.success(txHash);
         } catch (Exception e) {
             logger.error("签发仓单失败", e);
+            if (idempotencyKey != null && !idempotencyKey.isEmpty()) {
+                idempotencyService.markFailure(idempotencyKey);
+            }
             return Result.error(500, "操作失败: " + e.getMessage());
         }
-    }
-
-    /**
-     * 将 byte[] 转换为完整的十六进制字符串（显示所有字节）
-     */
-    private String bytesToHexFull(byte[] bytes) {
-        if (bytes == null) return "null";
-        StringBuilder sb = new StringBuilder();
-        for (byte b : bytes) {
-            sb.append(String.format("%02x", b));
-        }
-        return "0x" + sb.toString();
     }
 
     @Operation(summary = "发起仓单背书", description = "发起仓单背书转让上链操作。")
@@ -315,11 +485,11 @@ public class BlockchainDomainController {
             @Parameter(description = "仓单背书发起请求信息", required = true)
             @RequestBody EndorsementRequest request) {
         try {
-            // 【YX-01修复】fromHash和toHash是entity ID（企业ID），应使用entityIdToBytes32
+            // 使用 String 参数重载方法，转换逻辑在 Contract Service 内部处理
             TransactionReceipt receipt = warehouseReceiptContractService.launchEndorsement(
                     request.getReceiptId(),
-                    entityIdToBytes32(request.getFromHash()),
-                    entityIdToBytes32(request.getToHash())
+                    request.getFromHash(),
+                    request.getToHash()
             );
             return Result.success(receipt != null ? receipt.getTransactionHash() : null);
         } catch (Exception e) {
@@ -340,11 +510,11 @@ public class BlockchainDomainController {
             @Parameter(description = "仓单背书确认请求信息", required = true)
             @RequestBody EndorsementRequest request) {
         try {
-            // 【YX-01修复】fromHash和toHash是entity ID（企业ID），应使用entityIdToBytes32
+            // 使用 String 参数重载方法，转换逻辑在 Contract Service 内部处理
             TransactionReceipt receipt = warehouseReceiptContractService.confirmEndorsement(
                     request.getReceiptId(),
-                    entityIdToBytes32(request.getFromHash()),
-                    entityIdToBytes32(request.getToHash())
+                    request.getFromHash(),
+                    request.getToHash()
             );
             return Result.success(receipt != null ? receipt.getTransactionHash() : null);
         } catch (Exception e) {
@@ -365,23 +535,13 @@ public class BlockchainDomainController {
             @Parameter(description = "仓单拆分请求信息", required = true)
             @RequestBody SplitReceiptRequest request) {
         try {
-            // 【YX-01修复】ownerHashes是entity ID列表，应使用entityIdToBytes32
-            List<byte[]> ownerHashes = null;
-            if (request.getOwnerHashes() != null) {
-                ownerHashes = request.getOwnerHashes().stream()
-                        .map(this::entityIdToBytes32).collect(Collectors.toList());
-            }
-            List<byte[]> warehouseHashes = null;
-            if (request.getWarehouseHashes() != null) {
-                warehouseHashes = request.getWarehouseHashes().stream()
-                        .map(this::entityIdToBytes32).collect(Collectors.toList());
-            }
+            // 使用 String 参数重载方法，转换逻辑在 Contract Service 内部处理
             TransactionReceipt receipt = warehouseReceiptContractService.splitReceipt(
                     request.getOriginalReceiptId(),
                     request.getNewReceiptIds(),
-                    request.getWeights().stream().map(l -> BigInteger.valueOf(l.longValue())).collect(Collectors.toList()),
-                    ownerHashes,
-                    warehouseHashes,
+                    request.getWeights(),
+                    request.getOwnerHashes(),
+                    request.getWarehouseHashes(),
                     request.getUnit()
             );
             return Result.success(receipt != null ? receipt.getTransactionHash() : null);
@@ -403,13 +563,13 @@ public class BlockchainDomainController {
             @Parameter(description = "仓单合并请求信息", required = true)
             @RequestBody MergeReceiptRequest request) {
         try {
-            // 【YX-01修复】targetOwnerHash是entity ID，应使用entityIdToBytes32
+            // 使用 String 参数重载方法，转换逻辑在 Contract Service 内部处理
             TransactionReceipt receipt = warehouseReceiptContractService.mergeReceipts(
                     request.getSourceReceiptIds(),
                     request.getTargetReceiptId(),
-                    entityIdToBytes32(request.getTargetOwnerHash()),
+                    request.getTargetOwnerHash(),
                     request.getUnit(),
-                    BigInteger.valueOf(request.getTotalWeight())
+                    request.getTotalWeight()
             );
             return Result.success(receipt != null ? receipt.getTransactionHash() : null);
         } catch (Exception e) {
@@ -542,11 +702,11 @@ public class BlockchainDomainController {
         }
     }
 
-    @Operation(summary = "核销仓单", description = "将仓单核销上链，完成出库操作。")
+    @Operation(summary = "核销仓单", description = "将仓单核销上链，完成出库操作。**重要不可逆操作**")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "核销成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
-        @ApiResponse(responseCode = "400", description = "参数错误"),
+        @ApiResponse(responseCode = "400", description = "参数错误：仓单状态不是\"在库\"，不允许核销"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @PostMapping("/receipt/burn")
@@ -554,15 +714,21 @@ public class BlockchainDomainController {
             @Parameter(description = "仓单核销请求信息", required = true)
             @RequestBody BurnReceiptRequest request) {
         try {
-            // 【QS-05修复】合约burnReceipt的signatureHash参数未被使用（合约只有owner/admin/javaBackend授权校验）
-            // 由于合约未实现签名验证，传入占位符值（空bytes32）
-            // 注意：如果后续合约升级实现签名验证，需要在此处传入真实的signatureHash
-            byte[] signatureHash = request.getSignatureHash() != null && !request.getSignatureHash().isEmpty()
-                    ? hexStringToBytes(request.getSignatureHash())
-                    : new byte[32]; // 传入空bytes32作为占位符
+            String receiptId = request.getReceiptId();
+
+            // 状态校验：只有 InStorage(1) 状态才能核销
+            WarehouseReceiptContractService.ReceiptInfo receiptInfo =
+                    warehouseReceiptContractService.getReceipt(receiptId);
+            if (receiptInfo == null) {
+                return Result.error(400, "仓单不存在: " + receiptId);
+            }
+            if (receiptInfo.getStatus() == null || receiptInfo.getStatus().intValue() != 1) {
+                return Result.error(400, "只有\"在库\"状态的仓单才能核销，当前状态: " + statusDesc(receiptInfo.getStatus()));
+            }
+
             TransactionReceipt receipt = warehouseReceiptContractService.burnReceipt(
-                    request.getReceiptId(),
-                    signatureHash
+                    receiptId,
+                    request.getSignatureHash()
             );
             return Result.success(receipt != null ? receipt.getTransactionHash() : null);
         } catch (Exception e) {
@@ -571,11 +737,11 @@ public class BlockchainDomainController {
         }
     }
 
-    @Operation(summary = "取消仓单", description = "将仓单取消上链，用于直接移库等场景的仓单作废。")
+    @Operation(summary = "取消仓单", description = "将仓单取消上链，用于直接移库等场景的仓单作废。**重要不可逆操作**")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "取消成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
-        @ApiResponse(responseCode = "400", description = "参数错误"),
+        @ApiResponse(responseCode = "400", description = "参数错误：仓单状态不允许取消"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @PostMapping("/receipt/cancel")
@@ -583,13 +749,57 @@ public class BlockchainDomainController {
             @Parameter(description = "仓单取消请求信息", required = true)
             @RequestBody CancelReceiptRequest request) {
         try {
+            String receiptId = request.getReceiptId();
+
+            // 状态校验：已核销(Burned=4)或已取消的仓单不能再取消
+            WarehouseReceiptContractService.ReceiptInfo receiptInfo =
+                    warehouseReceiptContractService.getReceipt(receiptId);
+            if (receiptInfo == null) {
+                return Result.error(400, "仓单不存在: " + receiptId);
+            }
+            Integer status = receiptInfo.getStatus() != null ? receiptInfo.getStatus().intValue() : 0;
+            if (status == 4) {
+                return Result.error(400, "仓单已核销，无法取消");
+            }
+
             TransactionReceipt receipt = warehouseReceiptContractService.cancelReceipt(
-                    request.getReceiptId(),
+                    receiptId,
                     request.getReason()
             );
             return Result.success(receipt != null ? receipt.getTransactionHash() : null);
         } catch (Exception e) {
             logger.error("取消仓单失败", e);
+            return Result.error(500, "操作失败: " + e.getMessage());
+        }
+    }
+
+    @Operation(summary = "直接转让仓单", description = "直接将仓单转让给新所有者（不经过背书流程）。")
+    @SecurityRequirement(name = "bearerAuth")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "转让成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
+        @ApiResponse(responseCode = "400", description = "参数错误"),
+        @ApiResponse(responseCode = "500", description = "服务端异常")
+    })
+    @PostMapping("/receipt/transfer")
+    public Result<String> transferReceipt(
+            @Parameter(description = "仓单转让请求信息", required = true)
+            @RequestBody TransferReceiptRequest request) {
+        try {
+            if (request.getReceiptId() == null || request.getReceiptId().isBlank()) {
+                return Result.error(400, "仓单ID不能为空");
+            }
+            if (request.getNewOwnerHash() == null || request.getNewOwnerHash().isBlank()) {
+                return Result.error(400, "新所有者哈希不能为空");
+            }
+
+            // 【D3-修复】添加 transferReceipt 端点
+            TransactionReceipt receipt = warehouseReceiptContractService.transferReceipt(
+                    request.getReceiptId(),
+                    request.getNewOwnerHash()
+            );
+            return Result.success(receipt != null ? receipt.getTransactionHash() : null);
+        } catch (Exception e) {
+            logger.error("转让仓单失败", e);
             return Result.error(500, "操作失败: " + e.getMessage());
         }
     }
@@ -608,18 +818,18 @@ public class BlockchainDomainController {
             @Parameter(description = "物流委派单创建请求信息", required = true)
             @RequestBody LogisticsCreateRequest request) {
         try {
-            // 【YX-01修复】ownerHash, carrierHash, sourceWhHash, targetWhHash是entity ID，应使用entityIdToBytes32
+            // 使用 String 参数重载方法，转换逻辑在 Contract Service 内部处理
             TransactionReceipt receipt = logisticsContractService.createLogisticsDelegate(
                     request.getVoucherNo(),
                     request.getBusinessScene(),
                     request.getReceiptId(),
-                    BigInteger.valueOf(request.getTransportQuantity()),
+                    request.getTransportQuantity(),
                     request.getUnit(),
-                    entityIdToBytes32(request.getOwnerHash()),
-                    entityIdToBytes32(request.getCarrierHash()),
-                    entityIdToBytes32(request.getSourceWhHash()),
-                    entityIdToBytes32(request.getTargetWhHash()),
-                    BigInteger.valueOf(request.getValidUntil())
+                    request.getOwnerHash(),
+                    request.getCarrierHash(),
+                    request.getSourceWhHash(),
+                    request.getTargetWhHash(),
+                    request.getValidUntil()
             );
             return Result.success(receipt != null ? receipt.getTransactionHash() : null);
         } catch (Exception e) {
@@ -687,19 +897,14 @@ public class BlockchainDomainController {
             @Parameter(description = "物流到达创建仓单请求信息", required = true)
             @RequestBody LogisticsArriveCreateRequest request) {
         try {
-            // 【修复】ownerHash/warehouseHash 为 null 时使用 "0" 占位
-            String ownerHash = request.getOwnerHash() != null && !request.getOwnerHash().isEmpty()
-                ? request.getOwnerHash() : "0";
-            String warehouseHash = request.getWarehouseHash() != null && !request.getWarehouseHash().isEmpty()
-                ? request.getWarehouseHash() : "0";
-
+            // 使用 String 参数重载方法，转换逻辑在 Contract Service 内部处理
             TransactionReceipt receipt = logisticsContractService.arriveAndCreateReceipt(
                     request.getVoucherNo(),
-                    request.getNewReceiptId() != null ? request.getNewReceiptId() : "0",
-                    request.getWeight() != null ? BigInteger.valueOf(request.getWeight()) : null,
+                    request.getNewReceiptId(),
+                    request.getWeight(),
                     request.getUnit(),
-                    entityIdToBytes32(ownerHash),
-                    entityIdToBytes32(warehouseHash)
+                    request.getOwnerHash(),
+                    request.getWarehouseHash()
             );
             return Result.success(receipt != null ? receipt.getTransactionHash() : null);
         } catch (Exception e) {
@@ -720,10 +925,10 @@ public class BlockchainDomainController {
             @Parameter(description = "物流承运方指派请求信息", required = true)
             @RequestBody LogisticsAssignCarrierRequest request) {
         try {
-            // 【YX-01修复】carrierHash是entity ID，应使用entityIdToBytes32
+            // 使用 String 参数重载方法，转换逻辑在 Contract Service 内部处理
             TransactionReceipt receipt = logisticsContractService.assignCarrier(
                     request.getVoucherNo(),
-                    entityIdToBytes32(request.getCarrierHash())
+                    request.getCarrierHash()
             );
             return Result.success(receipt != null ? receipt.getTransactionHash() : null);
         } catch (Exception e) {
@@ -840,14 +1045,24 @@ public class BlockchainDomainController {
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "创建成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "400", description = "参数错误"),
+        @ApiResponse(responseCode = "409", description = "重复请求：幂等键已存在且操作成功"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @PostMapping("/loan/create")
     public Result<String> createLoan(
             @Parameter(description = "贷款创建请求信息", required = true)
             @RequestBody LoanCreateRequest request) {
+        String idempotencyKey = request.getIdempotencyKey();
         try {
-            // Handle null pledgeAmount - it's not used in blockchain contract, only in DB
+            if (idempotencyKey != null && !idempotencyKey.isEmpty()) {
+                if (idempotencyService.exists(idempotencyKey)) {
+                    String existingTxHash = idempotencyService.getTxHash(idempotencyKey);
+                    if (existingTxHash != null) {
+                        return Result.error(409, "重复请求，请勿重复提交");
+                    }
+                }
+            }
+
             BigInteger pledgeAmount = request.getPledgeAmount() != null
                     ? BigInteger.valueOf(request.getPledgeAmount())
                     : BigInteger.ZERO;
@@ -862,9 +1077,18 @@ public class BlockchainDomainController {
                     request.getReceiptId(),
                     pledgeAmount
             );
-            return Result.success(receipt != null ? receipt.getTransactionHash() : null);
+
+            String txHash = receipt != null ? receipt.getTransactionHash() : null;
+            if (idempotencyKey != null && !idempotencyKey.isEmpty() && txHash != null) {
+                idempotencyService.markSuccess(idempotencyKey, txHash);
+            }
+
+            return Result.success(txHash);
         } catch (Exception e) {
             logger.error("创建贷款失败", e);
+            if (idempotencyKey != null && !idempotencyKey.isEmpty()) {
+                idempotencyService.markFailure(idempotencyKey);
+            }
             return Result.error(500, "操作失败: " + e.getMessage());
         }
     }
@@ -881,11 +1105,13 @@ public class BlockchainDomainController {
             @Parameter(description = "贷款审批请求信息", required = true)
             @RequestBody LoanApproveRequest request) {
         try {
+            // 【D3-1修复】传递 financeEntHash 参数
             TransactionReceipt receipt = loanContractService.approveLoan(
                     request.getLoanNo(),
                     BigInteger.valueOf(request.getApprovedAmount()),
                     BigInteger.valueOf(request.getInterestRate().longValue()),
-                    BigInteger.valueOf(request.getLoanDays())
+                    BigInteger.valueOf(request.getLoanDays()),
+                    request.getFinanceEntHash()
             );
             return Result.success(receipt != null ? receipt.getTransactionHash() : null);
         } catch (Exception e) {
@@ -1141,26 +1367,46 @@ public class BlockchainDomainController {
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "创建成功，返回交易哈希", content = @Content(schema = @Schema(implementation = String.class))),
         @ApiResponse(responseCode = "400", description = "参数错误"),
+        @ApiResponse(responseCode = "409", description = "重复请求：幂等键已存在且操作成功"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @PostMapping("/receivable/create")
     public Result<String> createReceivable(
             @Parameter(description = "应收账款创建请求信息", required = true)
             @RequestBody ReceivableCreateRequest request) {
+        String idempotencyKey = request.getIdempotencyKey();
         try {
+            if (idempotencyKey != null && !idempotencyKey.isEmpty()) {
+                if (idempotencyService.exists(idempotencyKey)) {
+                    String existingTxHash = idempotencyService.getTxHash(idempotencyKey);
+                    if (existingTxHash != null) {
+                        return Result.error(409, "重复请求，请勿重复提交");
+                    }
+                }
+            }
+
             TransactionReceipt receipt = receivableContractService.createReceivable(
                     request.getReceivableId(),
-                    BigInteger.valueOf(request.getInitialAmount()),
-                    BigInteger.valueOf(request.getDueDate()),
-                    hexStringToBytes(request.getBuyerSellerPairHash()),
-                    hexStringToBytes(request.getInvoiceHash()),
-                    hexStringToBytes(request.getContractHash()),
-                    hexStringToBytes(request.getGoodsDetailHash()),
-                    BigInteger.valueOf(request.getBusinessScene())
+                    request.getInitialAmount(),
+                    request.getDueDate(),
+                    request.getBuyerSellerPairHash(),
+                    request.getInvoiceHash(),
+                    request.getContractHash(),
+                    request.getGoodsDetailHash(),
+                    request.getBusinessScene()
             );
-            return Result.success(receipt != null ? receipt.getTransactionHash() : null);
+
+            String txHash = receipt != null ? receipt.getTransactionHash() : null;
+            if (idempotencyKey != null && !idempotencyKey.isEmpty() && txHash != null) {
+                idempotencyService.markSuccess(idempotencyKey, txHash);
+            }
+
+            return Result.success(txHash);
         } catch (Exception e) {
             logger.error("创建应收款失败", e);
+            if (idempotencyKey != null && !idempotencyKey.isEmpty()) {
+                idempotencyService.markFailure(idempotencyKey);
+            }
             return Result.error(500, "操作失败: " + e.getMessage());
         }
     }
@@ -1177,9 +1423,10 @@ public class BlockchainDomainController {
             @Parameter(description = "应收账款确认请求信息", required = true)
             @RequestBody ReceivableConfirmRequest request) {
         try {
+            // 使用 String 参数重载方法，转换逻辑在 Contract Service 内部处理
             TransactionReceipt receipt = receivableContractService.confirmReceivable(
                     request.getReceivableId(),
-                    hexStringToBytes(request.getSignature())
+                    request.getSignature()
             );
             return Result.success(receipt != null ? receipt.getTransactionHash() : null);
         } catch (Exception e) {
@@ -1370,13 +1617,12 @@ public class BlockchainDomainController {
             @Parameter(description = "债务抵消请求信息", required = true)
             @RequestBody OffsetDebtRequest request) {
         try {
+            // 使用 String 参数重载方法，转换逻辑在 Contract Service 内部处理
             TransactionReceipt receipt = receivableContractService.offsetDebtWithCollateral(
                     request.getReceivableId(),
                     request.getReceiptId(),
-                    BigInteger.valueOf(request.getOffsetAmount()),
-                    request.getSignatureHash() != null && !request.getSignatureHash().isEmpty()
-                        ? hexStringToBytes(request.getSignatureHash())
-                        : new byte[32]
+                    request.getOffsetAmount(),
+                    request.getSignatureHash()
             );
             return Result.success(receipt != null ? receipt.getTransactionHash() : null);
         } catch (Exception e) {
@@ -1476,94 +1722,42 @@ public class BlockchainDomainController {
         }
     }
 
-    // ==================== Helper Methods ====================
+    // ==================== 密钥生成 ====================
 
-    /**
-     * Convert entity ID string to bytes32 for blockchain storage.
-     * 【YX-01修复】统一entity ID转换格式：entity ID为decimal数字字符串（如"123456"），
-     * 应作为decimal数字解析而非hex字符串，与LoanContractService.entityIdToBytes32保持一致。
-     *
-     * Example: entityId="123456" → bytes32 representing decimal 123456
-     *          (not hex interpretation which would give bytes32[0x12, 0x34, 0x56])
-     */
-    private byte[] entityIdToBytes32(String entityId) {
-        if (entityId == null || entityId.isEmpty()) {
-            throw new IllegalArgumentException("entity ID 不能为空");
-        }
+    @Operation(summary = "生成区块链密钥对", description = "生成新的区块链密钥对，用于企业注册时创建区块链身份。私钥默认使用AES加密返回。")
+    @SecurityRequirement(name = "bearerAuth")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "生成成功"),
+        @ApiResponse(responseCode = "500", description = "服务端异常")
+    })
+    @PostMapping("/keygen")
+    public Result<KeyPairInfo> generateKeyPair() {
         try {
-            java.math.BigInteger bigInt = new java.math.BigInteger(entityId);
-            byte[] valueBytes = bigInt.toByteArray();
-            byte[] result = new byte[32];
-            // 【诊断】调试日志
-            logger.info("【entityIdToBytes32诊断】input='{}', valueBytes长度={}, valueBytes[0]={}, bigInt={}",
-                entityId, valueBytes.length, valueBytes[0], bigInt);
-            // BigInteger.toByteArray() returns sign+magnitude
-            // If the first byte is 0, it means the actual data starts from index 1
-            int start = (valueBytes[0] == 0) ? 1 : 0;
-            int len = valueBytes.length - start;
-            // Copy to the rightmost position of the 32-byte array
-            if (len > 0) {
-                System.arraycopy(valueBytes, start, result, 32 - len, len);
-            }
-            // 【诊断】调试日志
-            logger.info("【entityIdToBytes32诊断】start={}, len={}, result首字节={}, result末字节={}",
-                start, len, result[0], result[31]);
-            return result;
-        } catch (NumberFormatException e) {
-            // entityId 不是有效数字，再次检查是否为空（防止空字符串）
-            if (entityId.trim().isEmpty()) {
-                throw new IllegalArgumentException("entity ID 不能为空");
-            }
-            // If not a valid decimal number, treat as hex string
-            return hexStringToBytes(entityId);
+            CryptoKeyPair keyPair = signatureService.generateKeyPair();
+            String encryptedPrivateKey = signatureService.generateEncryptedPrivateKey();
+            return Result.success(new KeyPairInfo(keyPair.getAddress(), encryptedPrivateKey));
+        } catch (Exception e) {
+            logger.error("生成密钥对失败", e);
+            return Result.error(500, "生成密钥对失败: " + e.getMessage());
         }
     }
 
-    private byte[] hexStringToBytes(String hex) {
-        if (hex == null || hex.isEmpty()) {
-            // G4: 空 hex 字符串返回全零会导致链上 ID 异常（如仓单 ID 为全零）
-            // 修复：抛出异常而非静默返回全零
-            throw new IllegalArgumentException("hex 字符串不能为空");
-        }
+    @io.swagger.v3.oas.annotations.media.Schema(description = "密钥对信息")
+    public static class KeyPairInfo {
+        @io.swagger.v3.oas.annotations.media.Schema(description = "区块链地址", example = "0x7a9b6d564d5d191093a29b7c760dd6af931cae73")
+        private String address;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "私钥（AES加密后，Base64编码）", example = "y3t8Xx2Q...")
+        private String privateKey;
 
-        // 检查是否是有效的十六进制字符串
-        boolean isValidHex = hex.startsWith("0x")
-            ? hex.substring(2).chars().allMatch(c -> Character.isDigit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'))
-            : hex.chars().allMatch(c -> Character.isDigit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'));
-
-        byte[] data;
-        if (isValidHex && (hex.startsWith("0x") ? hex.length() > 2 : hex.length() > 0)) {
-            // 作为十六进制字符串解析
-            if (hex.startsWith("0x")) {
-                hex = hex.substring(2);
-            }
-            int len = hex.length();
-            if (len % 2 != 0) {
-                // 奇数长度的 hex 字符串，说明格式错误，抛出异常
-                throw new IllegalArgumentException("hex 字符串长度必须为偶数");
-            }
-            data = new byte[len / 2];
-            for (int i = 0; i < len; i += 2) {
-                data[i / 2] = (byte) ((Character.digit(hex.charAt(i), 16) << 4)
-                        + Character.digit(hex.charAt(i + 1), 16));
-            }
-        } else {
-            // 非十六进制字符串（如中文货物名称），直接用 UTF-8 编码
-            data = hex.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        public KeyPairInfo() {}
+        public KeyPairInfo(String address, String privateKey) {
+            this.address = address;
+            this.privateKey = privateKey;
         }
-
-        // FISCO SDK v3 Bytes32 要求恰好 32 字节，左侧补 0 至 32 字节
-        if (data.length < 32) {
-            byte[] padded = new byte[32];
-            System.arraycopy(data, 0, padded, 32 - data.length, data.length);
-            return padded;
-        } else if (data.length > 32) {
-            // 超过 32 字节，截断前面的数据（保留右侧 32 字节）
-            byte[] truncated = new byte[32];
-            System.arraycopy(data, data.length - 32, truncated, 0, 32);
-            return truncated;
-        }
-        return data;
+        public String getAddress() { return address; }
+        public void setAddress(String v) { this.address = v; }
+        public String getPrivateKey() { return privateKey; }
+        public void setPrivateKey(String v) { this.privateKey = v; }
     }
 
     // ==================== Request DTOs ====================
@@ -1571,6 +1765,8 @@ public class BlockchainDomainController {
     // Enterprise requests
     @io.swagger.v3.oas.annotations.media.Schema(description = "企业注册请求")
     public static class EnterpriseRegisterRequest {
+        @io.swagger.v3.oas.annotations.media.Schema(description = "幂等键，用于防止重复注册", example = "uuid-v4")
+        private String idempotencyKey;
         @io.swagger.v3.oas.annotations.media.Schema(description = "企业区块链地址", example = "0x7a9b6d564d5d191093a29b7c760dd6af931cae73")
         private String enterpriseAddress;
         @io.swagger.v3.oas.annotations.media.Schema(description = "统一社会信用代码", example = "91110000MA00XXXX00")
@@ -1580,6 +1776,8 @@ public class BlockchainDomainController {
         @io.swagger.v3.oas.annotations.media.Schema(description = "企业注册信息哈希", example = "0xabc123...")
         private String metadataHash;
 
+        public String getIdempotencyKey() { return idempotencyKey; }
+        public void setIdempotencyKey(String v) { this.idempotencyKey = v; }
         public String getEnterpriseAddress() { return enterpriseAddress; }
         public void setEnterpriseAddress(String v) { this.enterpriseAddress = v; }
         public String getCreditCode() { return creditCode; }
@@ -1632,6 +1830,8 @@ public class BlockchainDomainController {
     // Warehouse receipt requests
     @io.swagger.v3.oas.annotations.media.Schema(description = "仓单开立请求")
     public static class ReceiptIssueRequest {
+        @io.swagger.v3.oas.annotations.media.Schema(description = "幂等键，用于防止重复签发", example = "uuid-v4")
+        private String idempotencyKey;
         @io.swagger.v3.oas.annotations.media.Schema(description = "仓单编号", example = "WH202603270001")
         private String receiptId;
         @io.swagger.v3.oas.annotations.media.Schema(description = "货主哈希", example = "0xabc123...")
@@ -1655,6 +1855,8 @@ public class BlockchainDomainController {
         @io.swagger.v3.oas.annotations.media.Schema(description = "有效期（时间戳）", example = "1714118400000")
         private Long expiryDate;
 
+        public String getIdempotencyKey() { return idempotencyKey; }
+        public void setIdempotencyKey(String v) { this.idempotencyKey = v; }
         public String getReceiptId() { return receiptId; }
         public void setReceiptId(String v) { this.receiptId = v; }
         public String getOwnerHash() { return ownerHash; }
@@ -1765,11 +1967,15 @@ public class BlockchainDomainController {
         private String receiptId;
         @io.swagger.v3.oas.annotations.media.Schema(description = "签名哈希", example = "0xabc123...")
         private String signatureHash;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "是否需要二次确认（默认为是，防止误操作）", example = "true")
+        private Boolean confirmRequired;
 
         public String getReceiptId() { return receiptId; }
         public void setReceiptId(String v) { this.receiptId = v; }
         public String getSignatureHash() { return signatureHash; }
         public void setSignatureHash(String v) { this.signatureHash = v; }
+        public Boolean getConfirmRequired() { return confirmRequired; }
+        public void setConfirmRequired(Boolean v) { this.confirmRequired = v; }
     }
 
     // Logistics requests
@@ -1903,6 +2109,8 @@ public class BlockchainDomainController {
     // Loan requests
     @io.swagger.v3.oas.annotations.media.Schema(description = "贷款创建请求")
     public static class LoanCreateRequest {
+        @io.swagger.v3.oas.annotations.media.Schema(description = "幂等键，用于防止重复创建", example = "uuid-v4")
+        private String idempotencyKey;
         @io.swagger.v3.oas.annotations.media.Schema(description = "贷款编号", example = "LN202603270001")
         private String loanNo;
         @io.swagger.v3.oas.annotations.media.Schema(description = "借款方哈希", example = "0xabc123...")
@@ -1920,6 +2128,8 @@ public class BlockchainDomainController {
         @io.swagger.v3.oas.annotations.media.Schema(description = "质押金额", example = "800000")
         private Long pledgeAmount;
 
+        public String getIdempotencyKey() { return idempotencyKey; }
+        public void setIdempotencyKey(String v) { this.idempotencyKey = v; }
         public String getLoanNo() { return loanNo; }
         public void setLoanNo(String v) { this.loanNo = v; }
         public String getBorrowerHash() { return borrowerHash; }
@@ -1948,6 +2158,8 @@ public class BlockchainDomainController {
         private Double interestRate;
         @io.swagger.v3.oas.annotations.media.Schema(description = "贷款天数", example = "30")
         private Integer loanDays;
+        @io.swagger.v3.oas.annotations.media.Schema(description = "金融机构哈希", example = "1234567890")
+        private String financeEntHash;
 
         public String getLoanNo() { return loanNo; }
         public void setLoanNo(String v) { this.loanNo = v; }
@@ -1957,6 +2169,8 @@ public class BlockchainDomainController {
         public void setInterestRate(Double v) { this.interestRate = v; }
         public Integer getLoanDays() { return loanDays; }
         public void setLoanDays(Integer v) { this.loanDays = v; }
+        public String getFinanceEntHash() { return financeEntHash; }
+        public void setFinanceEntHash(String v) { this.financeEntHash = v; }
     }
 
     @io.swagger.v3.oas.annotations.media.Schema(description = "贷款取消请求")
@@ -2077,6 +2291,8 @@ public class BlockchainDomainController {
     // Receivable requests
     @io.swagger.v3.oas.annotations.media.Schema(description = "应收账款创建请求")
     public static class ReceivableCreateRequest {
+        @io.swagger.v3.oas.annotations.media.Schema(description = "幂等键，用于防止重复创建", example = "uuid-v4")
+        private String idempotencyKey;
         @io.swagger.v3.oas.annotations.media.Schema(description = "应收账款编号", example = "AR202603270001")
         private String receivableId;
         @io.swagger.v3.oas.annotations.media.Schema(description = "初始金额", example = "1000000")
@@ -2094,6 +2310,8 @@ public class BlockchainDomainController {
         @io.swagger.v3.oas.annotations.media.Schema(description = "业务场景 0-采购 1-销售", example = "0")
         private Integer businessScene;
 
+        public String getIdempotencyKey() { return idempotencyKey; }
+        public void setIdempotencyKey(String v) { this.idempotencyKey = v; }
         public String getReceivableId() { return receivableId; }
         public void setReceivableId(String v) { this.receivableId = v; }
         public Long getInitialAmount() { return initialAmount; }

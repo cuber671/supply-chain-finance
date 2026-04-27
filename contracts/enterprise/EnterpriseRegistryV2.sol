@@ -44,31 +44,22 @@ contract EnterpriseRegistryV2 {
     // ==================== 数据结构定义 ====================
 
     /**
-     * @dev 企业状态枚举
-     * @notice 0=Pending, 1=Active, 2=Suspended, 3=Blacklisted, 4=PendingDeletion, 5=Deleted
+     * @dev 企业状态枚举（与Java端EnterpriseStatusEnum一一对应）
+     * @notice 0=Pending, 1=Normal, 2=Frozen, 3=Cancelling, 4=Cancelled, 5=PendingCancel
      */
     enum EnterpriseStatus {
-        Pending,            // 待审核
-        Active,             // 已激活
-        Suspended,          // 已暂停
-        Blacklisted,         // 已拉黑
-        PendingDeletion,     // 待删除 (注销审核中)
-        Deleted              // 已删除 (链上标记)
+        Pending,            // 0-待审核
+        Normal,             // 1-正常
+        Frozen,             // 2-已冻结
+        Cancelling,         // 3-申请注销中
+        Cancelled,          // 4-已注销
+        PendingCancel       // 5-注销待审核
     }
 
     /**
-     * @dev 企业角色枚举（与Java EntRoleConstant一一对应）
-     * @notice 0=保留, 1=核心企业, 2=现货交易平台, 3=供应商, 6=金融机构, 9=仓储方, 12=物流方
+     * @dev 企业角色（直接用 uint8 而非 enum，避免隐式转换问题）
+     * @notice 1=核心企业, 2=现货交易平台, 3=供应商, 6=金融机构, 9=仓储方, 12=物流方
      */
-    enum EnterpriseRole {
-        Spare,        // 0  (保留，不用)
-        CoreEnterprise,      // 1
-        SpotPlatform,        // 2
-        Supplier,            // 3
-        FinancialInstitution, // 6
-        Warehouse,           // 9
-        Logistics            // 12
-    }
 
     /**
      * @dev 企业核心信息结构体（哈希优化版）
@@ -90,7 +81,7 @@ contract EnterpriseRegistryV2 {
     struct EnterpriseInfo {
         address enterpriseAddress;     // 企业地址（主键，20 bytes）
         string creditCode;             // 统一信用代码（索引，18 bytes）
-        EnterpriseRole role;         // 企业角色（1 byte）
+        uint8 role;                  // 企业角色（1 byte）
         EnterpriseStatus status;      // 企业状态（1 byte）
         bytes32 metadataHash;         // 扩展信息哈希（32 bytes，从 Java 后端传入）
         uint256 registeredAt;          // 注册时间戳
@@ -108,7 +99,7 @@ contract EnterpriseRegistryV2 {
     struct EnterpriseRegistrationInput {
         address enterpriseAddress;
         string creditCode;
-        EnterpriseRole role;
+        uint8 role;
         bytes32 metadataHash;
     }
 
@@ -165,7 +156,7 @@ contract EnterpriseRegistryV2 {
     event EnterpriseRegistered(
         address indexed enterpriseAddress,
         string creditCode,
-        EnterpriseRole indexed role,
+        uint8 indexed role,
         EnterpriseStatus indexed status,
         bytes32 metadataHash,
         uint256 timestamp
@@ -319,7 +310,7 @@ contract EnterpriseRegistryV2 {
     function getEnterprise(address enterpriseAddress)
         external view returns (
             string memory creditCode,
-            EnterpriseRole role,
+            uint8 role,
             EnterpriseStatus status,
             uint256 creditRating,
             uint256 creditLimit,
@@ -369,7 +360,7 @@ contract EnterpriseRegistryV2 {
         external view returns (bool isValid)
     {
         EnterpriseInfo storage info = enterprises[enterpriseAddress];
-        return (info.enterpriseAddress == enterpriseAddress) && (info.status == EnterpriseStatus.Active);
+        return (info.enterpriseAddress == enterpriseAddress) && (info.status == EnterpriseStatus.Normal);
     }
 
     /**
@@ -412,7 +403,11 @@ contract EnterpriseRegistryV2 {
         // 参数验证
         require(input.enterpriseAddress != address(0), "Invalid enterprise address");
         require(bytes(input.creditCode).length == 18, "Invalid credit code");
-        require(uint256(input.role) >= 1 && uint256(input.role) <= 12, "Invalid role");
+        require(
+            input.role == 1 || input.role == 2 || input.role == 3 ||
+            input.role == 6 || input.role == 9 || input.role == 12,
+            "Invalid role"
+        );
         require(input.metadataHash != bytes32(0), "Invalid metadata hash");
 
         // 存储企业信息（简化版）
@@ -421,7 +416,7 @@ contract EnterpriseRegistryV2 {
             enterpriseAddress: input.enterpriseAddress,
             creditCode: input.creditCode,
             role: input.role,
-            status: EnterpriseStatus.Active,
+            status: EnterpriseStatus.Normal,
             metadataHash: input.metadataHash,
             registeredAt: timestamp,
             updatedAt: timestamp
@@ -440,7 +435,7 @@ contract EnterpriseRegistryV2 {
             input.enterpriseAddress,
             input.creditCode,
             input.role,
-            EnterpriseStatus.Active,
+            EnterpriseStatus.Normal,
             input.metadataHash,
             timestamp
         );
@@ -594,14 +589,14 @@ contract EnterpriseRegistryV2 {
         uint256 oldStatus = uint256(info.status);
 
         // 更新状态为 Deleted
-        info.status = EnterpriseStatus.Deleted;
+        info.status = EnterpriseStatus.Cancelled;
         info.updatedAt = block.timestamp;
 
         // 触发事件
         emit StatusUpdated(
             enterpriseAddress,
             oldStatus,
-            uint256(EnterpriseStatus.Deleted),
+            uint256(EnterpriseStatus.Cancelled),
             reason,
             block.timestamp
         );

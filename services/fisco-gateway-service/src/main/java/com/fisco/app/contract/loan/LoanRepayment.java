@@ -5,7 +5,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-
 import org.fisco.bcos.sdk.v3.client.Client;
 import org.fisco.bcos.sdk.v3.codec.abi.FunctionEncoder;
 import org.fisco.bcos.sdk.v3.codec.datatypes.Address;
@@ -25,12 +24,15 @@ import org.fisco.bcos.sdk.v3.codec.datatypes.generated.tuples.generated.Tuple11;
 import org.fisco.bcos.sdk.v3.codec.datatypes.generated.tuples.generated.Tuple2;
 import org.fisco.bcos.sdk.v3.codec.datatypes.generated.tuples.generated.Tuple4;
 import org.fisco.bcos.sdk.v3.contract.Contract;
+import org.fisco.bcos.sdk.v3.contract.FunctionWrapper;
 import org.fisco.bcos.sdk.v3.crypto.CryptoSuite;
 import org.fisco.bcos.sdk.v3.crypto.keypair.CryptoKeyPair;
 import org.fisco.bcos.sdk.v3.eventsub.EventSubCallback;
 import org.fisco.bcos.sdk.v3.model.CryptoType;
 import org.fisco.bcos.sdk.v3.model.TransactionReceipt;
 import org.fisco.bcos.sdk.v3.model.callback.TransactionCallback;
+import org.fisco.bcos.sdk.v3.transaction.manager.transactionv1.ProxySignTransactionManager;
+import org.fisco.bcos.sdk.v3.transaction.manager.transactionv1.TransactionManager;
 import org.fisco.bcos.sdk.v3.transaction.model.exception.ContractException;
 
 /**
@@ -46,7 +48,7 @@ public class LoanRepayment extends Contract {
 
     public static final String SM_BINARY = org.fisco.bcos.sdk.v3.utils.StringUtils.joinAll("", SM_BINARY_ARRAY);
 
-    public static final String[] ABI_ARRAY = {"[{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_initialAdmin\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"string\",\"name\":\"repaymentNo\",\"type\":\"string\"},{\"indexed\":true,\"internalType\":\"string\",\"name\":\"loanNo\",\"type\":\"string\"},{\"indexed\":false,\"internalType\":\"string\",\"name\":\"disposalMethod\",\"type\":\"string\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"disposalAmount\",\"type\":\"uint256\"}],\"name\":\"CollateralDisposalRecorded\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"string\",\"name\":\"repaymentNo\",\"type\":\"string\"},{\"indexed\":true,\"internalType\":\"string\",\"name\":\"sourceLoanNo\",\"type\":\"string\"},{\"indexed\":false,\"internalType\":\"string\",\"name\":\"offsetReceiptId\",\"type\":\"string\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"offsetAmount\",\"type\":\"uint256\"}],\"name\":\"ReceiptOffsetRecorded\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"string\",\"name\":\"repaymentNo\",\"type\":\"string\"},{\"indexed\":true,\"internalType\":\"string\",\"name\":\"sourceLoanNo\",\"type\":\"string\"},{\"indexed\":false,\"internalType\":\"string\",\"name\":\"offsetReceivableId\",\"type\":\"string\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"offsetAmount\",\"type\":\"uint256\"}],\"name\":\"ReceivableOffsetRecorded\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"string\",\"name\":\"repaymentNo\",\"type\":\"string\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"confirmedAmount\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"confirmTime\",\"type\":\"uint256\"}],\"name\":\"RepaymentConfirmed\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"string\",\"name\":\"repaymentNo\",\"type\":\"string\"},{\"indexed\":true,\"internalType\":\"string\",\"name\":\"loanNo\",\"type\":\"string\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"principalAmount\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"interestAmount\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"totalAmount\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"enum LoanRepayment.RepaymentType\",\"name\":\"repaymentType\",\"type\":\"uint8\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"createTime\",\"type\":\"uint256\"}],\"name\":\"RepaymentCreated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"string\",\"name\":\"repaymentNo\",\"type\":\"string\"},{\"indexed\":false,\"internalType\":\"string\",\"name\":\"rejectReason\",\"type\":\"string\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"rejectTime\",\"type\":\"uint256\"}],\"name\":\"RepaymentRejected\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"VERSION\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"admin\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"repaymentNo\",\"type\":\"string\"},{\"internalType\":\"uint256\",\"name\":\"confirmedAmount\",\"type\":\"uint256\"}],\"name\":\"confirmRepayment\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"success\",\"type\":\"bool\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"repaymentNo\",\"type\":\"string\"}],\"name\":\"exists\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"repaymentNo\",\"type\":\"string\"}],\"name\":\"getReceiptOffset\",\"outputs\":[{\"components\":[{\"internalType\":\"string\",\"name\":\"repaymentNo\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"sourceLoanNo\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"offsetReceiptId\",\"type\":\"string\"},{\"internalType\":\"uint256\",\"name\":\"offsetAmount\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"offsetTime\",\"type\":\"uint256\"}],\"internalType\":\"struct LoanRepayment.ReceiptOffsetRecord\",\"name\":\"record\",\"type\":\"tuple\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"repaymentNo\",\"type\":\"string\"}],\"name\":\"getReceivableOffset\",\"outputs\":[{\"components\":[{\"internalType\":\"string\",\"name\":\"repaymentNo\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"sourceLoanNo\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"offsetReceivableId\",\"type\":\"string\"},{\"internalType\":\"uint256\",\"name\":\"offsetAmount\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"offsetTime\",\"type\":\"uint256\"}],\"internalType\":\"struct LoanRepayment.ReceivableOffsetRecord\",\"name\":\"record\",\"type\":\"tuple\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"repaymentNo\",\"type\":\"string\"}],\"name\":\"getRepayment\",\"outputs\":[{\"components\":[{\"internalType\":\"string\",\"name\":\"repaymentNo\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"loanNo\",\"type\":\"string\"},{\"internalType\":\"uint256\",\"name\":\"principalAmount\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"interestAmount\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"penaltyAmount\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"totalAmount\",\"type\":\"uint256\"},{\"internalType\":\"enum LoanRepayment.RepaymentType\",\"name\":\"repaymentType\",\"type\":\"uint8\"},{\"internalType\":\"enum LoanRepayment.RepaymentStatus\",\"name\":\"status\",\"type\":\"uint8\"},{\"internalType\":\"uint256\",\"name\":\"repaymentTime\",\"type\":\"uint256\"},{\"internalType\":\"address\",\"name\":\"payer\",\"type\":\"address\"},{\"internalType\":\"bytes32\",\"name\":\"dataHash\",\"type\":\"bytes32\"}],\"internalType\":\"struct LoanRepayment.RepaymentRecord\",\"name\":\"record\",\"type\":\"tuple\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"loanNo\",\"type\":\"string\"}],\"name\":\"getRepaymentCount\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"count\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"enum LoanRepayment.RepaymentType\",\"name\":\"repaymentType\",\"type\":\"uint8\"}],\"name\":\"getRepaymentTypeName\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"typeName\",\"type\":\"string\"}],\"stateMutability\":\"pure\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"loanNo\",\"type\":\"string\"}],\"name\":\"getRepaymentsByLoan\",\"outputs\":[{\"internalType\":\"string[]\",\"name\":\"repaymentNos\",\"type\":\"string[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"javaBackend\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"components\":[{\"internalType\":\"string\",\"name\":\"repaymentNo\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"loanNo\",\"type\":\"string\"},{\"internalType\":\"uint256\",\"name\":\"principalAmount\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"interestAmount\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"penaltyAmount\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"dataHash\",\"type\":\"bytes32\"}],\"internalType\":\"struct LoanRepayment.CashRepaymentInput\",\"name\":\"input\",\"type\":\"tuple\"}],\"name\":\"recordCashRepayment\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"success\",\"type\":\"bool\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"repaymentNo\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"loanNo\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"disposalMethod\",\"type\":\"string\"},{\"internalType\":\"uint256\",\"name\":\"disposalAmount\",\"type\":\"uint256\"}],\"name\":\"recordCollateralDisposal\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"success\",\"type\":\"bool\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"components\":[{\"internalType\":\"string\",\"name\":\"repaymentNo\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"loanNo\",\"type\":\"string\"},{\"internalType\":\"uint256\",\"name\":\"principalAmount\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"interestAmount\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"penaltyAmount\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"dataHash\",\"type\":\"bytes32\"}],\"internalType\":\"struct LoanRepayment.CashRepaymentInput\",\"name\":\"input\",\"type\":\"tuple\"}],\"name\":\"recordPartialRepayment\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"success\",\"type\":\"bool\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"components\":[{\"internalType\":\"string\",\"name\":\"repaymentNo\"",",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"sourceLoanNo\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"offsetReceiptId\",\"type\":\"string\"},{\"internalType\":\"uint256\",\"name\":\"offsetAmount\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"dataHash\",\"type\":\"bytes32\"}],\"internalType\":\"struct LoanRepayment.ReceiptOffsetInput\",\"name\":\"input\",\"type\":\"tuple\"}],\"name\":\"recordReceiptOffset\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"success\",\"type\":\"bool\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"components\":[{\"internalType\":\"string\",\"name\":\"repaymentNo\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"sourceLoanNo\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"offsetReceivableId\",\"type\":\"string\"},{\"internalType\":\"uint256\",\"name\":\"offsetAmount\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"dataHash\",\"type\":\"bytes32\"}],\"internalType\":\"struct LoanRepayment.ReceivableOffsetInput\",\"name\":\"input\",\"type\":\"tuple\"}],\"name\":\"recordReceivableOffset\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"success\",\"type\":\"bool\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"repaymentNo\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"rejectReason\",\"type\":\"string\"}],\"name\":\"rejectRepayment\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"success\",\"type\":\"bool\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"repaymentCount\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"}],\"name\":\"repaymentInfos\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"repaymentNo\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"loanNo\",\"type\":\"string\"},{\"internalType\":\"uint256\",\"name\":\"principalAmount\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"interestAmount\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"penaltyAmount\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"totalAmount\",\"type\":\"uint256\"},{\"internalType\":\"enum LoanRepayment.RepaymentType\",\"name\":\"repaymentType\",\"type\":\"uint8\"},{\"internalType\":\"enum LoanRepayment.RepaymentStatus\",\"name\":\"status\",\"type\":\"uint8\"},{\"internalType\":\"uint256\",\"name\":\"repaymentTime\",\"type\":\"uint256\"},{\"internalType\":\"address\",\"name\":\"payer\",\"type\":\"address\"},{\"internalType\":\"bytes32\",\"name\":\"dataHash\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"newAdmin\",\"type\":\"address\"}],\"name\":\"setAdmin\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"newBackend\",\"type\":\"address\"}],\"name\":\"setJavaBackend\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]"};
+    public static final String[] ABI_ARRAY = {"[{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_initialAdmin\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"string\",\"name\":\"repaymentNo\",\"type\":\"string\"},{\"indexed\":true,\"internalType\":\"string\",\"name\":\"loanNo\",\"type\":\"string\"},{\"indexed\":false,\"internalType\":\"string\",\"name\":\"disposalMethod\",\"type\":\"string\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"disposalAmount\",\"type\":\"uint256\"}],\"name\":\"CollateralDisposalRecorded\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"string\",\"name\":\"repaymentNo\",\"type\":\"string\"},{\"indexed\":true,\"internalType\":\"string\",\"name\":\"sourceLoanNo\",\"type\":\"string\"},{\"indexed\":false,\"internalType\":\"string\",\"name\":\"offsetReceiptId\",\"type\":\"string\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"offsetAmount\",\"type\":\"uint256\"}],\"name\":\"ReceiptOffsetRecorded\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"string\",\"name\":\"repaymentNo\",\"type\":\"string\"},{\"indexed\":true,\"internalType\":\"string\",\"name\":\"sourceLoanNo\",\"type\":\"string\"},{\"indexed\":false,\"internalType\":\"string\",\"name\":\"offsetReceivableId\",\"type\":\"string\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"offsetAmount\",\"type\":\"uint256\"}],\"name\":\"ReceivableOffsetRecorded\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"string\",\"name\":\"repaymentNo\",\"type\":\"string\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"confirmedAmount\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"confirmTime\",\"type\":\"uint256\"}],\"name\":\"RepaymentConfirmed\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"string\",\"name\":\"repaymentNo\",\"type\":\"string\"},{\"indexed\":true,\"internalType\":\"string\",\"name\":\"loanNo\",\"type\":\"string\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"principalAmount\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"interestAmount\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"totalAmount\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"enum LoanRepayment.RepaymentType\",\"name\":\"repaymentType\",\"type\":\"uint8\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"createTime\",\"type\":\"uint256\"}],\"name\":\"RepaymentCreated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"string\",\"name\":\"repaymentNo\",\"type\":\"string\"},{\"indexed\":false,\"internalType\":\"string\",\"name\":\"rejectReason\",\"type\":\"string\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"rejectTime\",\"type\":\"uint256\"}],\"name\":\"RepaymentRejected\",\"type\":\"event\"},{\"conflictFields\":[{\"kind\":5}],\"inputs\":[],\"name\":\"VERSION\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"selector\":[4288785780,2466908405],\"stateMutability\":\"view\",\"type\":\"function\"},{\"conflictFields\":[{\"kind\":4,\"value\":[0]}],\"inputs\":[],\"name\":\"admin\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"selector\":[4166100032,4048693248],\"stateMutability\":\"view\",\"type\":\"function\"},{\"conflictFields\":[{\"kind\":3,\"slot\":3,\"value\":[0]},{\"kind\":3,\"slot\":4,\"value\":[0]},{\"kind\":4,\"value\":[1]}],\"inputs\":[{\"internalType\":\"string\",\"name\":\"repaymentNo\",\"type\":\"string\"},{\"internalType\":\"uint256\",\"name\":\"confirmedAmount\",\"type\":\"uint256\"}],\"name\":\"confirmRepayment\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"success\",\"type\":\"bool\"}],\"selector\":[1263157335,2819195896],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"conflictFields\":[{\"kind\":3,\"slot\":4,\"value\":[0]}],\"inputs\":[{\"internalType\":\"string\",\"name\":\"repaymentNo\",\"type\":\"string\"}],\"name\":\"exists\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"selector\":[639251006,2124992291],\"stateMutability\":\"view\",\"type\":\"function\"},{\"conflictFields\":[{\"kind\":3,\"slot\":7,\"value\":[0]},{\"kind\":3,\"slot\":8,\"value\":[0]}],\"inputs\":[{\"internalType\":\"string\",\"name\":\"repaymentNo\",\"type\":\"string\"}],\"name\":\"getReceiptOffset\",\"outputs\":[{\"components\":[{\"internalType\":\"string\",\"name\":\"repaymentNo\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"sourceLoanNo\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"offsetReceiptId\",\"type\":\"string\"},{\"internalType\":\"uint256\",\"name\":\"offsetAmount\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"offsetTime\",\"type\":\"uint256\"}],\"internalType\":\"struct LoanRepayment.ReceiptOffsetRecord\",\"name\":\"record\",\"type\":\"tuple\"}],\"selector\":[82752154,2044427604],\"stateMutability\":\"view\",\"type\":\"function\"},{\"conflictFields\":[{\"kind\":3,\"slot\":9,\"value\":[0]},{\"kind\":3,\"slot\":10,\"value\":[0]}],\"inputs\":[{\"internalType\":\"string\",\"name\":\"repaymentNo\",\"type\":\"string\"}],\"name\":\"getReceivableOffset\",\"outputs\":[{\"components\":[{\"internalType\":\"string\",\"name\":\"repaymentNo\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"sourceLoanNo\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"offsetReceivableId\",\"type\":\"string\"},{\"internalType\":\"uint256\",\"name\":\"offsetAmount\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"offsetTime\",\"type\":\"uint256\"}],\"internalType\":\"struct LoanRepayment.ReceivableOffsetRecord\",\"name\":\"record\",\"type\":\"tuple\"}],\"selector\":[3647394167,1165495087],\"stateMutability\":\"view\",\"type\":\"function\"},{\"conflictFields\":[{\"kind\":3,\"slot\":3,\"value\":[0]},{\"kind\":3,\"slot\":4,\"value\":[0]}],\"inputs\":[{\"internalType\":\"string\",\"name\":\"repaymentNo\",\"type\":\"string\"}],\"name\":\"getRepayment\",\"outputs\":[{\"components\":[{\"internalType\":\"string\",\"name\":\"repaymentNo\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"loanNo\",\"type\":\"string\"},{\"internalType\":\"uint256\",\"name\":\"principalAmount\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"interestAmount\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"penaltyAmount\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"totalAmount\",\"type\":\"uint256\"},{\"internalType\":\"enum LoanRepayment.RepaymentType\",\"name\":\"repaymentType\",\"type\":\"uint8\"},{\"internalType\":\"enum LoanRepayment.RepaymentStatus\",\"name\":\"status\",\"type\":\"uint8\"},{\"internalType\":\"uint256\",\"name\":\"repaymentTime\",\"type\":\"uint256\"},{\"internalType\":\"address\",\"name\":\"payer\",\"type\":\"address\"},{\"internalType\":\"bytes32\",\"name\":\"dataHash\",\"type\":\"bytes32\"}],\"internalType\":\"struct LoanRepayment.RepaymentRecord\",\"name\":\"record\",\"type\":\"tuple\"}],\"selector\":[2684858917,148346569],\"stateMutability\":\"view\",\"type\":\"function\"},{\"conflictFields\":[{\"kind\":3,\"slot\":5,\"value\":[0]}],\"inputs\":[{\"internalType\":\"string\",\"name\":\"loanNo\",\"type\":\"string\"}],\"name\":\"getRepaymentCount\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"count\",\"type\":\"uint256\"}],\"selector\":[3795766947,4139830722],\"stateMutability\":\"view\",\"type\":\"function\"},{\"conflictFields\":[{\"kind\":5}],\"inputs\":[{\"internalType\":\"enum LoanRepayment.RepaymentType\",\"name\":\"repaymentType\",\"type\":\"uint8\"}],\"name\":\"getRepaymentTypeName\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"typeName\",\"type\":\"string\"}],\"selector\":[1270444362,2700384319],\"stateMutability\":\"pure\",\"type\":\"function\"},{\"conflictFields\":[{\"kind\":3,\"slot\":5,\"value\":[0]}],\"inputs\":[{\"internalType\":\"string\",\"name\":\"loanNo\",\"type\":\"string\"}],\"name\":\"getRepaymentsByLoan\",\"outputs\":[{\"internalType\":\"string[]\",\"name\":\"repaymentNos\",\"type\":\"string[]\"}],\"selector\":[1821011419,2814269964],\"stateMutability\":\"view\",\"type\":\"function\"},{\"conflictFields\":[{\"kind\":4,\"value\":[1]}],\"inputs\":[],\"name\":\"javaBackend\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"selector\":[3331699197,18800058],\"stateMutability\":\"view\",\"type\":\"function\"},{\"conflictFields\":[{\"kind\":0},{\"kind\":4,\"value\":[1]},{\"kind\":4,\"value\":[2]}],\"inputs\":[{\"components\":[{\"internalType\":\"string\",\"name\":\"repaymentNo\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"loanNo\",\"type\":\"string\"},{\"internalType\":\"uint256\",\"name\":\"principalAmount\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"interestAmount\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"penaltyAmount\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"dataHash\",\"type\":\"bytes32\"}],\"internalType\":\"struct LoanRepayment.CashRepaymentInput\",\"name\":\"input\",\"type\":\"tuple\"}],\"name\":\"recordCashRepayment\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"success\",\"type\":\"bool\"}],\"selector\":[502542640,995193013],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},","{\"conflictFields\":[{\"kind\":3,\"slot\":3,\"value\":[0]},{\"kind\":3,\"slot\":4,\"value\":[0]},{\"kind\":3,\"slot\":5,\"value\":[1]},{\"kind\":3,\"slot\":6,\"value\":[0]},{\"kind\":4,\"value\":[1]},{\"kind\":4,\"value\":[2]}],\"inputs\":[{\"internalType\":\"string\",\"name\":\"repaymentNo\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"loanNo\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"disposalMethod\",\"type\":\"string\"},{\"internalType\":\"uint256\",\"name\":\"disposalAmount\",\"type\":\"uint256\"}],\"name\":\"recordCollateralDisposal\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"success\",\"type\":\"bool\"}],\"selector\":[747316817,2921132487],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"conflictFields\":[{\"kind\":0},{\"kind\":4,\"value\":[1]},{\"kind\":4,\"value\":[2]}],\"inputs\":[{\"components\":[{\"internalType\":\"string\",\"name\":\"repaymentNo\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"loanNo\",\"type\":\"string\"},{\"internalType\":\"uint256\",\"name\":\"principalAmount\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"interestAmount\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"penaltyAmount\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"dataHash\",\"type\":\"bytes32\"}],\"internalType\":\"struct LoanRepayment.CashRepaymentInput\",\"name\":\"input\",\"type\":\"tuple\"}],\"name\":\"recordPartialRepayment\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"success\",\"type\":\"bool\"}],\"selector\":[3154465099,902071476],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"conflictFields\":[{\"kind\":0},{\"kind\":4,\"value\":[1]},{\"kind\":4,\"value\":[2]}],\"inputs\":[{\"components\":[{\"internalType\":\"string\",\"name\":\"repaymentNo\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"sourceLoanNo\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"offsetReceiptId\",\"type\":\"string\"},{\"internalType\":\"uint256\",\"name\":\"offsetAmount\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"dataHash\",\"type\":\"bytes32\"}],\"internalType\":\"struct LoanRepayment.ReceiptOffsetInput\",\"name\":\"input\",\"type\":\"tuple\"}],\"name\":\"recordReceiptOffset\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"success\",\"type\":\"bool\"}],\"selector\":[1509055671,3205282841],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"conflictFields\":[{\"kind\":0},{\"kind\":4,\"value\":[1]},{\"kind\":4,\"value\":[2]}],\"inputs\":[{\"components\":[{\"internalType\":\"string\",\"name\":\"repaymentNo\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"sourceLoanNo\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"offsetReceivableId\",\"type\":\"string\"},{\"internalType\":\"uint256\",\"name\":\"offsetAmount\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"dataHash\",\"type\":\"bytes32\"}],\"internalType\":\"struct LoanRepayment.ReceivableOffsetInput\",\"name\":\"input\",\"type\":\"tuple\"}],\"name\":\"recordReceivableOffset\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"success\",\"type\":\"bool\"}],\"selector\":[2500432150,892133209],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"conflictFields\":[{\"kind\":3,\"slot\":3,\"value\":[0]},{\"kind\":3,\"slot\":4,\"value\":[0]},{\"kind\":4,\"value\":[1]}],\"inputs\":[{\"internalType\":\"string\",\"name\":\"repaymentNo\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"rejectReason\",\"type\":\"string\"}],\"name\":\"rejectRepayment\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"success\",\"type\":\"bool\"}],\"selector\":[4070468237,3252250084],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"conflictFields\":[{\"kind\":4,\"value\":[2]}],\"inputs\":[],\"name\":\"repaymentCount\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"selector\":[1169086396,92669928],\"stateMutability\":\"view\",\"type\":\"function\"},{\"conflictFields\":[{\"kind\":0}],\"inputs\":[{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"}],\"name\":\"repaymentInfos\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"repaymentNo\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"loanNo\",\"type\":\"string\"},{\"internalType\":\"uint256\",\"name\":\"principalAmount\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"interestAmount\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"penaltyAmount\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"totalAmount\",\"type\":\"uint256\"},{\"internalType\":\"enum LoanRepayment.RepaymentType\",\"name\":\"repaymentType\",\"type\":\"uint8\"},{\"internalType\":\"enum LoanRepayment.RepaymentStatus\",\"name\":\"status\",\"type\":\"uint8\"},{\"internalType\":\"uint256\",\"name\":\"repaymentTime\",\"type\":\"uint256\"},{\"internalType\":\"address\",\"name\":\"payer\",\"type\":\"address\"},{\"internalType\":\"bytes32\",\"name\":\"dataHash\",\"type\":\"bytes32\"}],\"selector\":[1981293241,94770138],\"stateMutability\":\"view\",\"type\":\"function\"},{\"conflictFields\":[{\"kind\":4,\"value\":[0]}],\"inputs\":[{\"internalType\":\"address\",\"name\":\"newAdmin\",\"type\":\"address\"}],\"name\":\"setAdmin\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"selector\":[1883991042,845907806],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"conflictFields\":[{\"kind\":4,\"value\":[0]},{\"kind\":4,\"value\":[1]}],\"inputs\":[{\"internalType\":\"address\",\"name\":\"newBackend\",\"type\":\"address\"}],\"name\":\"setJavaBackend\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"selector\":[3004536652,2794746398],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]"};
 
     public static final String ABI = org.fisco.bcos.sdk.v3.utils.StringUtils.joinAll("", ABI_ARRAY);
 
@@ -118,6 +120,12 @@ public class LoanRepayment extends Contract {
 
     protected LoanRepayment(String contractAddress, Client client, CryptoKeyPair credential) {
         super(getBinary(client.getCryptoSuite()), contractAddress, client, credential);
+        this.transactionManager = new ProxySignTransactionManager(client);
+    }
+
+    protected LoanRepayment(String contractAddress, Client client,
+            TransactionManager transactionManager) {
+        super(getBinary(client.getCryptoSuite()), contractAddress, client, transactionManager);
     }
 
     public static String getBinary(CryptoSuite cryptoSuite) {
@@ -351,6 +359,16 @@ public class LoanRepayment extends Contract {
         return function;
     }
 
+    public FunctionWrapper buildMethodConfirmRepayment(String repaymentNo,
+            BigInteger confirmedAmount) {
+        @SuppressWarnings("rawtypes")
+        final Function function = new Function(FUNC_CONFIRMREPAYMENT, 
+                Arrays.<Type>asList(new org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String(repaymentNo), 
+                new org.fisco.bcos.sdk.v3.codec.datatypes.generated.Uint256(confirmedAmount)), 
+                Arrays.<TypeReference<?>>asList(new TypeReference<Bool>() {}));
+        return new FunctionWrapper(this, function);
+    }
+
     public String getSignedTransactionForConfirmRepayment(String repaymentNo,
             BigInteger confirmedAmount) {
         @SuppressWarnings("rawtypes")
@@ -542,7 +560,8 @@ public class LoanRepayment extends Contract {
     }
 
     /**
-     * 获取贷款的所有还款记录 W
+     * 获取贷款的所有还款记录 
+     * @param loanNo 贷款编号 
      * @return repaymentNos 还款编号列表 
      */
     @SuppressWarnings("rawtypes")
@@ -602,6 +621,14 @@ public class LoanRepayment extends Contract {
                 Arrays.<Type>asList(input), 
                 Arrays.<TypeReference<?>>asList(new TypeReference<Bool>() {}));
         return function;
+    }
+
+    public FunctionWrapper buildMethodRecordCashRepayment(CashRepaymentInput input) {
+        @SuppressWarnings("rawtypes")
+        final Function function = new Function(FUNC_RECORDCASHREPAYMENT, 
+                Arrays.<Type>asList(input), 
+                Arrays.<TypeReference<?>>asList(new TypeReference<Bool>() {}));
+        return new FunctionWrapper(this, function);
     }
 
     public String getSignedTransactionForRecordCashRepayment(CashRepaymentInput input) {
@@ -692,6 +719,18 @@ public class LoanRepayment extends Contract {
                 new org.fisco.bcos.sdk.v3.codec.datatypes.generated.Uint256(disposalAmount)), 
                 Arrays.<TypeReference<?>>asList(new TypeReference<Bool>() {}));
         return function;
+    }
+
+    public FunctionWrapper buildMethodRecordCollateralDisposal(String repaymentNo, String loanNo,
+            String disposalMethod, BigInteger disposalAmount) {
+        @SuppressWarnings("rawtypes")
+        final Function function = new Function(FUNC_RECORDCOLLATERALDISPOSAL, 
+                Arrays.<Type>asList(new org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String(repaymentNo), 
+                new org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String(loanNo), 
+                new org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String(disposalMethod), 
+                new org.fisco.bcos.sdk.v3.codec.datatypes.generated.Uint256(disposalAmount)), 
+                Arrays.<TypeReference<?>>asList(new TypeReference<Bool>() {}));
+        return new FunctionWrapper(this, function);
     }
 
     public String getSignedTransactionForRecordCollateralDisposal(String repaymentNo, String loanNo,
@@ -789,6 +828,14 @@ public class LoanRepayment extends Contract {
         return function;
     }
 
+    public FunctionWrapper buildMethodRecordPartialRepayment(CashRepaymentInput input) {
+        @SuppressWarnings("rawtypes")
+        final Function function = new Function(FUNC_RECORDPARTIALREPAYMENT, 
+                Arrays.<Type>asList(input), 
+                Arrays.<TypeReference<?>>asList(new TypeReference<Bool>() {}));
+        return new FunctionWrapper(this, function);
+    }
+
     public String getSignedTransactionForRecordPartialRepayment(CashRepaymentInput input) {
         @SuppressWarnings("rawtypes")
         final Function function = new Function(
@@ -869,6 +916,14 @@ public class LoanRepayment extends Contract {
         return function;
     }
 
+    public FunctionWrapper buildMethodRecordReceiptOffset(ReceiptOffsetInput input) {
+        @SuppressWarnings("rawtypes")
+        final Function function = new Function(FUNC_RECORDRECEIPTOFFSET, 
+                Arrays.<Type>asList(input), 
+                Arrays.<TypeReference<?>>asList(new TypeReference<Bool>() {}));
+        return new FunctionWrapper(this, function);
+    }
+
     public String getSignedTransactionForRecordReceiptOffset(ReceiptOffsetInput input) {
         @SuppressWarnings("rawtypes")
         final Function function = new Function(
@@ -947,6 +1002,14 @@ public class LoanRepayment extends Contract {
                 Arrays.<Type>asList(input), 
                 Arrays.<TypeReference<?>>asList(new TypeReference<Bool>() {}));
         return function;
+    }
+
+    public FunctionWrapper buildMethodRecordReceivableOffset(ReceivableOffsetInput input) {
+        @SuppressWarnings("rawtypes")
+        final Function function = new Function(FUNC_RECORDRECEIVABLEOFFSET, 
+                Arrays.<Type>asList(input), 
+                Arrays.<TypeReference<?>>asList(new TypeReference<Bool>() {}));
+        return new FunctionWrapper(this, function);
     }
 
     public String getSignedTransactionForRecordReceivableOffset(ReceivableOffsetInput input) {
@@ -1031,6 +1094,15 @@ public class LoanRepayment extends Contract {
                 new org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String(rejectReason)), 
                 Arrays.<TypeReference<?>>asList(new TypeReference<Bool>() {}));
         return function;
+    }
+
+    public FunctionWrapper buildMethodRejectRepayment(String repaymentNo, String rejectReason) {
+        @SuppressWarnings("rawtypes")
+        final Function function = new Function(FUNC_REJECTREPAYMENT, 
+                Arrays.<Type>asList(new org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String(repaymentNo), 
+                new org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String(rejectReason)), 
+                Arrays.<TypeReference<?>>asList(new TypeReference<Bool>() {}));
+        return new FunctionWrapper(this, function);
     }
 
     public String getSignedTransactionForRejectRepayment(String repaymentNo, String rejectReason) {
@@ -1161,6 +1233,14 @@ public class LoanRepayment extends Contract {
         return function;
     }
 
+    public FunctionWrapper buildMethodSetAdmin(String newAdmin) {
+        @SuppressWarnings("rawtypes")
+        final Function function = new Function(FUNC_SETADMIN, 
+                Arrays.<Type>asList(new org.fisco.bcos.sdk.v3.codec.datatypes.Address(newAdmin)), 
+                Arrays.<TypeReference<?>>asList(new TypeReference<Bool>() {}));
+        return new FunctionWrapper(this, function);
+    }
+
     public String getSignedTransactionForSetAdmin(String newAdmin) {
         @SuppressWarnings("rawtypes")
         final Function function = new Function(
@@ -1233,6 +1313,14 @@ public class LoanRepayment extends Contract {
         return function;
     }
 
+    public FunctionWrapper buildMethodSetJavaBackend(String newBackend) {
+        @SuppressWarnings("rawtypes")
+        final Function function = new Function(FUNC_SETJAVABACKEND, 
+                Arrays.<Type>asList(new org.fisco.bcos.sdk.v3.codec.datatypes.Address(newBackend)), 
+                Arrays.<TypeReference<?>>asList(new TypeReference<Bool>() {}));
+        return new FunctionWrapper(this, function);
+    }
+
     public String getSignedTransactionForSetJavaBackend(String newBackend) {
         @SuppressWarnings("rawtypes")
         final Function function = new Function(
@@ -1285,15 +1373,21 @@ public class LoanRepayment extends Contract {
     }
 
     public static LoanRepayment load(String contractAddress, Client client,
-            CryptoKeyPair credential) {
-        return new LoanRepayment(contractAddress, client, credential);
+            TransactionManager transactionManager) {
+        return new LoanRepayment(contractAddress, client, transactionManager);
+    }
+
+    public static LoanRepayment load(String contractAddress, Client client) {
+        return new LoanRepayment(contractAddress, client, new ProxySignTransactionManager(client));
     }
 
     public static LoanRepayment deploy(Client client, CryptoKeyPair credential,
             String _initialAdmin) throws ContractException {
         @SuppressWarnings("rawtypes")
         byte[] encodedConstructor = FunctionEncoder.encodeConstructor(Arrays.<Type>asList(new org.fisco.bcos.sdk.v3.codec.datatypes.Address(_initialAdmin)));
-        return deploy(LoanRepayment.class, client, credential, getBinary(client.getCryptoSuite()), getABI(), encodedConstructor, null);
+        LoanRepayment contract = deploy(LoanRepayment.class, client, credential, getBinary(client.getCryptoSuite()), getABI(), encodedConstructor, null);
+        contract.setTransactionManager(new ProxySignTransactionManager(client));
+        return contract;
     }
 
     public static class ReceiptOffsetRecord extends DynamicStruct {

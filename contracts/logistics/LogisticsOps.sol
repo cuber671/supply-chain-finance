@@ -225,15 +225,12 @@ contract LogisticsOps {
 
     /**
      * @dev 验证承运方是否有权操作
-     * @param voucherNo 委派单编号
      * @param carrierHash 承运方哈希
-     * @return isAuthorized 是否授权
+     * @return 是否授权
      */
-    function isCarrierAuthorized(string calldata voucherNo, bytes32 carrierHash)
-        external view returns (bool isAuthorized)
+    function isCarrierAuthorized(string calldata, bytes32 carrierHash)
+        external pure returns (bool)
     {
-        // 需要从 Core 合约获取承运方信息
-        // 简化实现
         return carrierHash != bytes32(0);
     }
 

@@ -4,19 +4,25 @@ import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.Pattern;
 import javax.validation.constraints.Size;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
 /**
  * 登录请求DTO - 替代Map接收参数，提供完整的参数校验能力
  */
+@Schema(description = "用户登录请求")
 public class LoginRequestDTO {
 
     @NotBlank(message = "用户名不能为空")
     @Size(min = 1, max = 50, message = "用户名长度必须在1-50之间")
+    @Schema(description = "用户名", example = "admin001")
     private String username;
 
     @NotBlank(message = "密码不能为空")
+    @Schema(description = "密码", example = "********")
     private String password;
 
     @Pattern(regexp = "USER|ENTERPRISE", message = "登录类型无效，仅支持USER或ENTERPRISE")
+    @Schema(description = "登录类型", example = "ENTERPRISE", allowableValues = {"USER", "ENTERPRISE"})
     private String loginType = "ENTERPRISE";
 
     public LoginRequestDTO() {

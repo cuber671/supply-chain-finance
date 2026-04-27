@@ -53,13 +53,6 @@
             <artifactId>mybatis-plus-boot-starter</artifactId>
         </dependency>
 
-        <!-- FISCO BCOS SDK -->
-        <dependency>
-            <groupId>org.fisco-bcos.java-sdk</groupId>
-            <artifactId>fisco-bcos-java-sdk</artifactId>
-            <version>${fisco-bcos.version}</version>
-        </dependency>
-
         <!-- MySQL -->
         <dependency>
             <groupId>com.mysql</groupId>

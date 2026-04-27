@@ -20,10 +20,10 @@ import org.springframework.transaction.annotation.Transactional;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fisco.app.entity.CreditEvent;
 import com.fisco.app.entity.EnterpriseCreditProfile;
+import com.fisco.app.feign.BlockchainFeignClient;
 import com.fisco.app.feign.EnterpriseFeignClient;
 import com.fisco.app.mapper.CreditEventMapper;
 import com.fisco.app.mapper.CreditProfileMapper;
-import com.fisco.app.service.CreditContractService;
 import com.fisco.app.service.CreditService;
 
 
@@ -96,7 +96,7 @@ public class CreditServiceImpl implements CreditService {
     private CreditEventMapper creditEventMapper;
 
     @Autowired
-    private CreditContractService creditContractService;
+    private BlockchainFeignClient blockchainFeignClient;
 
     @Autowired(required = false)
     private EnterpriseFeignClient enterpriseFeignClient;
@@ -170,7 +170,11 @@ public class CreditServiceImpl implements CreditService {
             try {
                 // 上链设置授信额度
                 BigInteger limitWei = toWei(availableLimit);
-                creditContractService.setCreditLimit(blockchainAddress, limitWei);
+                BlockchainFeignClient.EnterpriseCreditLimitRequest request =
+                    new BlockchainFeignClient.EnterpriseCreditLimitRequest();
+                request.setEnterpriseAddress(blockchainAddress);
+                request.setNewLimit(limitWei.longValue());
+                blockchainFeignClient.setCreditLimit(request);
                 logger.info("授信额度上链成功，entId: {}, limit: {}", entId, availableLimit);
             } catch (Exception e) {
                 logger.error("授信额度上链失败，entId: {}", entId, e);
@@ -211,7 +215,12 @@ public class CreditServiceImpl implements CreditService {
         if (blockchainAddress != null) {
             try {
                 BigInteger amountWei = toWei(amount);
-                boolean chainCheck = creditContractService.checkCreditLimit(blockchainAddress, amountWei);
+                BlockchainFeignClient.CreditCheckLimitRequest checkRequest =
+                    new BlockchainFeignClient.CreditCheckLimitRequest();
+                checkRequest.setEnterpriseAddress(blockchainAddress);
+                checkRequest.setAmount(amountWei.longValue());
+                var chainCheckResult = blockchainFeignClient.checkCreditLimit(checkRequest);
+                boolean chainCheck = chainCheckResult.getCode() != null && chainCheckResult.getCode() == 200 && Boolean.TRUE.equals(chainCheckResult.getData());
                 if (!chainCheck) {
                     logger.warn("链上额度校验不通过，entId: {}, amount: {}", entId, amount);
                     return false;
@@ -233,7 +242,12 @@ public class CreditServiceImpl implements CreditService {
             try {
                 // 上链使用信用额度
                 BigInteger amountWei = toWei(amount);
-                creditContractService.useCredit(blockchainAddress, amountWei, "USE_FOR_FINANCING");
+                BlockchainFeignClient.CreditUseRequest useRequest =
+                    new BlockchainFeignClient.CreditUseRequest();
+                useRequest.setEnterpriseAddress(blockchainAddress);
+                useRequest.setAmount(amountWei.longValue());
+                useRequest.setOperationType("USE_FOR_FINANCING");
+                blockchainFeignClient.useCredit(useRequest);
                 logger.info("信用额度使用上链成功，entId: {}, amount: {}", entId, amount);
             } catch (Exception e) {
                 logger.error("信用额度使用上链失败，entId: {}, amount: {}", entId, amount, e);
@@ -280,7 +294,12 @@ public class CreditServiceImpl implements CreditService {
             try {
                 // 上链释放信用额度
                 BigInteger amountWei = toWei(releaseAmount);
-                creditContractService.releaseCredit(blockchainAddress, amountWei, "REPAYMENT");
+                BlockchainFeignClient.CreditReleaseRequest releaseRequest =
+                    new BlockchainFeignClient.CreditReleaseRequest();
+                releaseRequest.setEnterpriseAddress(blockchainAddress);
+                releaseRequest.setAmount(amountWei.longValue());
+                releaseRequest.setOperationType("REPAYMENT");
+                blockchainFeignClient.releaseCredit(releaseRequest);
                 logger.info("信用额度释放上链成功，entId: {}, amount: {}", entId, releaseAmount);
             } catch (Exception e) {
                 logger.error("信用额度释放上链失败，entId: {}", entId, e);
@@ -325,11 +344,19 @@ public class CreditServiceImpl implements CreditService {
                 if (adjustment.compareTo(BigDecimal.ZERO) > 0) {
                     // 额度增加
                     BigInteger adjustmentWei = toWei(adjustment);
-                    creditContractService.setCreditLimit(blockchainAddress, adjustmentWei);
+                    BlockchainFeignClient.EnterpriseCreditLimitRequest limitRequest =
+                        new BlockchainFeignClient.EnterpriseCreditLimitRequest();
+                    limitRequest.setEnterpriseAddress(blockchainAddress);
+                    limitRequest.setNewLimit(adjustmentWei.longValue());
+                    blockchainFeignClient.setCreditLimit(limitRequest);
                 } else if (adjustment.compareTo(BigDecimal.ZERO) < 0) {
                     // 额度减少 - 使用adjustUsedCredit
                     BigInteger adjustmentWei = toWei(adjustment.abs());
-                    creditContractService.adjustUsedCredit(blockchainAddress, adjustmentWei.negate());
+                    BlockchainFeignClient.CreditAdjustUsedRequest adjustRequest =
+                        new BlockchainFeignClient.CreditAdjustUsedRequest();
+                    adjustRequest.setEnterpriseAddress(blockchainAddress);
+                    adjustRequest.setAdjustment(adjustmentWei.negate().longValue());
+                    blockchainFeignClient.adjustUsedCredit(adjustRequest);
                 }
                 logger.info("信用额度调整上链成功，entId: {}, oldLimit: {}, newLimit: {}", entId, oldLimit, newLimit);
             } catch (Exception e) {
@@ -395,10 +422,16 @@ public class CreditServiceImpl implements CreditService {
                 BigInteger impact = scoreChange != null ? BigInteger.valueOf(scoreChange) : BigInteger.ZERO;
 
                 // 计算事件数据哈希
-                byte[] eventDataHash = calculateEventDataHash(entId, eventType, eventDesc);
+                String eventDataHash = calculateEventDataHash(entId, eventType, eventDesc);
 
                 // 上链上报事件
-                creditContractService.reportCreditEvent(blockchainAddress, eventTypeValue, impact, eventDataHash);
+                BlockchainFeignClient.CreditReportEventRequest eventRequest =
+                    new BlockchainFeignClient.CreditReportEventRequest();
+                eventRequest.setEnterpriseAddress(blockchainAddress);
+                eventRequest.setEventType(eventTypeValue.longValue());
+                eventRequest.setImpact(impact.longValue());
+                eventRequest.setEventDataHash(eventDataHash);
+                blockchainFeignClient.reportCreditEvent(eventRequest);
                 logger.info("信用事件上链成功，entId: {}, eventType: {}", entId, eventType);
             } catch (Exception e) {
                 logger.error("信用事件上链失败，entId: {}, eventType: {}", entId, eventType, e);
@@ -492,7 +525,10 @@ public class CreditServiceImpl implements CreditService {
         String blockchainAddress = getEnterpriseBlockchainAddress(entId);
         if (blockchainAddress != null) {
             try {
-                creditContractService.calculateScore(blockchainAddress, null);
+                BlockchainFeignClient.CreditCalculateScoreRequest scoreRequest =
+                    new BlockchainFeignClient.CreditCalculateScoreRequest();
+                scoreRequest.setEnterpriseAddress(blockchainAddress);
+                blockchainFeignClient.calculateCreditScore(scoreRequest);
                 logger.info("信用评分计算上链成功，entId: {}, score: {}", entId, newScore);
             } catch (Exception e) {
                 logger.error("信用评分计算上链失败，entId: {}", entId, e);
@@ -655,7 +691,12 @@ public class CreditServiceImpl implements CreditService {
         if (blockchainAddress != null) {
             try {
                 BigInteger requiredAmountWei = toWei(requiredAmount);
-                onChainPassed = creditContractService.checkCreditLimit(blockchainAddress, requiredAmountWei);
+                BlockchainFeignClient.CreditCheckLimitRequest checkRequest =
+                    new BlockchainFeignClient.CreditCheckLimitRequest();
+                checkRequest.setEnterpriseAddress(blockchainAddress);
+                checkRequest.setAmount(requiredAmountWei.longValue());
+                var chainCheckResult = blockchainFeignClient.checkCreditLimit(checkRequest);
+                onChainPassed = chainCheckResult.getCode() != null && chainCheckResult.getCode() == 200 && Boolean.TRUE.equals(chainCheckResult.getData());
                 logger.info("额度链上校验，entId: {}, onChainPassed: {}", entId, onChainPassed);
             } catch (Exception e) {
                 logger.warn("额度链上校验失败，使用链下结果，entId: {}", entId, e);
@@ -973,9 +1014,9 @@ public class CreditServiceImpl implements CreditService {
     /**
      * 计算事件数据哈希
      */
-    private byte[] calculateEventDataHash(Long entId, String eventType, String eventDesc) {
+    private String calculateEventDataHash(Long entId, String eventType, String eventDesc) {
         String data = entId + "|" + eventType + "|" + eventDesc + "|" + System.currentTimeMillis();
-        return data.getBytes();
+        return data;
     }
 
     /**

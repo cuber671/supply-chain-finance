@@ -2,14 +2,13 @@
     cryptoType = 0
 
 [network]
-    messageTimeout = "10000"
     peers = [
-        "fisco-node0:20000",
-        "fisco-node1:20001",
-        "fisco-node2:20002",
-        "fisco-node3:20003"
+        "172.26.0.20:20000",
+        "172.26.0.21:20001",
+        "172.26.0.22:20002",
+        "172.26.0.23:20003"
     ]
-    defaultGroup="group0"
+    defaultGroup = "group0"
 
 [cryptoMaterial]
     certPath = "conf"

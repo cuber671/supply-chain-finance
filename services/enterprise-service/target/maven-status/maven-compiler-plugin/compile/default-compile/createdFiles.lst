@@ -6,7 +6,6 @@ com/fisco/app/config/OpenApiConfig.class
 com/fisco/app/EnterpriseServiceApplication.class
 com/fisco/app/feign/CreditFeignClient.class
 com/fisco/app/feign/CreditFeignClientFallback.class
-com/fisco/app/config/BlockchainConfig.class
 com/fisco/app/service/EnterpriseService.class
 com/fisco/app/service/impl/EnterpriseServiceImpl.class
 com/fisco/app/controller/EnterpriseController$LoginRequest.class
@@ -14,7 +13,6 @@ com/fisco/app/mapper/InvitationCodeMapper.class
 com/fisco/app/controller/EnterpriseController$AuditRequest.class
 com/fisco/app/controller/EnterpriseController$PasswordUpdateRequest.class
 com/fisco/app/config/JwtConfig.class
-com/fisco/app/config/BlockchainConfig$KeyPairInfo.class
 com/fisco/app/entity/InvitationCode.class
 com/fisco/app/dto/FinancialInstitutionCheckDTO.class
 com/fisco/app/controller/EnterpriseController$EnterpriseRegisterRequest.class

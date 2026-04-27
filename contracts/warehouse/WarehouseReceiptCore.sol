@@ -41,17 +41,18 @@ contract WarehouseReceiptCore is IWarehouseReceiptCore {
     // ==================== 数据结构 ====================
 
     /**
-     * @dev 仓单状态枚举
-     * 遵循文档：1-在库, 2-待转让, 3-已拆分/合并, 4-已核销, 5-物流转运中, 6-已质押
+     * @dev 仓单状态枚举（与Java端ReceiptStatus一一对应）
+     * 遵循文档：0-不存在, 1-在库, 2-待转让, 3-已拆分/合并, 4-已核销, 5-物流转运中, 6-已作废, 7-待物流
      */
     enum ReceiptStatus {
         None,           // 0-不存在
-        InStorage,      // 1-在库
+        InStock,        // 1-在库
         PendingTransfer, // 2-待转让
         SplitMerged,    // 3-已拆分/合并
         Burned,         // 4-已核销
         InTransit,      // 5-物流转运中
-        Pledged         // 6-已质押
+        Void,           // 6-已作废
+        WaitLogistics   // 7-待物流(禁止拆分/转让/再次创建物流)
     }
 
     /**
@@ -201,7 +202,7 @@ contract WarehouseReceiptCore is IWarehouseReceiptCore {
 
     modifier onlyActiveReceipt(string memory receiptId) {
         Receipt storage r = receipts[receiptId];
-        require(r.core.status == ReceiptStatus.InStorage, "Receipt not active");
+        require(r.core.status == ReceiptStatus.InStock, "Receipt not active");
         require(!r.core.frozen, "Receipt is frozen");
         _;
     }
@@ -253,7 +254,7 @@ contract WarehouseReceiptCore is IWarehouseReceiptCore {
                 weight: input.weight,
                 unit: input.unit,
                 quantity: input.quantity,
-                status: ReceiptStatus.InStorage,
+                status: ReceiptStatus.InStock,
                 storageDate: input.storageDate,
                 expiryDate: input.expiryDate,
                 frozen: false,
@@ -324,9 +325,9 @@ contract WarehouseReceiptCore is IWarehouseReceiptCore {
         external onlyValidReceipt(receiptId) onlyActiveReceipt(receiptId) returns (bool success)
     {
         Receipt storage r = receipts[receiptId];
-        require(r.core.status == ReceiptStatus.InStorage, "Already locked or not in storage");
+        require(r.core.status == ReceiptStatus.InStock, "Already locked or not in storage");
 
-        r.core.status = ReceiptStatus.Pledged;
+        r.core.status = ReceiptStatus.Void;
         r.core.updatedAt = block.timestamp;
 
         emit ReceiptLocked(receiptId, msg.sender, block.timestamp);
@@ -343,9 +344,9 @@ contract WarehouseReceiptCore is IWarehouseReceiptCore {
         external onlyValidReceipt(receiptId) returns (bool success)
     {
         Receipt storage r = receipts[receiptId];
-        require(r.core.status == ReceiptStatus.Pledged, "Not pledged");
+        require(r.core.status == ReceiptStatus.Void, "Not void");
 
-        r.core.status = ReceiptStatus.InStorage;
+        r.core.status = ReceiptStatus.InStock;
         r.core.updatedAt = block.timestamp;
 
         emit ReceiptUnlocked(receiptId, msg.sender, block.timestamp);
@@ -362,12 +363,12 @@ contract WarehouseReceiptCore is IWarehouseReceiptCore {
         external onlyValidReceipt(receiptId) onlyActiveReceipt(receiptId) returns (bool success)
     {
         Receipt storage r = receipts[receiptId];
-        require(r.core.status == ReceiptStatus.InStorage, "Not in storage or already in transit");
+        require(r.core.status == ReceiptStatus.InStock, "Not in storage or already in transit");
 
         r.core.status = ReceiptStatus.InTransit;
         r.core.updatedAt = block.timestamp;
 
-        emit ReceiptStatusChanged(receiptId, uint8(ReceiptStatus.InStorage), uint8(ReceiptStatus.InTransit), msg.sender, block.timestamp);
+        emit ReceiptStatusChanged(receiptId, uint8(ReceiptStatus.InStock), uint8(ReceiptStatus.InTransit), msg.sender, block.timestamp);
 
         return true;
     }
@@ -383,10 +384,10 @@ contract WarehouseReceiptCore is IWarehouseReceiptCore {
         Receipt storage r = receipts[receiptId];
         require(r.core.status == ReceiptStatus.InTransit, "Not in transit or already restored");
 
-        r.core.status = ReceiptStatus.InStorage;
+        r.core.status = ReceiptStatus.InStock;
         r.core.updatedAt = block.timestamp;
 
-        emit ReceiptStatusChanged(receiptId, uint8(ReceiptStatus.InTransit), uint8(ReceiptStatus.InStorage), msg.sender, block.timestamp);
+        emit ReceiptStatusChanged(receiptId, uint8(ReceiptStatus.InTransit), uint8(ReceiptStatus.InStock), msg.sender, block.timestamp);
 
         return true;
     }
@@ -402,7 +403,7 @@ contract WarehouseReceiptCore is IWarehouseReceiptCore {
     {
         Receipt storage r = receipts[receiptId];
         require(r.core.status != ReceiptStatus.Burned, "Already cancelled");
-        require(r.core.status != ReceiptStatus.InStorage, "Already delivered");
+        require(r.core.status != ReceiptStatus.InStock, "Already delivered");
 
         // 只有所有者或管理员可注销
         address owner = receiptIdToOwner[receiptId];
@@ -419,10 +420,9 @@ contract WarehouseReceiptCore is IWarehouseReceiptCore {
     /**
      * @dev 核销仓单（提货出库）
      * @param receiptId 仓单ID
-     * @param signatureHash 签名哈希（预留参数，用于未来签名验证）
      * @return success 是否成功
      */
-    function burnReceipt(string calldata receiptId, bytes32 signatureHash)
+    function burnReceipt(string calldata receiptId, bytes32)
         external onlyValidReceipt(receiptId) returns (bool success)
     {
         Receipt storage r = receipts[receiptId];
@@ -533,7 +533,7 @@ contract WarehouseReceiptCore is IWarehouseReceiptCore {
 
         // 获取原仓单
         Receipt storage original = receipts[input.originalReceiptId];
-        require(original.core.status == ReceiptStatus.InStorage, "Receipt not in storage");
+        require(original.core.status == ReceiptStatus.InStock, "Receipt not in storage");
 
         // 验证重量总和
         uint256 totalWeight = 0;
@@ -567,7 +567,7 @@ contract WarehouseReceiptCore is IWarehouseReceiptCore {
         for (uint256 i = 0; i < input.sourceReceiptIds.length; i++) {
             require(receiptIdExists[input.sourceReceiptIds[i]], "Source receipt not found");
             Receipt storage source = receipts[input.sourceReceiptIds[i]];
-            require(source.core.status == ReceiptStatus.InStorage, "Source not in storage");
+            require(source.core.status == ReceiptStatus.InStock, "Source not in storage");
             require(!source.core.frozen, "Source is frozen");
         }
 
@@ -598,7 +598,7 @@ contract WarehouseReceiptCore is IWarehouseReceiptCore {
     {
         if (!receiptIdExists[receiptId]) return false;
         Receipt storage r = receipts[receiptId];
-        return r.core.status == ReceiptStatus.InStorage && !r.core.frozen;
+        return r.core.status == ReceiptStatus.InStock && !r.core.frozen;
     }
 
     /**
@@ -694,6 +694,6 @@ contract WarehouseReceiptCore is IWarehouseReceiptCore {
     function isPledgedByReceiptId(string calldata receiptId)
         external view onlyValidReceipt(receiptId) returns (bool isPledged)
     {
-        return receipts[receiptId].core.status == ReceiptStatus.Pledged;
+        return false;
     }
 }

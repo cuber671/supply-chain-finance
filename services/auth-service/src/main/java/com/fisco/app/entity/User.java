@@ -96,6 +96,7 @@ public class User {
     public static final int STATUS_FROZEN = 3;
     public static final int STATUS_CANCELLING = 4;
     public static final int STATUS_CANCELLED = 5;
+    public static final int STATUS_PENDING_CANCEL = 6;
 
     /**
      * 角色常量

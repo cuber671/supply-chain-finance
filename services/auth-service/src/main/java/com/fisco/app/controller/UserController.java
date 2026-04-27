@@ -24,6 +24,7 @@ import com.fisco.app.dto.AuditCancellationRequestDTO;
 import com.fisco.app.dto.AuditUserRequestDTO;
 import com.fisco.app.dto.CancelApplyRequestDTO;
 import com.fisco.app.dto.RegisterRequestDTO;
+import com.fisco.app.dto.RevokeCancelRequestDTO;
 import com.fisco.app.dto.UpdateUserInfoRequestDTO;
 import com.fisco.app.dto.UpdatePasswordRequestDTO;
 import com.fisco.app.dto.UpdateUserRoleRequestDTO;
@@ -99,7 +100,7 @@ public class UserController {
         Map<String, Object> response = new HashMap<>();
         response.put("code", 200);
         response.put("message", "注册成功，请等待审核");
-        response.put("data", Map.of("userId", userId));
+        response.put("data", Map.of("userId", String.valueOf(userId)));
 
         return ResponseEntity.ok(response);
     }
@@ -136,12 +137,20 @@ public class UserController {
      * 管理员可冻结/解冻用户，普通用户可申请注销
      */
     @Operation(summary = "变更用户状态", description = "管理员变更用户状态。\n\n" +
+            "**状态值**：PENDING(1), NORMAL(2), FROZEN(3), CANCELLING(4), CANCELLED(5), PENDING_CANCEL(6)\n\n" +
             "**状态机规则**：\n" +
-            "- PENDING → NORMAL：审核通过\n" +
-            "- NORMAL → FROZEN：冻结用户\n" +
-            "- NORMAL → CANCELLING：申请注销\n" +
-            "- CANCELLING/PENDING_CANCEL → CANCELLED：完成注销\n\n" +
-            "**前置条件**：仅管理员可操作。")
+            "- PENDING(1) → NORMAL(2)：审核通过\n" +
+            "- PENDING(1) → FROZEN(3)：审核拒绝\n" +
+            "- NORMAL(2) → FROZEN(3)：冻结/禁用\n" +
+            "- NORMAL(2) → PENDING_CANCEL(6)：申请注销（待审核）\n" +
+            "- NORMAL(2) → CANCELLING(4)：发起注销（管理员操作）\n" +
+            "- FROZEN(3) → NORMAL(2)：解冻恢复\n" +
+            "- CANCELLING(4) → NORMAL(2)：注销拒绝\n" +
+            "- CANCELLING(4) → CANCELLED(5)：注销审核通过\n" +
+            "- PENDING_CANCEL(6) → NORMAL(2)：注销拒绝/撤回\n" +
+            "- PENDING_CANCEL(6) → CANCELLED(5)：注销审核通过\n" +
+            "- CANCELLED(5) → PENDING(1)：重新注册\n\n" +
+            "**前置条件**：系统管理员/企业账户/用户管理员可操作。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "状态更新成功", content = @Content),
@@ -152,11 +161,39 @@ public class UserController {
     @PutMapping("/{userId}/status")
     public ResponseEntity<Map<String, Object>> updateUserStatus(
             @Parameter(description = "用户ID", required = true) @PathVariable Long userId,
-            @Parameter(description = "状态更新请求", required = true) @Valid @RequestBody UpdateUserStatusRequestDTO request) {
+            @Parameter(description = "状态更新请求", required = true) @Valid @RequestBody UpdateUserStatusRequestDTO request,
+            javax.servlet.http.HttpServletRequest httpRequest) {
 
-        User user = userMapper.selectById(userId);
-        if (user == null) {
+        User targetUser = userMapper.selectById(userId);
+        if (targetUser == null) {
             return buildErrorResponse(404, "用户不存在");
+        }
+
+        // 权限检查：与 auditUser 一致
+        Long requesterId = JwtAuthenticationFilter.getUserId(httpRequest);
+        Long requesterEntId = JwtAuthenticationFilter.getEntId(httpRequest);
+        Integer scope = JwtAuthenticationFilter.getScope(httpRequest);
+        String requesterRole = JwtAuthenticationFilter.getRole(httpRequest);
+
+        boolean hasPermission = false;
+
+        if (Integer.valueOf(1).equals(scope)) {
+            hasPermission = true;
+        } else if ("ENTERPRISE".equals(requesterRole) && requesterEntId != null) {
+            if (requesterEntId.equals(targetUser.getEnterpriseId())) {
+                hasPermission = true;
+            }
+        } else if ("USER".equals(requesterRole) && requesterId != null && requesterEntId != null) {
+            User requester = userMapper.selectById(requesterId);
+            if (requester != null
+                    && requesterEntId.equals(targetUser.getEnterpriseId())
+                    && User.ROLE_ADMIN.equals(requester.getUserRole())) {
+                hasPermission = true;
+            }
+        }
+
+        if (!hasPermission) {
+            return buildErrorResponse(403, "无权操作该用户");
         }
 
         // 委托给 Service 层处理（含状态机校验）
@@ -202,14 +239,37 @@ public class UserController {
             return buildErrorResponse(404, "用户不存在");
         }
 
-        // 企业归属校验：系统管理员(scope=1)可操作任何企业用户
+        // 权限检查：
+        // 1. 系统管理员(scope=1)可操作任何用户
+        // 2. 企业账户(role=ENTERPRISE)可操作同企业用户
+        // 3. 用户账户(role=USER)中userRole=ADMIN可操作同企业用户
+        Long requesterId = JwtAuthenticationFilter.getUserId(httpRequest);
         Long requesterEntId = JwtAuthenticationFilter.getEntId(httpRequest);
         Integer scope = JwtAuthenticationFilter.getScope(httpRequest);
-        if (!Integer.valueOf(1).equals(scope)) {
-            // 非系统管理员，必须属于同一企业
-            if (requesterEntId == null || !user.getEnterpriseId().equals(requesterEntId)) {
-                return buildErrorResponse(403, "无权操作其他企业的用户");
+        String requesterRole = JwtAuthenticationFilter.getRole(httpRequest);
+
+        boolean hasPermission = false;
+
+        if (Integer.valueOf(1).equals(scope)) {
+            // 1. 系统管理员
+            hasPermission = true;
+        } else if ("ENTERPRISE".equals(requesterRole) && requesterEntId != null) {
+            // 2. 企业账户 - 必须同企业
+            if (requesterEntId.equals(user.getEnterpriseId())) {
+                hasPermission = true;
             }
+        } else if ("USER".equals(requesterRole) && requesterId != null && requesterEntId != null) {
+            // 3. 用户账户 - 必须是同企业的用户管理员
+            User requester = userMapper.selectById(requesterId);
+            if (requester != null
+                    && requesterEntId.equals(user.getEnterpriseId())
+                    && User.ROLE_ADMIN.equals(requester.getUserRole())) {
+                hasPermission = true;
+            }
+        }
+
+        if (!hasPermission) {
+            return buildErrorResponse(403, "无权操作该用户");
         }
 
         String newRole = request.getRole();
@@ -389,9 +449,12 @@ public class UserController {
     /**
      * 审核用户注册申请
      */
-    @Operation(summary = "审核用户注册申请", description = "管理员审核用户的注册申请。审核通过后用户状态变为\"正常\"，审核拒绝后用户状态变为\"冻结\"。\n\n" +
+    @Operation(summary = "审核用户注册申请", description = "管理员审核用户的注册申请。审核通过后用户状态变为\"正常\"(NORMAL)，审核拒绝后用户状态变为\"冻结\"(FROZEN)。\n\n" +
             "**请求体字段**：approved（必填），rejectReason（可选，拒绝时填写）。\n\n" +
-            "**前置条件**：仅管理员可操作。")
+            "**权限说明**：\n" +
+            "- 系统管理员(role=ADMIN)：可审核所有用户\n" +
+            "- 企业账户(role=ENTERPRISE)：仅可审核同企业的用户\n" +
+            "- 用户管理员(role=USER且userRole=ADMIN)：仅可审核同企业的用户")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "审核完成", content = @Content),
@@ -404,17 +467,19 @@ public class UserController {
             @Parameter(description = "用户ID", required = true) @PathVariable Long userId,
             @Valid @RequestBody AuditUserRequestDTO body,
             javax.servlet.http.HttpServletRequest request) {
-        String role = JwtAuthenticationFilter.getRole(request);
-        if (!User.ROLE_ADMIN.equals(role)) {
-            return buildErrorResponse(403, "只有管理员可以访问此接口");
-        }
+        String auditorRole = JwtAuthenticationFilter.getRole(request);
+        Long auditorId = JwtAuthenticationFilter.getUserId(request);
+        Long auditorEntId = JwtAuthenticationFilter.getEntId(request);
+
+        // 查询审核人的用户角色
+        User auditor = userService.getUserById(auditorId);
+        String auditorUserRole = auditor != null ? auditor.getUserRole() : null;
 
         Boolean approved = body.getApproved();
         String rejectReason = body.getRejectReason();
-        Long auditorId = JwtAuthenticationFilter.getUserId(request);
 
         try {
-            userService.auditUser(userId, approved, auditorId, rejectReason);
+            userService.auditUser(userId, approved, auditorId, auditorRole, auditorEntId, auditorUserRole, rejectReason);
             if (approved) {
                 return buildSuccessResponse("审核通过");
             } else {
@@ -463,23 +528,25 @@ public class UserController {
      * 撤回注销申请
      */
     @Operation(summary = "撤回注销申请", description = "用户撤回自己提交的注销申请，状态恢复到\"正常\"。\n\n" +
-            "**前置条件**：仅注销中状态的用户可撤回。")
+            "**前置条件**：仅注销待审核(PENDING_CANCEL)状态的用户可撤回。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "注销申请已撤回", content = @Content),
-        @ApiResponse(responseCode = "400", description = "状态不允许撤回", content = @Content),
+        @ApiResponse(responseCode = "400", description = "状态不允许撤回或密码错误", content = @Content),
         @ApiResponse(responseCode = "401", description = "未登录或Token无效", content = @Content),
         @ApiResponse(responseCode = "500", description = "服务端异常", content = @Content)
     })
     @PostMapping("/cancel/revoke")
-    public ResponseEntity<Map<String, Object>> revokeCancellation(javax.servlet.http.HttpServletRequest request) {
+    public ResponseEntity<Map<String, Object>> revokeCancellation(
+            javax.servlet.http.HttpServletRequest request,
+            @Parameter(description = "撤回注销申请请求", required = true) @Valid @RequestBody RevokeCancelRequestDTO body) {
         Long userId = JwtAuthenticationFilter.getUserId(request);
         if (userId == null) {
             return buildErrorResponse(401, "未登录或Token无效");
         }
 
         try {
-            userService.revokeCancellation(userId);
+            userService.revokeCancellation(userId, body.getPassword());
             return buildSuccessResponse("注销申请已撤回");
         } catch (IllegalArgumentException | IllegalStateException e) {
             return buildErrorResponse(400, e.getMessage());
@@ -519,8 +586,12 @@ public class UserController {
     /**
      * 审核注销申请
      */
-    @Operation(summary = "审核注销申请", description = "管理员审核用户的注销申请。审核通过后用户状态变为\"已注销\"。\n\n" +
-            "**前置条件**：仅管理员可操作。")
+    @Operation(summary = "审核注销申请", description = "管理员审核用户的注销申请。审核通过后用户状态变为\"已注销\"(CANCELLED)，审核拒绝后用户状态恢复为\"正常\"(NORMAL)。\n\n" +
+            "**请求体字段**：approved（必填）。\n\n" +
+            "**权限说明**：\n" +
+            "- 系统管理员(role=ADMIN)：可审核所有用户\n" +
+            "- 企业账户(role=ENTERPRISE)：仅可审核同企业的用户\n" +
+            "- 用户管理员(role=USER且userRole=ADMIN)：仅可审核同企业的用户")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "审核完成", content = @Content),
@@ -533,9 +604,37 @@ public class UserController {
             @Parameter(description = "用户ID", required = true) @PathVariable Long userId,
             @Parameter(description = "审核结果", required = true) @Valid @RequestBody AuditCancellationRequestDTO body,
             javax.servlet.http.HttpServletRequest request) {
-        String role = JwtAuthenticationFilter.getRole(request);
-        if (!User.ROLE_ADMIN.equals(role)) {
-            return buildErrorResponse(403, "只有管理员可以访问此接口");
+
+        User targetUser = userService.getUserById(userId);
+        if (targetUser == null) {
+            return buildErrorResponse(404, "用户不存在");
+        }
+
+        // 权限检查：与 auditUser 一致
+        Long requesterId = JwtAuthenticationFilter.getUserId(request);
+        Long requesterEntId = JwtAuthenticationFilter.getEntId(request);
+        Integer scope = JwtAuthenticationFilter.getScope(request);
+        String requesterRole = JwtAuthenticationFilter.getRole(request);
+
+        boolean hasPermission = false;
+
+        if (Integer.valueOf(1).equals(scope)) {
+            hasPermission = true;
+        } else if ("ENTERPRISE".equals(requesterRole) && requesterEntId != null) {
+            if (requesterEntId.equals(targetUser.getEnterpriseId())) {
+                hasPermission = true;
+            }
+        } else if ("USER".equals(requesterRole) && requesterId != null && requesterEntId != null) {
+            User requester = userService.getUserById(requesterId);
+            if (requester != null
+                    && requesterEntId.equals(targetUser.getEnterpriseId())
+                    && User.ROLE_ADMIN.equals(requester.getUserRole())) {
+                hasPermission = true;
+            }
+        }
+
+        if (!hasPermission) {
+            return buildErrorResponse(403, "无权操作该用户");
         }
 
         Long auditorId = JwtAuthenticationFilter.getUserId(request);
@@ -565,19 +664,43 @@ public class UserController {
     public ResponseEntity<Map<String, Object>> disableUser(
             @Parameter(description = "用户ID", required = true) @PathVariable Long userId,
             javax.servlet.http.HttpServletRequest request) {
-        String role = JwtAuthenticationFilter.getRole(request);
-        if (!User.ROLE_ADMIN.equals(role)) {
-            return buildErrorResponse(403, "只有管理员可以访问此接口");
-        }
 
         User targetUser = userService.getUserById(userId);
         if (targetUser == null) {
             return buildErrorResponse(404, "用户不存在");
         }
 
-        Long enterpriseId = JwtAuthenticationFilter.getEntId(request);
-        if (!targetUser.getEnterpriseId().equals(enterpriseId)) {
-            return buildErrorResponse(403, "无权操作其他企业的用户");
+        // 权限检查：与 auditUser 一致
+        // 1. 系统管理员(scope=1)可操作任何用户
+        // 2. 企业账户(role=ENTERPRISE)可操作同企业用户
+        // 3. 用户账户(role=USER)中userRole=ADMIN可操作同企业用户
+        Long requesterId = JwtAuthenticationFilter.getUserId(request);
+        Long requesterEntId = JwtAuthenticationFilter.getEntId(request);
+        Integer scope = JwtAuthenticationFilter.getScope(request);
+        String requesterRole = JwtAuthenticationFilter.getRole(request);
+
+        boolean hasPermission = false;
+
+        if (Integer.valueOf(1).equals(scope)) {
+            // 1. 系统管理员
+            hasPermission = true;
+        } else if ("ENTERPRISE".equals(requesterRole) && requesterEntId != null) {
+            // 2. 企业账户 - 必须同企业
+            if (requesterEntId.equals(targetUser.getEnterpriseId())) {
+                hasPermission = true;
+            }
+        } else if ("USER".equals(requesterRole) && requesterId != null && requesterEntId != null) {
+            // 3. 用户账户 - 必须是同企业的用户管理员
+            User requester = userService.getUserById(requesterId);
+            if (requester != null
+                    && requesterEntId.equals(targetUser.getEnterpriseId())
+                    && User.ROLE_ADMIN.equals(requester.getUserRole())) {
+                hasPermission = true;
+            }
+        }
+
+        if (!hasPermission) {
+            return buildErrorResponse(403, "无权操作该用户");
         }
 
         try {
@@ -605,19 +728,37 @@ public class UserController {
     public ResponseEntity<Map<String, Object>> deleteUser(
             @Parameter(description = "用户ID", required = true) @PathVariable Long userId,
             javax.servlet.http.HttpServletRequest request) {
-        String role = JwtAuthenticationFilter.getRole(request);
-        if (!User.ROLE_ADMIN.equals(role)) {
-            return buildErrorResponse(403, "只有管理员可以访问此接口");
-        }
 
         User targetUser = userService.getUserById(userId);
         if (targetUser == null) {
             return buildErrorResponse(404, "用户不存在");
         }
 
-        Long enterpriseId = JwtAuthenticationFilter.getEntId(request);
-        if (!targetUser.getEnterpriseId().equals(enterpriseId)) {
-            return buildErrorResponse(403, "无权操作其他企业的用户");
+        // 权限检查：与 auditUser 一致
+        Long requesterId = JwtAuthenticationFilter.getUserId(request);
+        Long requesterEntId = JwtAuthenticationFilter.getEntId(request);
+        Integer scope = JwtAuthenticationFilter.getScope(request);
+        String requesterRole = JwtAuthenticationFilter.getRole(request);
+
+        boolean hasPermission = false;
+
+        if (Integer.valueOf(1).equals(scope)) {
+            hasPermission = true;
+        } else if ("ENTERPRISE".equals(requesterRole) && requesterEntId != null) {
+            if (requesterEntId.equals(targetUser.getEnterpriseId())) {
+                hasPermission = true;
+            }
+        } else if ("USER".equals(requesterRole) && requesterId != null && requesterEntId != null) {
+            User requester = userService.getUserById(requesterId);
+            if (requester != null
+                    && requesterEntId.equals(targetUser.getEnterpriseId())
+                    && User.ROLE_ADMIN.equals(requester.getUserRole())) {
+                hasPermission = true;
+            }
+        }
+
+        if (!hasPermission) {
+            return buildErrorResponse(403, "无权操作该用户");
         }
 
         try {

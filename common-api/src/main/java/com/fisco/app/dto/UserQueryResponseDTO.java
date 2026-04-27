@@ -2,20 +2,47 @@ package com.fisco.app.dto;
 
 import java.time.LocalDateTime;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
+
+import io.swagger.v3.oas.annotations.media.Schema;
+
 /**
  * 用户查询响应DTO - 脱敏用户信息
  */
+@Schema(description = "用户查询响应")
 public class UserQueryResponseDTO {
 
+    @Schema(description = "用户ID", example = "1001")
+    @JsonSerialize(using = ToStringSerializer.class)
     private Long userId;
+
+    @Schema(description = "企业ID", example = "100")
+    @JsonSerialize(using = ToStringSerializer.class)
     private Long enterpriseId;
+
+    @Schema(description = "真实姓名", example = "张三")
     private String realName;
+
+    @Schema(description = "手机号", example = "13800138000")
     private String phone;
+
+    @Schema(description = "邮箱", example = "zhangsan@example.com")
     private String email;
+
+    @Schema(description = "用户名", example = "zhangsan")
     private String username;
+
+    @Schema(description = "用户角色", example = "USER", allowableValues = {"USER", "ADMIN", "FINANCE", "WAREHOUSE", "LOGISTICS"})
     private String userRole;
+
+    @Schema(description = "用户状态", example = "2", allowableValues = {"1", "2", "3", "4", "5", "6"})
     private Integer status;
+
+    @Schema(description = "最后登录时间")
     private LocalDateTime lastLoginTime;
+
+    @Schema(description = "创建时间")
     private LocalDateTime createTime;
 
     public UserQueryResponseDTO() {

@@ -122,9 +122,12 @@ public interface UserService {
      * @param userId 用户ID
      * @param approved 审核结果
      * @param auditorId 审核人ID
+     * @param auditorRole 审核人登录角色 (ENTERPRISE/USER/ADMIN)
+     * @param auditorEntId 审核人所属企业ID (null表示系统用户)
+     * @param auditorUserRole 审核人用户角色 (ADMIN/FINANCE/OPERATOR，来自于数据库)
      * @param rejectReason 拒绝原因（审核拒绝时使用）
      */
-    boolean auditUser(Long userId, boolean approved, Long auditorId, String rejectReason);
+    boolean auditUser(Long userId, boolean approved, Long auditorId, String auditorRole, Long auditorEntId, String auditorUserRole, String rejectReason);
 
     /**
      * 审核用户注销申请
@@ -145,6 +148,7 @@ public interface UserService {
     /**
      * 撤回注销申请
      * @param userId 用户ID
+     * @param password 密码验证
      */
-    boolean revokeCancellation(Long userId);
+    boolean revokeCancellation(Long userId, String password);
 }

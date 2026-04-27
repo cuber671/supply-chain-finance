@@ -52,6 +52,26 @@ public interface BlockchainFeignClient {
     @PostMapping("/api/v1/blockchain/enterprise/set-credit-limit")
     Result<String> setCreditLimit(@RequestBody EnterpriseCreditLimitRequest request);
 
+    // ==================== 信用操作 ====================
+
+    @PostMapping("/api/v1/blockchain/credit/check-limit")
+    Result<Boolean> checkCreditLimit(@RequestBody CreditCheckLimitRequest request);
+
+    @PostMapping("/api/v1/blockchain/credit/use")
+    Result<String> useCredit(@RequestBody CreditUseRequest request);
+
+    @PostMapping("/api/v1/blockchain/credit/release")
+    Result<String> releaseCredit(@RequestBody CreditReleaseRequest request);
+
+    @PostMapping("/api/v1/blockchain/credit/adjust-used")
+    Result<String> adjustUsedCredit(@RequestBody CreditAdjustUsedRequest request);
+
+    @PostMapping("/api/v1/blockchain/credit/report-event")
+    Result<String> reportCreditEvent(@RequestBody CreditReportEventRequest request);
+
+    @PostMapping("/api/v1/blockchain/credit/calculate-score")
+    Result<String> calculateCreditScore(@RequestBody CreditCalculateScoreRequest request);
+
     @GetMapping("/api/v1/blockchain/enterprise/{address}")
     Result<Map<String, Object>> getEnterprise(@PathVariable("address") String address);
 
@@ -108,10 +128,26 @@ public interface BlockchainFeignClient {
     @PostMapping("/api/v1/blockchain/receipt/cancel")
     Result<String> cancelReceipt(@RequestBody CancelReceiptRequest request);
 
+    // ==================== 密钥生成 ====================
+
+    @PostMapping("/api/v1/blockchain/keygen")
+    Result<KeyPairInfo> generateKeyPair();
+
     // ==================== 签名服务 ====================
 
     @PostMapping("/api/v1/blockchain/sign")
     Result<String> sign(@RequestBody SignRequest request);
+
+    // 密钥对信息
+    class KeyPairInfo {
+        private String address;
+        private String privateKey;
+
+        public String getAddress() { return address; }
+        public void setAddress(String v) { this.address = v; }
+        public String getPrivateKey() { return privateKey; }
+        public void setPrivateKey(String v) { this.privateKey = v; }
+    }
 
     // ==================== 物流操作 ====================
 
@@ -231,11 +267,14 @@ public interface BlockchainFeignClient {
 
     // 企业请求
     class EnterpriseRegisterRequest {
+        private String idempotencyKey;
         private String enterpriseAddress;
         private String creditCode;
         private Integer role;
         private String metadataHash;
 
+        public String getIdempotencyKey() { return idempotencyKey; }
+        public void setIdempotencyKey(String v) { this.idempotencyKey = v; }
         public String getEnterpriseAddress() { return enterpriseAddress; }
         public void setEnterpriseAddress(String v) { this.enterpriseAddress = v; }
         public String getCreditCode() { return creditCode; }
@@ -278,6 +317,7 @@ public interface BlockchainFeignClient {
 
     // 仓单请求
     class ReceiptIssueRequest {
+        private String idempotencyKey;
         private String receiptId;
         private String ownerHash;
         private String warehouseHash;
@@ -290,6 +330,8 @@ public interface BlockchainFeignClient {
         private Long storageDate;
         private Long expiryDate;
 
+        public String getIdempotencyKey() { return idempotencyKey; }
+        public void setIdempotencyKey(String v) { this.idempotencyKey = v; }
         public String getReceiptId() { return receiptId; }
         public void setReceiptId(String v) { this.receiptId = v; }
         public String getOwnerHash() { return ownerHash; }
@@ -527,6 +569,7 @@ public interface BlockchainFeignClient {
 
     // 贷款请求
     class LoanCreateRequest {
+        private String idempotencyKey;
         private String loanNo;
         private String borrowerHash;
         private String financeEntHash;
@@ -536,6 +579,8 @@ public interface BlockchainFeignClient {
         private String receiptId;
         private Long pledgeAmount;
 
+        public String getIdempotencyKey() { return idempotencyKey; }
+        public void setIdempotencyKey(String v) { this.idempotencyKey = v; }
         public String getLoanNo() { return loanNo; }
         public void setLoanNo(String v) { this.loanNo = v; }
         public String getBorrowerHash() { return borrowerHash; }
@@ -663,6 +708,7 @@ public interface BlockchainFeignClient {
 
     // 应收账款请求
     class ReceivableCreateRequest {
+        private String idempotencyKey;
         private String receivableId;
         private Long initialAmount;
         private Long dueDate;
@@ -672,6 +718,8 @@ public interface BlockchainFeignClient {
         private String goodsDetailHash;
         private Integer businessScene;
 
+        public String getIdempotencyKey() { return idempotencyKey; }
+        public void setIdempotencyKey(String v) { this.idempotencyKey = v; }
         public String getReceivableId() { return receivableId; }
         public void setReceivableId(String v) { this.receivableId = v; }
         public Long getInitialAmount() { return initialAmount; }
@@ -796,6 +844,76 @@ public interface BlockchainFeignClient {
         public void setOffsetAmount(Long v) { this.offsetAmount = v; }
         public String getReason() { return reason; }
         public void setReason(String v) { this.reason = v; }
+    }
+
+    // 信用请求
+    class CreditCheckLimitRequest {
+        private String enterpriseAddress;
+        private Long amount;
+
+        public String getEnterpriseAddress() { return enterpriseAddress; }
+        public void setEnterpriseAddress(String v) { this.enterpriseAddress = v; }
+        public Long getAmount() { return amount; }
+        public void setAmount(Long v) { this.amount = v; }
+    }
+
+    class CreditUseRequest {
+        private String enterpriseAddress;
+        private Long amount;
+        private String operationType;
+
+        public String getEnterpriseAddress() { return enterpriseAddress; }
+        public void setEnterpriseAddress(String v) { this.enterpriseAddress = v; }
+        public Long getAmount() { return amount; }
+        public void setAmount(Long v) { this.amount = v; }
+        public String getOperationType() { return operationType; }
+        public void setOperationType(String v) { this.operationType = v; }
+    }
+
+    class CreditReleaseRequest {
+        private String enterpriseAddress;
+        private Long amount;
+        private String operationType;
+
+        public String getEnterpriseAddress() { return enterpriseAddress; }
+        public void setEnterpriseAddress(String v) { this.enterpriseAddress = v; }
+        public Long getAmount() { return amount; }
+        public void setAmount(Long v) { this.amount = v; }
+        public String getOperationType() { return operationType; }
+        public void setOperationType(String v) { this.operationType = v; }
+    }
+
+    class CreditAdjustUsedRequest {
+        private String enterpriseAddress;
+        private Long adjustment;
+
+        public String getEnterpriseAddress() { return enterpriseAddress; }
+        public void setEnterpriseAddress(String v) { this.enterpriseAddress = v; }
+        public Long getAdjustment() { return adjustment; }
+        public void setAdjustment(Long v) { this.adjustment = v; }
+    }
+
+    class CreditReportEventRequest {
+        private String enterpriseAddress;
+        private Long eventType;
+        private Long impact;
+        private String eventDataHash;
+
+        public String getEnterpriseAddress() { return enterpriseAddress; }
+        public void setEnterpriseAddress(String v) { this.enterpriseAddress = v; }
+        public Long getEventType() { return eventType; }
+        public void setEventType(Long v) { this.eventType = v; }
+        public Long getImpact() { return impact; }
+        public void setImpact(Long v) { this.impact = v; }
+        public String getEventDataHash() { return eventDataHash; }
+        public void setEventDataHash(String v) { this.eventDataHash = v; }
+    }
+
+    class CreditCalculateScoreRequest {
+        private String enterpriseAddress;
+
+        public String getEnterpriseAddress() { return enterpriseAddress; }
+        public void setEnterpriseAddress(String v) { this.enterpriseAddress = v; }
     }
 
     // 签名请求

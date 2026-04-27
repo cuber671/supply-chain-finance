@@ -1,0 +1,1 @@
+{"author":"FISCO BCOS Supply Chain Finance Team","details":"企业注册权限控制库 提供企业模块的权限控制修饰器，包括： - 管理员权限控制 - Java后端权限控制 - 企业所有者权限控制","errors":{"OnlyAdmin()":[{"details":"权限错误"}]},"kind":"dev","methods":{},"title":"EnterpriseRegistryAuth","version":1}

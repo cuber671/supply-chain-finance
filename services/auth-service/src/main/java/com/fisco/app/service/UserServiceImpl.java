@@ -328,19 +328,36 @@ public class UserServiceImpl implements UserService {
         boolean validTransition = false;
         switch (newStatus) {
             case User.STATUS_PENDING:
-                // 只有已注销可以重新变为待审核（极端情况）
-                validTransition = (currentStatus == UserStatusEnum.CANCELLED.getValue());
+                // CANCELLED(5) -> PENDING(1)：重新注册
+                validTransition = (currentStatus == User.STATUS_CANCELLED);
                 break;
             case User.STATUS_NORMAL:
-                // PENDING -> NORMAL（审核通过）或 CANCELLING/PENDING_CANCEL -> NORMAL（注销拒绝/撤回）
+                // PENDING(1) -> NORMAL(2)：审核通过
+                // FROZEN(3) -> NORMAL(2)：解冻恢复
+                // CANCELLING(4)/PENDING_CANCEL(6) -> NORMAL(2)：注销拒绝/撤回
                 validTransition = (currentStatus == User.STATUS_PENDING)
+                        || (currentStatus == User.STATUS_FROZEN)
                         || (currentStatus == UserStatusEnum.CANCELLING.getValue())
                         || (currentStatus == UserStatusEnum.PENDING_CANCEL.getValue());
                 break;
             case User.STATUS_FROZEN:
-                // NORMAL -> FROZEN（冻结）或 PENDING -> FROZEN（审核拒绝）
+                // NORMAL(2) -> FROZEN(3)：冻结/禁用
+                // PENDING(1) -> FROZEN(3)：审核拒绝
                 validTransition = (currentStatus == User.STATUS_NORMAL)
                         || (currentStatus == User.STATUS_PENDING);
+                break;
+            case User.STATUS_CANCELLING:
+                // NORMAL(2) -> CANCELLING(4)：发起注销（由系统或管理员触发）
+                validTransition = (currentStatus == User.STATUS_NORMAL);
+                break;
+            case User.STATUS_CANCELLED:
+                // CANCELLING(4)/PENDING_CANCEL(6) -> CANCELLED(5)：注销审核通过
+                validTransition = (currentStatus == UserStatusEnum.CANCELLING.getValue())
+                        || (currentStatus == UserStatusEnum.PENDING_CANCEL.getValue());
+                break;
+            case User.STATUS_PENDING_CANCEL:
+                // NORMAL(2) -> PENDING_CANCEL(6)：用户申请注销（待审核）
+                validTransition = (currentStatus == User.STATUS_NORMAL);
                 break;
             default:
                 validTransition = false;
@@ -362,7 +379,7 @@ public class UserServiceImpl implements UserService {
     // ==================== 审核管理 ====================
 
     @Override
-    public boolean auditUser(Long userId, boolean approved, Long auditorId, String rejectReason) {
+    public boolean auditUser(Long userId, boolean approved, Long auditorId, String auditorRole, Long auditorEntId, String auditorUserRole, String rejectReason) {
         User user = getUserById(userId);
         if (user == null) {
             throw new IllegalArgumentException("用户不存在");
@@ -370,12 +387,41 @@ public class UserServiceImpl implements UserService {
         if (user.getStatus() != UserStatusEnum.PENDING.getValue()) {
             throw new IllegalArgumentException("该用户不是待审核状态");
         }
+
+        // 权限检查逻辑：
+        // 1. 系统管理员 (role=ADMIN) 可审核所有用户
+        // 2. 企业账户 (role=ENTERPRISE) 可审核同企业用户
+        // 3. 用户账户 (role=USER) 只有 userRole=ADMIN 时可审核同企业用户
+        boolean hasPermission = false;
+
+        if (User.ROLE_ADMIN.equals(auditorRole)) {
+            // 1. 系统管理员
+            hasPermission = true;
+        } else if ("ENTERPRISE".equals(auditorRole)) {
+            // 2. 企业账户 - 必须同企业
+            if (auditorEntId != null && auditorEntId.equals(user.getEnterpriseId())) {
+                hasPermission = true;
+            }
+        } else if ("USER".equals(auditorRole)) {
+            // 3. 用户账户 - 必须是同企业且 userRole=ADMIN
+            if (auditorEntId != null
+                    && auditorEntId.equals(user.getEnterpriseId())
+                    && User.ROLE_ADMIN.equals(auditorUserRole)) {
+                hasPermission = true;
+            }
+        }
+
+        if (!hasPermission) {
+            throw new IllegalArgumentException("无权审核该用户");
+        }
+
         // 审核通过设为正常(2)，拒绝设为冻结(3)
         int newStatus = approved ? UserStatusEnum.NORMAL.getValue() : UserStatusEnum.FROZEN.getValue();
         user.setStatus(newStatus);
         boolean result = userMapper.updateById(user) > 0;
         if (result) {
-            log.info("用户审核完成: userId={}, approved={}, newStatus={}, auditorId={}", userId, approved, newStatus, auditorId);
+            log.info("用户审核完成: userId={}, approved={}, newStatus={}, auditorId={}, auditorRole={}, auditorEntId={}, auditorUserRole={}",
+                    userId, approved, newStatus, auditorId, auditorRole, auditorEntId, auditorUserRole);
         }
         // 审核拒绝时，记录拒绝原因
         if (!approved && rejectReason != null && !rejectReason.isEmpty()) {
@@ -425,7 +471,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public boolean revokeCancellation(Long userId) {
+    public boolean revokeCancellation(Long userId, String password) {
         User user = getUserById(userId);
         if (user == null) {
             throw new IllegalArgumentException("用户不存在");
@@ -433,9 +479,12 @@ public class UserServiceImpl implements UserService {
         if (user.getStatus() != UserStatusEnum.PENDING_CANCEL.getValue()) {
             throw new IllegalArgumentException("该用户不是注销待审核状态，无法撤回");
         }
-        // 撤回后恢复正常状态
-        user.setStatus(UserStatusEnum.NORMAL.getValue());
-        boolean result = userMapper.updateById(user) > 0;
+        // 验证密码
+        if (!passwordEncoder.matches(password, user.getPassword())) {
+            throw new IllegalArgumentException("密码验证失败");
+        }
+        // 撤回后恢复正常状态，走统一状态机校验
+        boolean result = updateUserStatus(userId, UserStatusEnum.NORMAL.getValue());
         if (result) {
             log.info("用户注销申请已撤回: userId={}", userId);
         }

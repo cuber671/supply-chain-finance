@@ -5,7 +5,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-
 import org.fisco.bcos.sdk.v3.client.Client;
 import org.fisco.bcos.sdk.v3.codec.abi.FunctionEncoder;
 import org.fisco.bcos.sdk.v3.codec.datatypes.Address;
@@ -25,12 +24,15 @@ import org.fisco.bcos.sdk.v3.codec.datatypes.generated.tuples.generated.Tuple4;
 import org.fisco.bcos.sdk.v3.codec.datatypes.generated.tuples.generated.Tuple6;
 import org.fisco.bcos.sdk.v3.codec.datatypes.generated.tuples.generated.Tuple7;
 import org.fisco.bcos.sdk.v3.contract.Contract;
+import org.fisco.bcos.sdk.v3.contract.FunctionWrapper;
 import org.fisco.bcos.sdk.v3.crypto.CryptoSuite;
 import org.fisco.bcos.sdk.v3.crypto.keypair.CryptoKeyPair;
 import org.fisco.bcos.sdk.v3.eventsub.EventSubCallback;
 import org.fisco.bcos.sdk.v3.model.CryptoType;
 import org.fisco.bcos.sdk.v3.model.TransactionReceipt;
 import org.fisco.bcos.sdk.v3.model.callback.TransactionCallback;
+import org.fisco.bcos.sdk.v3.transaction.manager.transactionv1.ProxySignTransactionManager;
+import org.fisco.bcos.sdk.v3.transaction.manager.transactionv1.TransactionManager;
 import org.fisco.bcos.sdk.v3.transaction.model.exception.ContractException;
 
 /**
@@ -46,7 +48,7 @@ public class WarehouseReceiptHistory extends Contract {
 
     public static final String SM_BINARY = org.fisco.bcos.sdk.v3.utils.StringUtils.joinAll("", SM_BINARY_ARRAY);
 
-    public static final String[] ABI_ARRAY = {"[{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_admin\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"string\",\"name\":\"receiptId\",\"type\":\"string\"},{\"indexed\":true,\"internalType\":\"uint8\",\"name\":\"operationType\",\"type\":\"uint8\"},{\"indexed\":false,\"internalType\":\"bytes32\",\"name\":\"operatorHash\",\"type\":\"bytes32\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"timestamp\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"blockNumber\",\"type\":\"uint256\"}],\"name\":\"HistoryRecorded\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"admin\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string[]\",\"name\":\"receiptIds\",\"type\":\"string[]\"},{\"internalType\":\"enum WarehouseReceiptHistory.OperationType[]\",\"name\":\"operationTypes\",\"type\":\"uint8[]\"},{\"internalType\":\"bytes32[]\",\"name\":\"operatorHashes\",\"type\":\"bytes32[]\"},{\"internalType\":\"string[]\",\"name\":\"descriptions\",\"type\":\"string[]\"}],\"name\":\"batchRecordHistory\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"success\",\"type\":\"bool\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"offset\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"limit\",\"type\":\"uint256\"}],\"name\":\"getGlobalHistory\",\"outputs\":[{\"components\":[{\"internalType\":\"string\",\"name\":\"receiptId\",\"type\":\"string\"},{\"internalType\":\"enum WarehouseReceiptHistory.OperationType\",\"name\":\"operationType\",\"type\":\"uint8\"},{\"internalType\":\"bytes32\",\"name\":\"operatorHash\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"timestamp\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"blockNumber\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"txHash\",\"type\":\"bytes32\"},{\"internalType\":\"string\",\"name\":\"description\",\"type\":\"string\"}],\"internalType\":\"struct WarehouseReceiptHistory.HistoryRecord[]\",\"name\":\"\",\"type\":\"tuple[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"receiptId\",\"type\":\"string\"},{\"internalType\":\"uint256\",\"name\":\"offset\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"limit\",\"type\":\"uint256\"}],\"name\":\"getHistory\",\"outputs\":[{\"components\":[{\"internalType\":\"string\",\"name\":\"receiptId\",\"type\":\"string\"},{\"internalType\":\"enum WarehouseReceiptHistory.OperationType\",\"name\":\"operationType\",\"type\":\"uint8\"},{\"internalType\":\"bytes32\",\"name\":\"operatorHash\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"timestamp\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"blockNumber\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"txHash\",\"type\":\"bytes32\"},{\"internalType\":\"string\",\"name\":\"description\",\"type\":\"string\"}],\"internalType\":\"struct WarehouseReceiptHistory.HistoryRecord[]\",\"name\":\"\",\"type\":\"tuple[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"receiptId\",\"type\":\"string\"},{\"internalType\":\"uint256\",\"name\":\"index\",\"type\":\"uint256\"}],\"name\":\"getHistoryByIndex\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"_receiptId\",\"type\":\"string\"},{\"internalType\":\"uint8\",\"name\":\"operationType\",\"type\":\"uint8\"},{\"internalType\":\"bytes32\",\"name\":\"operatorHash\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"timestamp\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"blockNumber\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"txHash\",\"type\":\"bytes32\"},{\"internalType\":\"string\",\"name\":\"description\",\"type\":\"string\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"receiptId\",\"type\":\"string\"},{\"internalType\":\"enum WarehouseReceiptHistory.OperationType\",\"name\":\"operationType\",\"type\":\"uint8\"}],\"name\":\"getHistoryByOperationType\",\"outputs\":[{\"components\":[{\"internalType\":\"string\",\"name\":\"receiptId\",\"type\":\"string\"},{\"internalType\":\"enum WarehouseReceiptHistory.OperationType\",\"name\":\"operationType\",\"type\":\"uint8\"},{\"internalType\":\"bytes32\",\"name\":\"operatorHash\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"timestamp\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"blockNumber\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"txHash\",\"type\":\"bytes32\"},{\"internalType\":\"string\",\"name\":\"description\",\"type\":\"string\"}],\"internalType\":\"struct WarehouseReceiptHistory.HistoryRecord[]\",\"name\":\"\",\"type\":\"tuple[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"receiptId\",\"type\":\"string\"}],\"name\":\"getHistoryCount\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"receiptId\",\"type\":\"string\"}],\"name\":\"getLatestHistory\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"_receiptId\",\"type\":\"string\"},{\"internalType\":\"uint8\",\"name\":\"operationType\",\"type\":\"uint8\"},{\"internalType\":\"bytes32\",\"name\":\"operatorHash\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"timestamp\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"blockNumber\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"txHash\",\"type\":\"bytes32\"},{\"internalType\":\"string\",\"name\":\"description\",\"type\":\"string\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"historyCount\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"receiptId\",\"type\":\"string\"},{\"internalType\":\"enum WarehouseReceiptHistory.OperationType\",\"name\":\"operationType\",\"type\":\"uint8\"},{\"internalType\":\"bytes32\",\"name\":\"operatorHash\",\"type\":\"bytes32\"},{\"internalType\":\"string\",\"name\":\"description\",\"type\":\"string\"}],\"name\":\"recordHistory\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"recordId\",\"type\":\"uint256\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"receiptId\",\"type\":\"string\"},{\"internalType\":\"enum WarehouseReceiptHistory.OperationType\",\"name\":\"operationType\",\"type\":\"uint8\"},{\"internalType\":\"bytes32\",\"name\":\"operatorHash\",\"type\":\"bytes32\"},{\"internalType\":\"string\",\"name\":\"beforeValue\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"afterValue\",\"type\":\"string\"},{\"internalType\":\"bytes32\",\"name\":\"relatedHash\",\"type\":\"bytes32\"}],\"name\":\"recordHistoryWithDetail\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"recordId\",\"type\":\"uint256\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"newAdmin\",\"type\":\"address\"}],\"name\":\"setAdmin\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]"};
+    public static final String[] ABI_ARRAY = {"[{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_admin\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"string\",\"name\":\"receiptId\",\"type\":\"string\"},{\"indexed\":true,\"internalType\":\"uint8\",\"name\":\"operationType\",\"type\":\"uint8\"},{\"indexed\":false,\"internalType\":\"bytes32\",\"name\":\"operatorHash\",\"type\":\"bytes32\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"timestamp\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"blockNumber\",\"type\":\"uint256\"}],\"name\":\"HistoryRecorded\",\"type\":\"event\"},{\"conflictFields\":[{\"kind\":4,\"value\":[0]}],\"inputs\":[],\"name\":\"admin\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"selector\":[4166100032,4048693248],\"stateMutability\":\"view\",\"type\":\"function\"},{\"conflictFields\":[{\"kind\":0}],\"inputs\":[{\"internalType\":\"string[]\",\"name\":\"receiptIds\",\"type\":\"string[]\"},{\"internalType\":\"enum WarehouseReceiptHistory.OperationType[]\",\"name\":\"operationTypes\",\"type\":\"uint8[]\"},{\"internalType\":\"bytes32[]\",\"name\":\"operatorHashes\",\"type\":\"bytes32[]\"},{\"internalType\":\"string[]\",\"name\":\"descriptions\",\"type\":\"string[]\"}],\"name\":\"batchRecordHistory\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"success\",\"type\":\"bool\"}],\"selector\":[2735341043,2637359758],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"conflictFields\":[{\"kind\":0},{\"kind\":4,\"value\":[1]}],\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"offset\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"limit\",\"type\":\"uint256\"}],\"name\":\"getGlobalHistory\",\"outputs\":[{\"components\":[{\"internalType\":\"string\",\"name\":\"receiptId\",\"type\":\"string\"},{\"internalType\":\"enum WarehouseReceiptHistory.OperationType\",\"name\":\"operationType\",\"type\":\"uint8\"},{\"internalType\":\"bytes32\",\"name\":\"operatorHash\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"timestamp\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"blockNumber\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"txHash\",\"type\":\"bytes32\"},{\"internalType\":\"string\",\"name\":\"description\",\"type\":\"string\"}],\"internalType\":\"struct WarehouseReceiptHistory.HistoryRecord[]\",\"name\":\"\",\"type\":\"tuple[]\"}],\"selector\":[1643420827,454841347],\"stateMutability\":\"view\",\"type\":\"function\"},{\"conflictFields\":[{\"kind\":3,\"slot\":2,\"value\":[0]},{\"kind\":3,\"slot\":3,\"value\":[0]}],\"inputs\":[{\"internalType\":\"string\",\"name\":\"receiptId\",\"type\":\"string\"},{\"internalType\":\"uint256\",\"name\":\"offset\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"limit\",\"type\":\"uint256\"}],\"name\":\"getHistory\",\"outputs\":[{\"components\":[{\"internalType\":\"string\",\"name\":\"receiptId\",\"type\":\"string\"},{\"internalType\":\"enum WarehouseReceiptHistory.OperationType\",\"name\":\"operationType\",\"type\":\"uint8\"},{\"internalType\":\"bytes32\",\"name\":\"operatorHash\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"timestamp\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"blockNumber\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"txHash\",\"type\":\"bytes32\"},{\"internalType\":\"string\",\"name\":\"description\",\"type\":\"string\"}],\"internalType\":\"struct WarehouseReceiptHistory.HistoryRecord[]\",\"name\":\"\",\"type\":\"tuple[]\"}],\"selector\":[3746097144,3049755109],\"stateMutability\":\"view\",\"type\":\"function\"},{\"conflictFields\":[{\"kind\":3,\"slot\":2,\"value\":[0]},{\"kind\":3,\"slot\":3,\"value\":[0]}],\"inputs\":[{\"internalType\":\"string\",\"name\":\"receiptId\",\"type\":\"string\"},{\"internalType\":\"uint256\",\"name\":\"index\",\"type\":\"uint256\"}],\"name\":\"getHistoryByIndex\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"_receiptId\",\"type\":\"string\"},{\"internalType\":\"uint8\",\"name\":\"operationType\",\"type\":\"uint8\"},{\"internalType\":\"bytes32\",\"name\":\"operatorHash\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"timestamp\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"blockNumber\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"txHash\",\"type\":\"bytes32\"},{\"internalType\":\"string\",\"name\":\"description\",\"type\":\"string\"}],\"selector\":[3175707886,943198511],\"stateMutability\":\"view\",\"type\":\"function\"},{\"conflictFields\":[{\"kind\":3,\"slot\":2,\"value\":[0]},{\"kind\":3,\"slot\":3,\"value\":[0]}],\"inputs\":[{\"internalType\":\"string\",\"name\":\"receiptId\",\"type\":\"string\"},{\"internalType\":\"enum WarehouseReceiptHistory.OperationType\",\"name\":\"operationType\",\"type\":\"uint8\"}],\"name\":\"getHistoryByOperationType\",\"outputs\":[{\"components\":[{\"internalType\":\"string\",\"name\":\"receiptId\",\"type\":\"string\"},{\"internalType\":\"enum WarehouseReceiptHistory.OperationType\",\"name\":\"operationType\",\"type\":\"uint8\"},{\"internalType\":\"bytes32\",\"name\":\"operatorHash\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"timestamp\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"blockNumber\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"txHash\",\"type\":\"bytes32\"},{\"internalType\":\"string\",\"name\":\"description\",\"type\":\"string\"}],\"internalType\":\"struct WarehouseReceiptHistory.HistoryRecord[]\",\"name\":\"\",\"type\":\"tuple[]\"}],\"selector\":[3679445324,2576307716],\"stateMutability\":\"view\",\"type\":\"function\"},{\"conflictFields\":[{\"kind\":3,\"slot\":3,\"value\":[0]}],\"inputs\":[{\"internalType\":\"string\",\"name\":\"receiptId\",\"type\":\"string\"}],\"name\":\"getHistoryCount\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"selector\":[370668959,3575458829],\"stateMutability\":\"view\",\"type\":\"function\"},{\"conflictFields\":[{\"kind\":3,\"slot\":2,\"value\":[0]},{\"kind\":3,\"slot\":3,\"value\":[0]}],\"inputs\":[{\"internalType\":\"string\",\"name\":\"receiptId\",\"type\":\"string\"}],\"name\":\"getLatestHistory\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"_receiptId\",\"type\":\"string\"},{\"internalType\":\"uint8\",\"name\":\"operationType\",\"type\":\"uint8\"},{\"internalType\":\"bytes32\",\"name\":\"operatorHash\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"timestamp\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"blockNumber\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"txHash\",\"type\":\"bytes32\"},{\"internalType\":\"string\",\"name\":\"description\",\"type\":\"string\"}],\"selector\":[1722648321,1275547419],\"stateMutability\":\"view\",\"type\":\"function\"},{\"conflictFields\":[{\"kind\":4,\"value\":[1]}],\"inputs\":[],\"name\":\"historyCount\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"selector\":[983343100,2179514006],\"stateMutability\":\"view\",\"type\":\"function\"},{\"conflictFields\":[{\"kind\":0},{\"kind\":3,\"slot\":2,\"value\":[0]},{\"kind\":3,\"slot\":3,\"value\":[0]},{\"kind\":4,\"value\":[1]}],\"inputs\":[{\"internalType\":\"string\",\"name\":\"receiptId\",\"type\":\"string\"},{\"internalType\":\"enum WarehouseReceiptHistory.OperationType\",\"name\":\"operationType\",\"type\":\"uint8\"},{\"internalType\":\"bytes32\",\"name\":\"operatorHash\",\"type\":\"bytes32\"},{\"internalType\":\"string\",\"name\":\"description\",\"type\":\"string\"}],\"name\":\"recordHistory\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"recordId\",\"type\":\"uint256\"}],\"selector\":[2730258599,3159641454],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"conflictFields\":[{\"kind\":0}],\"inputs\":[{\"internalType\":\"string\",\"name\":\"receiptId\",\"type\":\"string\"},{\"internalType\":\"enum WarehouseReceiptHistory.OperationType\",\"name\":\"operationType\",\"type\":\"uint8\"},{\"internalType\":\"bytes32\",\"name\":\"operatorHash\",\"type\":\"bytes32\"},{\"internalType\":\"string\",\"name\":\"beforeValue\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"afterValue\",\"type\":\"string\"},{\"internalType\":\"bytes32\",\"name\":\"relatedHash\",\"type\":\"bytes32\"}],\"name\":\"recordHistoryWithDetail\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"recordId\",\"type\":\"uint256\"}],\"selector\":[2580787225,1637550250],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"conflictFields\":[{\"kind\":4,\"value\":[0]}],\"inputs\":[{\"internalType\":\"address\",\"name\":\"newAdmin\",\"type\":\"address\"}],\"name\":\"setAdmin\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"selector\":[1883991042,845907806],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]"};
 
     public static final String ABI = org.fisco.bcos.sdk.v3.utils.StringUtils.joinAll("", ABI_ARRAY);
 
@@ -81,6 +83,12 @@ public class WarehouseReceiptHistory extends Contract {
     protected WarehouseReceiptHistory(String contractAddress, Client client,
             CryptoKeyPair credential) {
         super(getBinary(client.getCryptoSuite()), contractAddress, client, credential);
+        this.transactionManager = new ProxySignTransactionManager(client);
+    }
+
+    protected WarehouseReceiptHistory(String contractAddress, Client client,
+            TransactionManager transactionManager) {
+        super(getBinary(client.getCryptoSuite()), contractAddress, client, transactionManager);
     }
 
     public static String getBinary(CryptoSuite cryptoSuite) {
@@ -186,6 +194,27 @@ public class WarehouseReceiptHistory extends Contract {
                         org.fisco.bcos.sdk.v3.codec.Utils.typeMap(descriptions, org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String.class))), 
                 Arrays.<TypeReference<?>>asList(new TypeReference<Bool>() {}));
         return function;
+    }
+
+    public FunctionWrapper buildMethodBatchRecordHistory(List<String> receiptIds,
+            List<BigInteger> operationTypes, List<byte[]> operatorHashes,
+            List<String> descriptions) {
+        @SuppressWarnings("rawtypes")
+        final Function function = new Function(FUNC_BATCHRECORDHISTORY, 
+                Arrays.<Type>asList(new org.fisco.bcos.sdk.v3.codec.datatypes.DynamicArray<org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String>(
+                        org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String.class,
+                        org.fisco.bcos.sdk.v3.codec.Utils.typeMap(receiptIds, org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String.class)), 
+                new org.fisco.bcos.sdk.v3.codec.datatypes.DynamicArray<org.fisco.bcos.sdk.v3.codec.datatypes.generated.Uint8>(
+                        org.fisco.bcos.sdk.v3.codec.datatypes.generated.Uint8.class,
+                        org.fisco.bcos.sdk.v3.codec.Utils.typeMap(operationTypes, org.fisco.bcos.sdk.v3.codec.datatypes.generated.Uint8.class)), 
+                new org.fisco.bcos.sdk.v3.codec.datatypes.DynamicArray<org.fisco.bcos.sdk.v3.codec.datatypes.generated.Bytes32>(
+                        org.fisco.bcos.sdk.v3.codec.datatypes.generated.Bytes32.class,
+                        org.fisco.bcos.sdk.v3.codec.Utils.typeMap(operatorHashes, org.fisco.bcos.sdk.v3.codec.datatypes.generated.Bytes32.class)), 
+                new org.fisco.bcos.sdk.v3.codec.datatypes.DynamicArray<org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String>(
+                        org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String.class,
+                        org.fisco.bcos.sdk.v3.codec.Utils.typeMap(descriptions, org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String.class))), 
+                Arrays.<TypeReference<?>>asList(new TypeReference<Bool>() {}));
+        return new FunctionWrapper(this, function);
     }
 
     public String getSignedTransactionForBatchRecordHistory(List<String> receiptIds,
@@ -496,6 +525,18 @@ public class WarehouseReceiptHistory extends Contract {
         return function;
     }
 
+    public FunctionWrapper buildMethodRecordHistory(String receiptId, BigInteger operationType,
+            byte[] operatorHash, String description) {
+        @SuppressWarnings("rawtypes")
+        final Function function = new Function(FUNC_RECORDHISTORY, 
+                Arrays.<Type>asList(new org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String(receiptId), 
+                new org.fisco.bcos.sdk.v3.codec.datatypes.generated.Uint8(operationType), 
+                new org.fisco.bcos.sdk.v3.codec.datatypes.generated.Bytes32(operatorHash), 
+                new org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String(description)), 
+                Arrays.<TypeReference<?>>asList(new TypeReference<Uint256>() {}));
+        return new FunctionWrapper(this, function);
+    }
+
     public String getSignedTransactionForRecordHistory(String receiptId, BigInteger operationType,
             byte[] operatorHash, String description) {
         @SuppressWarnings("rawtypes")
@@ -607,6 +648,21 @@ public class WarehouseReceiptHistory extends Contract {
         return function;
     }
 
+    public FunctionWrapper buildMethodRecordHistoryWithDetail(String receiptId,
+            BigInteger operationType, byte[] operatorHash, String beforeValue, String afterValue,
+            byte[] relatedHash) {
+        @SuppressWarnings("rawtypes")
+        final Function function = new Function(FUNC_RECORDHISTORYWITHDETAIL, 
+                Arrays.<Type>asList(new org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String(receiptId), 
+                new org.fisco.bcos.sdk.v3.codec.datatypes.generated.Uint8(operationType), 
+                new org.fisco.bcos.sdk.v3.codec.datatypes.generated.Bytes32(operatorHash), 
+                new org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String(beforeValue), 
+                new org.fisco.bcos.sdk.v3.codec.datatypes.Utf8String(afterValue), 
+                new org.fisco.bcos.sdk.v3.codec.datatypes.generated.Bytes32(relatedHash)), 
+                Arrays.<TypeReference<?>>asList(new TypeReference<Uint256>() {}));
+        return new FunctionWrapper(this, function);
+    }
+
     public String getSignedTransactionForRecordHistoryWithDetail(String receiptId,
             BigInteger operationType, byte[] operatorHash, String beforeValue, String afterValue,
             byte[] relatedHash) {
@@ -708,6 +764,14 @@ public class WarehouseReceiptHistory extends Contract {
         return function;
     }
 
+    public FunctionWrapper buildMethodSetAdmin(String newAdmin) {
+        @SuppressWarnings("rawtypes")
+        final Function function = new Function(FUNC_SETADMIN, 
+                Arrays.<Type>asList(new org.fisco.bcos.sdk.v3.codec.datatypes.Address(newAdmin)), 
+                Arrays.<TypeReference<?>>asList(new TypeReference<Bool>() {}));
+        return new FunctionWrapper(this, function);
+    }
+
     public String getSignedTransactionForSetAdmin(String newAdmin) {
         @SuppressWarnings("rawtypes")
         final Function function = new Function(
@@ -760,15 +824,21 @@ public class WarehouseReceiptHistory extends Contract {
     }
 
     public static WarehouseReceiptHistory load(String contractAddress, Client client,
-            CryptoKeyPair credential) {
-        return new WarehouseReceiptHistory(contractAddress, client, credential);
+            TransactionManager transactionManager) {
+        return new WarehouseReceiptHistory(contractAddress, client, transactionManager);
+    }
+
+    public static WarehouseReceiptHistory load(String contractAddress, Client client) {
+        return new WarehouseReceiptHistory(contractAddress, client, new ProxySignTransactionManager(client));
     }
 
     public static WarehouseReceiptHistory deploy(Client client, CryptoKeyPair credential,
             String _admin) throws ContractException {
         @SuppressWarnings("rawtypes")
         byte[] encodedConstructor = FunctionEncoder.encodeConstructor(Arrays.<Type>asList(new org.fisco.bcos.sdk.v3.codec.datatypes.Address(_admin)));
-        return deploy(WarehouseReceiptHistory.class, client, credential, getBinary(client.getCryptoSuite()), getABI(), encodedConstructor, null);
+        WarehouseReceiptHistory contract = deploy(WarehouseReceiptHistory.class, client, credential, getBinary(client.getCryptoSuite()), getABI(), encodedConstructor, null);
+        contract.setTransactionManager(new ProxySignTransactionManager(client));
+        return contract;
     }
 
     public static class HistoryRecord extends DynamicStruct {
