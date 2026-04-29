@@ -1,4 +1,15 @@
-# 企业角色枚举
+# 企业角色类型
+
+定义在 `Enterprise.java`：
+
+| 角色常量                       | 值 | 说明         |
+| ------------------------------ | -- | ------------ |
+| `ROLE_CORE_ENTERPRISE`       | 1  | 核心企业     |
+| `ROLE_TRADING_PLATFORM`      | 2  | 现货交易平台 |
+| `ROLE_SUPPLIER`              | 3  | 供应商       |
+| `ROLE_FINANCIAL_INSTITUTION` | 6  | 金融机构     |
+| `ROLE_WAREHOUSE`             | 9  | 仓储方       |
+| `ROLE_LOGISTICS`             | 12 | 物流方       |
 
 | 值 | Java (EnterpriseRoleEnum)  | Solidity (EnterpriseRole) | 说明         |
 | -- | -------------------------- | ------------------------- | ------------ |
@@ -10,7 +21,30 @@
 | 9  | WAREHOUSE(9, "仓储方")     | Warehouse                 | 仓储方       |
 | 12 | LOGISTICS(12, "物流方")    | Logistics                 | 物流方       |
 
-# 场景一：企业及其用户注册
+# 用户角色类型
+
+定义在 `User.java`：
+
+| 角色常量          | 值             | 说明   |
+| ----------------- | -------------- | ------ |
+| `ROLE_ADMIN`    | `"ADMIN"`    | 管理员 |
+| `ROLE_FINANCE`  | `"FINANCE"`  | 财务   |
+| `ROLE_OPERATOR` | `"OPERATOR"` | 操作员 |
+
+# 用户状态类型
+
+定义在 `UserStatusEnum`：
+
+| 状态               | 值 | 说明       |
+| ------------------ | -- | ---------- |
+| `PENDING`        | 0  | 待审核     |
+| `NORMAL`         | 1  | 正常       |
+| `FROZEN`         | 2  | 冻结       |
+| `CANCELLED`      | 3  | 已注销     |
+| `CANCELLING`     | 4  | 注销中     |
+| `PENDING_CANCEL` | 6  | 注销待审核 |
+
+# 企业及其用户注册
 
 ## 注册企业-**POST**[/api/v1/enterprise/register](http://localhost:8082/swagger-ui/index.html#/%E4%BC%81%E4%B8%9A%E7%AE%A1%E7%90%86/registerEnterprise)注册企业
 
@@ -52,24 +86,24 @@ curl -X 'POST' \
 
 ```bash
 curl -X 'POST' \
-  'http://localhost:8081/api/v1/auth/admin/login' \
+  'http://localhost:8081/api/v1/auth/login' \
   -H 'accept: */*' \
   -H 'Content-Type: application/json' \
   -d '{
-  "username": "admin",
-  "password": "123456",
+  "username": "user_logistics_admin",
+  "password": "User2024@1234",
   "loginType": "USER"
 }'
 {
   "code": 200,
   "data": {
-    "accessToken": "eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJlbnRJZCI6IjAiLCJzY29wZSI6MSwidG9rZW5UeXBlIjoiYWNjZXNzIiwianRpIjoiNzUxYzJjMjItNzJjYy00MmEyLTlmYzgtZTQ1YmU1M2FiNDY1Iiwic3ViIjoiMTAwMDAwMDAwMDAwMDAwMDAwMSIsImlhdCI6MTc3NzE4Mjk5OCwiZXhwIjoxNzc3MTkwMTk4fQ.gqurRvpQMUMRtOLNXHLFY-Whz7lr1Cm3C6IAmTSwBkYXZic1GcmaMsFRmNWjqgJz-05kWKhVwfAEE2I379E_xw",
-    "refreshToken": "eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJlbnRJZCI6IjAiLCJzY29wZSI6MSwidG9rZW5UeXBlIjoicmVmcmVzaCIsImp0aSI6Ijc1MWMyYzIyLTcyY2MtNDJhMi05ZmM4LWU0NWJlNTNhYjQ2NSIsInN1YiI6IjEwMDAwMDAwMDAwMDAwMDAwMDEiLCJpYXQiOjE3NzcxODI5OTgsImV4cCI6MTc3Nzc4Nzc5OH0.hTczHvm8xp_AvC4VzP6hcjTMwp_kno7rNUyV_iAIlfF8RsBcKVntoBLpef4GxViADm2UjfIIzVIT4sttIukDBA",
-    "expirationSeconds": 7200,
-    "userId": 1000000000000000000,
-    "entId": null
+    "accessToken": "eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJlbnRJZCI6IjIwNDg0MTgzNDQ3NzYyNDkzNDUiLCJzY29wZSI6MSwidG9rZW5UeXBlIjoiYWNjZXNzIiwianRpIjoiNzBiYjgxYmUtZTNmZC00YjhjLTlmODEtNWUzNTJlYjAwNjdkIiwic3ViIjoiMjA0ODQyODYwNTAwNzI3ODA4MiIsImlhdCI6MTc3NzMzODM0NiwiZXhwIjoxNzc3MzQ1NTQ2fQ.Ola1DNvksvnsU2Ap2BX6XVMaUaChN9_cARAeZepWDmecwe6yZ6Kab7gZYTozvy1uv7peFQ5YmgHC-oem4y2Ftg",
+    "refreshToken": "eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJlbnRJZCI6IjIwNDg0MTgzNDQ3NzYyNDkzNDUiLCJzY29wZSI6MSwidG9rZW5UeXBlIjoicmVmcmVzaCIsImp0aSI6IjcwYmI4MWJlLWUzZmQtNGI4Yy05ZjgxLTVlMzUyZWIwMDY3ZCIsInN1YiI6IjIwNDg0Mjg2MDUwMDcyNzgwODIiLCJpYXQiOjE3NzczMzgzNDYsImV4cCI6MTc3Nzk0MzE0Nn0.3BnFsAKor3dnSeAWfBS4_Yqpekc0h4A4ax8GYGEskZMoDdLaohXwOU-9N-jQSLbE0Otnej5vtY05BXpjflm96w",
+    "expirationSeconds": "7200",
+    "userId": "2048428605007278082",
+    "entId": "2048418344776249345"
   },
-  "message": "管理员登录成功"
+  "message": "登录成功"
 }
 ```
 
@@ -187,12 +221,12 @@ curl -X 'POST' \
   -H 'accept: */*' \
   -H 'Content-Type: application/json' \
   -d '  {
-    "username": "user_logistics_admin",
+    "username": "user_logistics_fin",
     "password": "User2024@123",
-    "realName": "管理员",
+    "realName": "财务",
     "phone": "13900000001",
     "email": "admin@zhongtong.com",
-    "userRole": "ADMIN",
+    "userRole": "FINANCE",
     "inviteCode": "BRN5TWHY"
   }'
 {
@@ -236,7 +270,7 @@ curl -X 'POST' \
 }
 ```
 
-## 审核用户注册申请-**POST**[/api/v1/auth/users/{userId}/audit](http://localhost:8081/swagger-ui/index.html#/%E7%94%A8%E6%88%B7%E7%AE%A1%E7%90%86/auditUser)审核用户注册申请
+## 审核用户注册申请-**POST**[/api/v1/auth/users//audit](http://localhost:8081/swagger-ui/index.html#/%E7%94%A8%E6%88%B7%E7%AE%A1%E7%90%86/auditUser)审核用户注册申请
 
 ```bash
 curl -X 'POST' \
@@ -259,21 +293,20 @@ curl -X 'POST' \
 curl -X 'POST' \
   'http://localhost:8081/api/v1/auth/login' \
   -H 'accept: */*' \
-  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiRU5URVJQUklTRSIsImVudElkIjoiMjA0ODQxODM0NDc3NjI0OTM0NSIsImVudFJvbGUiOjEsInNjb3BlIjo1LCJ0b2tlblR5cGUiOiJhY2Nlc3MiLCJqdGkiOiI2ODE0YTFkMS0wZjhmLTQ2MTUtYjk1YS02ZjhmYjA5NDZiOWIiLCJzdWIiOiIyMDQ4NDE4MzQ0Nzc2MjQ5MzQ1IiwiaWF0IjoxNzc3MjcyMDI1LCJleHAiOjE3NzcyNzkyMjV9.rH-xrs5oKuZHaI7_v2PTsZKLulm-zv50l2RbU-AQN90vWU_g2-sAeRlaO3hQqGGA_IbADOo331TPiWJS-f2Evw' \
   -H 'Content-Type: application/json' \
   -d '{
   "username": "user_logistics_admin",
-  "password": "User2024@123",
+  "password": "User2024@1234",
   "loginType": "USER"
 }'
 {
   "code": 200,
   "data": {
-    "accessToken": "eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJlbnRJZCI6IjIwNDg0MTgzNDQ3NzYyNDkzNDUiLCJzY29wZSI6MSwidG9rZW5UeXBlIjoiYWNjZXNzIiwianRpIjoiZTg1NzU3YTQtNDdkMy00NDlkLWE3ODAtOWQ5ZDY5Y2I3YjljIiwic3ViIjoiMjA0ODQyODYwNTAwNzI3ODA4MiIsImlhdCI6MTc3NzI3MjM5OCwiZXhwIjoxNzc3Mjc5NTk4fQ.dcm9_N_noyfSKJZnMahwbGJ8adFi7EGEdfISRC-7A02MP6zKO42fdwKacOs3KEZdM6wFeVBm68vOGRli1TpsBw",
-    "refreshToken": "eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJlbnRJZCI6IjIwNDg0MTgzNDQ3NzYyNDkzNDUiLCJzY29wZSI6MSwidG9rZW5UeXBlIjoicmVmcmVzaCIsImp0aSI6ImU4NTc1N2E0LTQ3ZDMtNDQ5ZC1hNzgwLTlkOWQ2OWNiN2I5YyIsInN1YiI6IjIwNDg0Mjg2MDUwMDcyNzgwODIiLCJpYXQiOjE3NzcyNzIzOTgsImV4cCI6MTc3Nzg3NzE5OH0.ZHUVRgoMHEmjG6f97N6Z53wqgugTqS40VGg7gxD8YhV3r_4JqtpdSgUGMbnAaaLlFdiYijXVWrC4ANGFZ0fOfQ",
-    "expirationSeconds": 7200,
-    "userId": 2048428605007278000,
-    "entId": 2048418344776249300
+    "accessToken": "eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJlbnRJZCI6IjIwNDg0MTgzNDQ3NzYyNDkzNDUiLCJzY29wZSI6MSwidG9rZW5UeXBlIjoiYWNjZXNzIiwianRpIjoiNzBiYjgxYmUtZTNmZC00YjhjLTlmODEtNWUzNTJlYjAwNjdkIiwic3ViIjoiMjA0ODQyODYwNTAwNzI3ODA4MiIsImlhdCI6MTc3NzMzODM0NiwiZXhwIjoxNzc3MzQ1NTQ2fQ.Ola1DNvksvnsU2Ap2BX6XVMaUaChN9_cARAeZepWDmecwe6yZ6Kab7gZYTozvy1uv7peFQ5YmgHC-oem4y2Ftg",
+    "refreshToken": "eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJlbnRJZCI6IjIwNDg0MTgzNDQ3NzYyNDkzNDUiLCJzY29wZSI6MSwidG9rZW5UeXBlIjoicmVmcmVzaCIsImp0aSI6IjcwYmI4MWJlLWUzZmQtNGI4Yy05ZjgxLTVlMzUyZWIwMDY3ZCIsInN1YiI6IjIwNDg0Mjg2MDUwMDcyNzgwODIiLCJpYXQiOjE3NzczMzgzNDYsImV4cCI6MTc3Nzk0MzE0Nn0.3BnFsAKor3dnSeAWfBS4_Yqpekc0h4A4ax8GYGEskZMoDdLaohXwOU-9N-jQSLbE0Otnej5vtY05BXpjflm96w",
+    "expirationSeconds": "7200",
+    "userId": "2048428605007278082",
+    "entId": "2048418344776249345"
   },
   "message": "登录成功"
 }
@@ -297,13 +330,12 @@ curl -X 'POST' \
 }
 ```
 
-## 用户登录-**POST**[/api/v1/auth/login](http://localhost:8081/swagger-ui/index.html#/%E7%94%A8%E6%88%B7%E8%AE%A4%E8%AF%81/login)用户/企业登录
+## 用户登录-**POST**[/api/v1/auth/login](http://localhost:8081/swagger-ui/index.html#/%E7%94%A8%E6%88%B7%E8%AE%A4%E8%AF%81/login)用户登录
 
 ```bash
 curl -X 'POST' \
   'http://localhost:8081/api/v1/auth/login' \
   -H 'accept: */*' \
-  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJlbnRJZCI6IjIwNDg0MTgzNDQ3NzYyNDkzNDUiLCJzY29wZSI6MSwidG9rZW5UeXBlIjoiYWNjZXNzIiwianRpIjoiN2Q3NWYzMjItZTJmOS00ZjZhLTg1OWYtMjIzMDI5N2U2NmI1Iiwic3ViIjoiMjA0ODQyODYwNTAwNzI3ODA4MiIsImlhdCI6MTc3NzI3MzM3OCwiZXhwIjoxNzc3MjgwNTc4fQ.Qi-Vcpxu3m58Qmgn7NsPudeOui89iZx23t2LoWpnKj6R6ELD6EiAC9dmsaQc-pF2LeYGWAgmMdtjEg5bBOB3OQ' \
   -H 'Content-Type: application/json' \
   -d '{
   "username": "user_logistics_admin",
@@ -313,17 +345,17 @@ curl -X 'POST' \
 {
   "code": 200,
   "data": {
-    "accessToken": "eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJlbnRJZCI6IjIwNDg0MTgzNDQ3NzYyNDkzNDUiLCJzY29wZSI6MSwidG9rZW5UeXBlIjoiYWNjZXNzIiwianRpIjoiYTMyZmQ0NWEtMDU0ZS00NzQzLTg3ZTMtNDQ0NGQ2Yjg0ZjM5Iiwic3ViIjoiMjA0ODQyODYwNTAwNzI3ODA4MiIsImlhdCI6MTc3NzI3MzYwMywiZXhwIjoxNzc3MjgwODAzfQ.8Vt7RE7HtLv1-q7BxjZIrBxPXAGEaOESkjfUQk1jsyfCs6hZ_TL69lx_YuClQqjHPP6mPaVFm6e68ypBQVuMzg",
-    "refreshToken": "eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJlbnRJZCI6IjIwNDg0MTgzNDQ3NzYyNDkzNDUiLCJzY29wZSI6MSwidG9rZW5UeXBlIjoicmVmcmVzaCIsImp0aSI6ImEzMmZkNDVhLTA1NGUtNDc0My04N2UzLTQ0NDRkNmI4NGYzOSIsInN1YiI6IjIwNDg0Mjg2MDUwMDcyNzgwODIiLCJpYXQiOjE3NzcyNzM2MDMsImV4cCI6MTc3Nzg3ODQwM30.NhJN1UIo9okuiSfhPqSyvsSllb_d-rqNDgsFtM6kK8YklzVDCUm7IU56lWFwRdDsVjxuoxQSIHqb4920SxPxFA",
-    "expirationSeconds": 7200,
-    "userId": 2048428605007278000,
-    "entId": 2048418344776249300
+    "accessToken": "eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJlbnRJZCI6IjIwNDg0MTgzNDQ3NzYyNDkzNDUiLCJzY29wZSI6MSwidG9rZW5UeXBlIjoiYWNjZXNzIiwianRpIjoiOWI2ODg0YWYtN2IyNy00NGUxLTg4NjYtZTY0NTllMzJlMzFmIiwic3ViIjoiMjA0ODQyODYwNTAwNzI3ODA4MiIsImlhdCI6MTc3NzMzOTMwNiwiZXhwIjoxNzc3MzQ2NTA2fQ.xBIM0V_G8gtNfk76EwZ6N91TyGrbny188MpTwRboxsOifAjX8h56bnWQsswFn6xDdNcO9tuAvz3yk-jsmfiqCQ",
+    "refreshToken": "eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJlbnRJZCI6IjIwNDg0MTgzNDQ3NzYyNDkzNDUiLCJzY29wZSI6MSwidG9rZW5UeXBlIjoicmVmcmVzaCIsImp0aSI6IjliNjg4NGFmLTdiMjctNDRlMS04ODY2LWU2NDU5ZTMyZTMxZiIsInN1YiI6IjIwNDg0Mjg2MDUwMDcyNzgwODIiLCJpYXQiOjE3NzczMzkzMDYsImV4cCI6MTc3Nzk0NDEwNn0.oNy4XVJ8Dxj3b0ndknClbfktzgkXPwYkNLkCJCQqrnicRe_Jf_rSZJbIfd_eme2yZN3CoeNiUJyQbMjBTaDbcw",
+    "expirationSeconds": "7200",
+    "userId": "2048428605007278082",
+    "entId": "2048418344776249345"
   },
   "message": "登录成功"
 }
 ```
 
-## 变更用户角色-**PUT**[/api/v1/auth/users/{userId}/role](http://localhost:8081/swagger-ui/index.html#/%E7%94%A8%E6%88%B7%E7%AE%A1%E7%90%86/updateUserRole)变更用户角色
+## 变更用户角色-**PUT**[/api/v1/auth/users//role](http://localhost:8081/swagger-ui/index.html#/%E7%94%A8%E6%88%B7%E7%AE%A1%E7%90%86/updateUserRole)变更用户角色
 
 ```bash
 curl -X 'PUT' \
@@ -340,7 +372,7 @@ curl -X 'PUT' \
 }
 ```
 
-## 禁用企业用户-**PUT**[/api/v1/auth/users/disable/{userId}](http://localhost:8081/swagger-ui/index.html#/%E7%94%A8%E6%88%B7%E7%AE%A1%E7%90%86/disableUser)强制禁用用户
+## 禁用企业用户-**PUT**[/api/v1/auth/users/disable/](http://localhost:8081/swagger-ui/index.html#/%E7%94%A8%E6%88%B7%E7%AE%A1%E7%90%86/disableUser)强制禁用用户
 
 ```bash
 curl -X 'PUT' \
@@ -353,7 +385,7 @@ curl -X 'PUT' \
 }
 ```
 
-## 变更用户状态-**PUT**[/api/v1/auth/users/{userId}/status](http://localhost:8081/swagger-ui/index.html#/%E7%94%A8%E6%88%B7%E7%AE%A1%E7%90%86/updateUserStatus)变更用户状态
+## 变更用户状态-**PUT**[/api/v1/auth/users//status](http://localhost:8081/swagger-ui/index.html#/%E7%94%A8%E6%88%B7%E7%AE%A1%E7%90%86/updateUserStatus)变更用户状态
 
 ```bash
 curl -X 'PUT' \
@@ -423,7 +455,7 @@ curl -X 'POST' \
 }
 ```
 
-## 审核注销申请-**POST**[/api/v1/auth/users/{userId}/cancel/audit](http://localhost:8081/swagger-ui/index.html#/%E7%94%A8%E6%88%B7%E7%AE%A1%E7%90%86/auditCancellation)审核注销申请
+## 审核用户注销申请-**POST**[/api/v1/auth/users/cancel/audit](http://localhost:8081/swagger-ui/index.html#/%E7%94%A8%E6%88%B7%E7%AE%A1%E7%90%86/auditCancellation)审核注销申请
 
 ```bash
 curl -X 'POST' \
@@ -437,5 +469,103 @@ curl -X 'POST' \
 {
   "code": 200,
   "message": "注销审核通过"
+}
+```
+
+## 企业注销申请-**POST**[/api/v1/enterprise/cancellation/apply](http://localhost:8082/swagger-ui/index.html#/%E4%BC%81%E4%B8%9A%E7%AE%A1%E7%90%86/applyCancellation)发起注销申请
+
+```bash
+curl -X 'POST' \
+  'http://localhost:8082/api/v1/enterprise/cancellation/apply' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiRU5URVJQUklTRSIsImVudElkIjoiMjA0ODk2NjA2NjAwNTY5MjQxNyIsImVudFJvbGUiOjMsInNjb3BlIjo1LCJ0b2tlblR5cGUiOiJhY2Nlc3MiLCJqdGkiOiI1OWI5YmJlZi00YWQ4LTQ2ODUtYmFiMC03MDc3Mjg4ZmViZjMiLCJzdWIiOiIyMDQ4OTY2MDY2MDA1NjkyNDE3IiwiaWF0IjoxNzc3MzQ3MDgyLCJleHAiOjE3NzczNTQyODJ9.CaBTTGiQJD7MYcCHhTbj4kxwkOTw9LQfigKFhQCIgZsGuoNq85xuwP1B0NhQHi_N0AZfx39skELbt_KbmyAXrw' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "password": "Test2024@123",
+  "reason": "不再使用该账号"
+}'
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "success": true,
+    "message": "注销申请已提交，等待管理员审核",
+    "entId": "2048966066005692417",
+    "reason": "不再使用该账号",
+    "applyTime": "2026-04-28T11:32:35.754535"
+  },
+  "timestamp": "1777347155754",
+  "txHash": null,
+  "errorStack": null
+}
+```
+
+## 企业撤销注销申请-**POST**[/api/v1/enterprise/cancellation/revoke](http://localhost:8082/swagger-ui/index.html#/%E4%BC%81%E4%B8%9A%E7%AE%A1%E7%90%86/revokeCancellation)撤回注销申请
+
+```bash
+curl -X 'POST' \
+  'http://localhost:8082/api/v1/enterprise/cancellation/revoke' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiRU5URVJQUklTRSIsImVudElkIjoiMjA0ODk2NjA2NjAwNTY5MjQxNyIsImVudFJvbGUiOjMsInNjb3BlIjo1LCJ0b2tlblR5cGUiOiJhY2Nlc3MiLCJqdGkiOiI1MWQzMzY3Ni0wOWVkLTQ1NTUtYTIyNC0zYzE5ODBlN2NmMzYiLCJzdWIiOiIyMDQ4OTY2MDY2MDA1NjkyNDE3IiwiaWF0IjoxNzc3MzYxMjM4LCJleHAiOjE3NzczNjg0Mzh9.QkFDuA9VVBlJdSjSoHf3aESEwUIWqj36BA7dfc27pISzgRHFckNa1m-39Q84XdCbHlrXI25qLonizzqss-sq1w' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "password": "Test2024@123"
+}'
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": null,
+  "timestamp": "1777361300572",
+  "txHash": null,
+  "errorStack": null
+}
+```
+
+## 企业注销申请-**POST**[/api/v1/enterprise/cancellation/apply](http://localhost:8082/swagger-ui/index.html#/%E4%BC%81%E4%B8%9A%E7%AE%A1%E7%90%86/applyCancellation)发起注销申请
+
+```bash
+curl -X 'POST' \
+  'http://localhost:8082/api/v1/enterprise/cancellation/apply' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiRU5URVJQUklTRSIsImVudElkIjoiMjA0ODk2NjA2NjAwNTY5MjQxNyIsImVudFJvbGUiOjMsInNjb3BlIjo1LCJ0b2tlblR5cGUiOiJhY2Nlc3MiLCJqdGkiOiI1MWQzMzY3Ni0wOWVkLTQ1NTUtYTIyNC0zYzE5ODBlN2NmMzYiLCJzdWIiOiIyMDQ4OTY2MDY2MDA1NjkyNDE3IiwiaWF0IjoxNzc3MzYxMjM4LCJleHAiOjE3NzczNjg0Mzh9.QkFDuA9VVBlJdSjSoHf3aESEwUIWqj36BA7dfc27pISzgRHFckNa1m-39Q84XdCbHlrXI25qLonizzqss-sq1w' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "password": "Test2024@123",
+  "reason": "不再使用该账号"
+}'
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": {
+    "success": true,
+    "message": "注销申请已提交，等待管理员审核",
+    "entId": "2048966066005692417",
+    "reason": "不再使用该账号",
+    "applyTime": "2026-04-28T15:29:01.613788"
+  },
+  "timestamp": "1777361341614",
+  "txHash": null,
+  "errorStack": null
+}
+```
+
+## 审核注销申请-**POST**[/api/v1/enterprise//cancellation/audit](http://localhost:8082/swagger-ui/index.html#/%E4%BC%81%E4%B8%9A%E7%AE%A1%E7%90%86/auditCancellation)审核企业注销申请
+
+```bash
+curl -X 'POST' \
+  'http://localhost:8082/api/v1/enterprise/2048966066005692417/cancellation/audit' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJyb2xlIjoiQURNSU4iLCJlbnRJZCI6IjAiLCJzY29wZSI6MSwidG9rZW5UeXBlIjoiYWNjZXNzIiwianRpIjoiYmEzYTc4ZWQtZDAyZi00YjlhLWJhYmYtMmNkY2IxMmE2YWFmIiwic3ViIjoiMTAwMDAwMDAwMDAwMDAwMDAwMSIsImlhdCI6MTc3NzM2MzUyNSwiZXhwIjoxNzc3MzcwNzI1fQ.6svXsEXP84LTsjsOzBVwRvEsl5Wudo9SU3O_sgNmf15cdOBsY3Fq2YltfdhiFrWIxRDjbuIsK3BY8w5CYLG8TQ' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "approved": true
+}'
+{
+  "code": 0,
+  "msg": "操作成功",
+  "data": null,
+  "timestamp": "1777363551247",
+  "txHash": null,
+  "errorStack": null
 }
 ```

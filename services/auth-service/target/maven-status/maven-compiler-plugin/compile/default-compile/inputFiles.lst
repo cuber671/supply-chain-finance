@@ -1,4 +1,5 @@
 /home/llm_rca/fisco/supply-chain-finance/services/auth-service/src/main/java/com/fisco/app/controller/HealthController.java
+/home/llm_rca/fisco/supply-chain-finance/services/auth-service/src/main/java/com/fisco/app/config/JacksonConfig.java
 /home/llm_rca/fisco/supply-chain-finance/services/auth-service/src/main/java/com/fisco/app/AuthServiceApplication.java
 /home/llm_rca/fisco/supply-chain-finance/services/auth-service/src/main/java/com/fisco/app/config/JwtConfig.java
 /home/llm_rca/fisco/supply-chain-finance/services/auth-service/src/main/java/com/fisco/app/config/AuditContext.java

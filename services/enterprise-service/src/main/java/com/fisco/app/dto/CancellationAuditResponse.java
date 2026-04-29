@@ -11,16 +11,19 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@Schema(description = "金融机构资格校验")
-public class FinancialInstitutionCheckDTO {
+@Schema(description = "注销审核响应")
+public class CancellationAuditResponse {
 
-    @Schema(description = "企业ID", example = "1001")
+    @Schema(description = "企业ID", example = "2048966066005692417")
     @JsonSerialize(using = ToStringSerializer.class)
     private Long entId;
 
-    @Schema(description = "是否为金融机构", example = "true")
-    private Boolean isFinancialInstitution;
+    @Schema(description = "审核结果", example = "通过")
+    private String action;
 
-    @Schema(description = "企业角色名称", example = "FINANCIAL_INSTITUTION")
-    private String entRoleName;
+    @Schema(description = "新状态", example = "4")
+    private Integer newStatus;
+
+    @Schema(description = "链上状态更新交易哈希")
+    private String txHash;
 }

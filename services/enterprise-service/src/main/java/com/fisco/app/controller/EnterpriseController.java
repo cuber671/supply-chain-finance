@@ -23,7 +23,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.fisco.app.constant.EntRoleConstant;
+import com.fisco.app.dto.CancellationApplyRequest;
+import com.fisco.app.dto.CancellationAuditResponse;
 import com.fisco.app.dto.FinancialInstitutionCheckDTO;
+import com.fisco.app.dto.RevokeCancellationRequest;
 import com.fisco.app.entity.Enterprise;
 import com.fisco.app.entity.InvitationCode;
 import com.fisco.app.service.EnterpriseService;
@@ -709,25 +712,26 @@ public class EnterpriseController {
      * 发起注销申请
      */
     @Operation(summary = "发起注销申请", description = "企业主动发起注销申请，需要平台管理员审核后才能完成注销。\n\n" +
-            "**前置条件**：仅正常状态的企业可申请注销。")
+            "**前置条件**：仅正常状态的企业可申请注销。\n\n" +
+            "**安全验证**：需提供企业登录密码进行身份验证。\n\n" +
+            "**资产校验**：仅当企业无未结清资产（仓单、票据、应收款）时可申请。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "注销申请已提交"),
-        @ApiResponse(responseCode = "400", description = "参数错误或状态不允许"),
+        @ApiResponse(responseCode = "400", description = "参数错误、密码验证失败或状态不允许"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @PostMapping("/cancellation/apply")
     public ResponseEntity<Result<CancellationResult>> applyCancellation(
-            @Parameter(description = "企业ID", required = true)
-            @RequestParam Long entId,
-            @Parameter(description = "注销原因")
-            @RequestParam(required = false) String reason) {
+            @Parameter(description = "注销申请请求（包含密码验证和注销原因）", required = true)
+            @Valid @RequestBody CancellationApplyRequest request) {
+        Long entId = CurrentUser.getEntId();
         try {
             if (entId == null) {
-                return ResponseEntity.ok(Result.error(400, "企业ID不能为空"));
+                return ResponseEntity.ok(Result.error(401, "无法获取企业ID，请重新登录"));
             }
 
-            CancellationResult result = enterpriseService.applyCancellation(entId, reason);
+            CancellationResult result = enterpriseService.applyCancellation(entId, request.getPassword(), request.getReason());
 
             if (result.isSuccess()) {
                 logger.info("企业注销申请成功: entId={}", entId);
@@ -748,23 +752,25 @@ public class EnterpriseController {
      * 撤回注销申请
      */
     @Operation(summary = "撤回注销申请", description = "企业撤回已提交的注销申请，状态恢复到\"正常\"。\n\n" +
-            "**前置条件**：仅注销中的企业可撤回。")
+            "**前置条件**：仅注销待审核或注销中的企业可撤回。\n\n" +
+            "**安全验证**：需提供企业登录密码进行身份验证。")
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "撤回成功"),
-        @ApiResponse(responseCode = "400", description = "状态不允许撤回"),
+        @ApiResponse(responseCode = "400", description = "密码验证失败或状态不允许撤回"),
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @PostMapping("/cancellation/revoke")
     public ResponseEntity<Result<Void>> revokeCancellation(
-            @Parameter(description = "企业ID", required = true)
-            @RequestParam Long entId) {
+            @Parameter(description = "撤回注销申请请求（包含密码验证）", required = true)
+            @Valid @RequestBody RevokeCancellationRequest request) {
+        Long entId = CurrentUser.getEntId();
         try {
             if (entId == null) {
-                return ResponseEntity.ok(Result.error(400, "企业ID不能为空"));
+                return ResponseEntity.ok(Result.error(401, "无法获取企业ID，请重新登录"));
             }
 
-            boolean success = enterpriseService.revokeCancellation(entId);
+            boolean success = enterpriseService.revokeCancellation(entId, request.getPassword());
             if (success) {
                 logger.info("企业注销申请已撤回: entId={}", entId);
                 return ResponseEntity.ok(Result.success(null));
@@ -812,7 +818,7 @@ public class EnterpriseController {
         @ApiResponse(responseCode = "500", description = "服务端异常")
     })
     @PostMapping("/{entId}/cancellation/audit")
-    public ResponseEntity<Result<Void>> auditCancellation(
+    public ResponseEntity<Result<CancellationAuditResponse>> auditCancellation(
             @Parameter(description = "企业ID", required = true) @PathVariable Long entId,
             @Parameter(description = "审核结果", required = true) @RequestBody AuditRequest request,
             javax.servlet.http.HttpServletRequest httpRequest) {
@@ -828,13 +834,20 @@ public class EnterpriseController {
                 return ResponseEntity.ok(Result.error(400, "审核结果不能为空"));
             }
 
-            boolean success = enterpriseService.auditCancellation(entId, request.getApproved());
+            var auditResult = enterpriseService.auditCancellation(entId, request.getApproved());
 
-            if (success) {
-                logger.info("企业注销审核完成: entId={}, approved={}", entId, request.getApproved());
-                return ResponseEntity.ok(Result.success(null));
+            if (auditResult.isSuccess()) {
+                logger.info("企业注销审核完成: entId={}, approved={}, txHash={}", entId, request.getApproved(), auditResult.getTxHash());
+
+                CancellationAuditResponse response = new CancellationAuditResponse();
+                response.setEntId(auditResult.getEntId());
+                response.setAction(auditResult.getAction());
+                response.setNewStatus(auditResult.getNewStatus());
+                response.setTxHash(auditResult.getTxHash());
+
+                return ResponseEntity.ok(Result.success(response));
             } else {
-                return ResponseEntity.ok(Result.error(500, "审核企业注销失败"));
+                return ResponseEntity.ok(Result.error(500, auditResult.getMessage()));
             }
         } catch (IllegalArgumentException e) {
             return ResponseEntity.ok(Result.error(400, e.getMessage()));

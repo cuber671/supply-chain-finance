@@ -8,8 +8,10 @@ com/fisco/app/feign/CreditFeignClient.class
 com/fisco/app/feign/CreditFeignClientFallback.class
 com/fisco/app/service/EnterpriseService.class
 com/fisco/app/service/impl/EnterpriseServiceImpl.class
+com/fisco/app/dto/RevokeCancellationRequest.class
 com/fisco/app/controller/EnterpriseController$LoginRequest.class
 com/fisco/app/mapper/InvitationCodeMapper.class
+com/fisco/app/service/EnterpriseService$CancellationAuditResult.class
 com/fisco/app/controller/EnterpriseController$AuditRequest.class
 com/fisco/app/controller/EnterpriseController$PasswordUpdateRequest.class
 com/fisco/app/config/JwtConfig.class
@@ -22,7 +24,10 @@ com/fisco/app/service/impl/EnterpriseServiceImpl$EnterpriseInfo.class
 com/fisco/app/service/EnterpriseService$EnterpriseInfo.class
 com/fisco/app/controller/EnterpriseController.class
 com/fisco/app/controller/EnterpriseController$EnterpriseDetailResponse.class
+com/fisco/app/dto/CancellationApplyRequest.class
 com/fisco/app/config/MyBatisPlusConfig.class
 com/fisco/app/mapper/EnterpriseMapper.class
 com/fisco/app/service/EnterpriseService$CancellationResult.class
+com/fisco/app/dto/CancellationAuditResponse.class
 com/fisco/app/controller/HealthController.class
+com/fisco/app/config/JacksonConfig.class

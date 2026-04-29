@@ -21,3 +21,4 @@
 /home/llm_rca/fisco/supply-chain-finance/services/warehouse-service/src/main/java/com/fisco/app/entity/ReceiptEndorsement.java
 /home/llm_rca/fisco/supply-chain-finance/services/warehouse-service/src/main/java/com/fisco/app/annotation/WarehousePermissionCheck.java
 /home/llm_rca/fisco/supply-chain-finance/services/warehouse-service/src/main/java/com/fisco/app/annotation/WarehouseStatusCheck.java
+/home/llm_rca/fisco/supply-chain-finance/services/warehouse-service/src/main/java/com/fisco/app/config/JacksonConfig.java

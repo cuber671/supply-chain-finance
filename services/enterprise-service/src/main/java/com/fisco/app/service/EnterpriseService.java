@@ -221,20 +221,22 @@ public interface EnterpriseService {
      * 发起注销申请
      * 校验链上资产余额是否清零，若有未结清资产则禁止申请
      *
-     * @param entId 企业ID
-     * @param reason 注销原因
+     * @param entId    企业ID
+     * @param password 登录密码（用于身份验证）
+     * @param reason  注销原因
      * @return 注销申请结果
      */
-    CancellationResult applyCancellation(Long entId, String reason);
+    CancellationResult applyCancellation(Long entId, String password, String reason);
 
     /**
      * 撤回注销申请
      * 仅在管理员审批前有效，状态回滚至正常
      *
-     * @param entId 企业ID
+     * @param entId    企业ID
+     * @param password 登录密码（用于身份验证）
      * @return 是否成功
      */
-    boolean revokeCancellation(Long entId);
+    boolean revokeCancellation(Long entId, String password);
 
     /**
      * 获取待审核注销企业列表
@@ -250,7 +252,7 @@ public interface EnterpriseService {
      * @param approved 审核结果：true-通过(设为已注销), false-拒绝(恢复正常)
      * @return 审核结果
      */
-    boolean auditCancellation(Long entId, boolean approved);
+    CancellationAuditResult auditCancellation(Long entId, boolean approved);
 
     /**
      * 管理员强制注销企业（用于资产数据异常等特殊场景）
@@ -352,6 +354,31 @@ public interface EnterpriseService {
         public void setReason(String reason) { this.reason = reason; }
         public java.time.LocalDateTime getApplyTime() { return applyTime; }
         public void setApplyTime(java.time.LocalDateTime applyTime) { this.applyTime = applyTime; }
+    }
+
+    /**
+     * 注销审核结果
+     */
+    class CancellationAuditResult {
+        private boolean success;
+        private String message;
+        private Long entId;
+        private String action;
+        private Integer newStatus;
+        private String txHash;
+
+        public boolean isSuccess() { return success; }
+        public void setSuccess(boolean success) { this.success = success; }
+        public String getMessage() { return message; }
+        public void setMessage(String message) { this.message = message; }
+        public Long getEntId() { return entId; }
+        public void setEntId(Long entId) { this.entId = entId; }
+        public String getAction() { return action; }
+        public void setAction(String action) { this.action = action; }
+        public Integer getNewStatus() { return newStatus; }
+        public void setNewStatus(Integer newStatus) { this.newStatus = newStatus; }
+        public String getTxHash() { return txHash; }
+        public void setTxHash(String txHash) { this.txHash = txHash; }
     }
 
     /**

@@ -87,15 +87,15 @@ public class EnterpriseServiceImpl implements EnterpriseService {
             throw new IllegalArgumentException("统一社会信用代码不能为空");
         }
 
-        // 检查用户名是否已存在
+        // 检查用户名是否已存在（已注销的企业可重新注册）
         Enterprise existUser = getEnterpriseByUsername(username);
-        if (existUser != null) {
+        if (existUser != null && existUser.getStatus() != Enterprise.STATUS_CANCELLED) {
             throw new IllegalArgumentException("用户名已存在");
         }
 
-        // 检查信用代码是否已存在
+        // 检查信用代码是否已存在（已注销的企业可重新注册）
         Enterprise existOrg = getEnterpriseByOrgCode(orgCode);
-        if (existOrg != null) {
+        if (existOrg != null && existOrg.getStatus() != Enterprise.STATUS_CANCELLED) {
             throw new IllegalArgumentException("统一社会信用代码已被注册");
         }
 
@@ -175,9 +175,6 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         }
         if (enterprise.getStatus() == Enterprise.STATUS_CANCELLED) {
             throw new IllegalStateException("账户已注销");
-        }
-        if (enterprise.getStatus() == Enterprise.STATUS_CANCELLING) {
-            throw new IllegalStateException("账户正在注销中，暂时无法登录");
         }
 
         // 验证密码
@@ -300,9 +297,6 @@ public class EnterpriseServiceImpl implements EnterpriseService {
             case Enterprise.STATUS_FROZEN: // 冻结
                 // 冻结 -> 正常(解冻)
                 return newStatus == Enterprise.STATUS_NORMAL;
-            case Enterprise.STATUS_CANCELLING: // 注销中（当前未实际使用）
-                // 注销中 -> 注销待审核 或 正常(撤销)
-                return newStatus == Enterprise.STATUS_PENDING_CANCEL || newStatus == Enterprise.STATUS_NORMAL;
             case Enterprise.STATUS_PENDING_CANCEL: // 注销待审核
                 // 注销待审核 -> 已注销(审核通过) 或 正常(审核拒绝/撤销)
                 return newStatus == Enterprise.STATUS_CANCELLED || newStatus == Enterprise.STATUS_NORMAL;
@@ -490,7 +484,7 @@ public class EnterpriseServiceImpl implements EnterpriseService {
     // ==================== 企业注销管理 ====================
 
     @Override
-    public CancellationResult applyCancellation(Long entId, String reason) {
+    public CancellationResult applyCancellation(Long entId, String password, String reason) {
         CancellationResult result = new CancellationResult();
 
         // 查询企业信息
@@ -498,6 +492,13 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         if (enterprise == null) {
             result.setSuccess(false);
             result.setMessage("企业不存在");
+            return result;
+        }
+
+        // 校验密码
+        if (password == null || !passwordEncoder.matches(password, enterprise.getPassword())) {
+            result.setSuccess(false);
+            result.setMessage("密码验证失败");
             return result;
         }
 
@@ -535,16 +536,20 @@ public class EnterpriseServiceImpl implements EnterpriseService {
     }
 
     @Override
-    public boolean revokeCancellation(Long entId) {
+    public boolean revokeCancellation(Long entId, String password) {
         Enterprise enterprise = getEnterpriseById(entId);
         if (enterprise == null) {
             throw new IllegalArgumentException("企业不存在");
         }
 
-        // 注销中或注销待审核状态都可以撤回
-        if (enterprise.getStatus() != Enterprise.STATUS_CANCELLING
-            && enterprise.getStatus() != Enterprise.STATUS_PENDING_CANCEL) {
-            throw new IllegalArgumentException("只有注销中的企业才能撤回申请");
+        // 校验密码
+        if (password == null || !passwordEncoder.matches(password, enterprise.getPassword())) {
+            throw new IllegalArgumentException("密码验证失败");
+        }
+
+        // 仅注销待审核状态可以撤回
+        if (enterprise.getStatus() != Enterprise.STATUS_PENDING_CANCEL) {
+            throw new IllegalArgumentException("只有注销待审核的企业才能撤回申请");
         }
 
         // 更新状态为正常
@@ -563,7 +568,7 @@ public class EnterpriseServiceImpl implements EnterpriseService {
     }
 
     @Override
-    public boolean auditCancellation(Long entId, boolean approved) {
+    public CancellationAuditResult auditCancellation(Long entId, boolean approved) {
         Enterprise enterprise = getEnterpriseById(entId);
         if (enterprise == null) {
             throw new IllegalArgumentException("企业不存在");
@@ -572,24 +577,29 @@ public class EnterpriseServiceImpl implements EnterpriseService {
             throw new IllegalArgumentException("该企业不是注销待审核状态，无法审核");
         }
 
+        CancellationAuditResult result = new CancellationAuditResult();
+        result.setEntId(entId);
+
         // 审核通过设为已注销(4)，审核拒绝恢复正常(1)
         int newStatus = approved ? Enterprise.STATUS_CANCELLED : Enterprise.STATUS_NORMAL;
         enterprise.setStatus(newStatus);
         enterpriseMapper.updateById(enterprise);
 
+        result.setNewStatus(newStatus);
+        result.setAction(approved ? "通过" : "拒绝");
+
         // FIX: 审核通过时同步更新链上企业状态
+        String txHash = null;
         if (approved && enterprise.getBlockchainAddress() != null) {
             try {
-                String txHash = updateEnterpriseStatusOnChain(entId, newStatus);
+                txHash = updateEnterpriseStatusOnChain(entId, newStatus);
                 if (txHash == null) {
-                    // 链上更新失败，抛出异常让事务回滚
                     String errMsg = "企业链上状态同步失败: entId=" + entId + ", newStatus=" + newStatus
                         + ", 请稍后重试或联系技术支持";
                     logger.error(errMsg);
                     throw new RuntimeException(errMsg);
                 }
             } catch (RuntimeException e) {
-                // 链上更新失败，向上抛出异常让事务回滚
                 throw e;
             } catch (Exception e) {
                 String errMsg = "企业链上状态同步异常: entId=" + entId + ", error=" + e.getMessage();
@@ -597,6 +607,7 @@ public class EnterpriseServiceImpl implements EnterpriseService {
                 throw new RuntimeException(errMsg, e);
             }
         }
+        result.setTxHash(txHash);
 
         // 审核通过时同步锁定该企业的信用额度
         if (approved && creditFeignClient != null) {
@@ -606,13 +617,14 @@ public class EnterpriseServiceImpl implements EnterpriseService {
                     logger.info("企业注销后信用额度已锁定: entId={}", entId);
                 }
             } catch (Exception e) {
-                // 信用额度锁定失败不应阻塞注销流程，但需记录日志
                 logger.error("企业信用额度锁定失败: entId={}, error={}", entId, e.getMessage());
             }
         }
 
-        logger.info("企业注销审核完成: entId={}, approved={}, newStatus={}", entId, approved, newStatus);
-        return true;
+        result.setSuccess(true);
+        result.setMessage("审核完成");
+        logger.info("企业注销审核完成: entId={}, approved={}, newStatus={}, txHash={}", entId, approved, newStatus, txHash);
+        return result;
     }
 
     @Override
@@ -626,6 +638,24 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         // 强制注销：直接将状态设为已注销，跳过资产检查
         enterprise.setStatus(Enterprise.STATUS_CANCELLED);
         enterpriseMapper.updateById(enterprise);
+
+        // 同步更新链上企业状态
+        if (enterprise.getBlockchainAddress() != null) {
+            try {
+                String txHash = updateEnterpriseStatusOnChain(entId, Enterprise.STATUS_CANCELLED);
+                if (txHash == null) {
+                    String errMsg = "强制注销链上状态同步失败: entId=" + entId;
+                    logger.error(errMsg);
+                    throw new RuntimeException(errMsg);
+                }
+            } catch (RuntimeException e) {
+                throw e;
+            } catch (Exception e) {
+                String errMsg = "强制注销链上状态同步异常: entId=" + entId + ", error=" + e.getMessage();
+                logger.error(errMsg, e);
+                throw new RuntimeException(errMsg, e);
+            }
+        }
 
         logger.warn("管理员强制注销企业: entId={}, reason={}", entId, reason);
         return true;
@@ -774,9 +804,9 @@ public class EnterpriseServiceImpl implements EnterpriseService {
      * 将链下企业状态映射到链上状态
      * 链下状态定义(Enterprise.STATUS_*):
      *   STATUS_PENDING=0, STATUS_NORMAL=1, STATUS_FROZEN=2,
-     *   STATUS_CANCELLING=3, STATUS_CANCELLED=4, STATUS_PENDING_CANCEL=5
+     *   STATUS_CANCELLED=4, STATUS_PENDING_CANCEL=5
      * 链上状态定义(EnterpriseRegistryV2.EnterpriseStatus):
-     *   Pending=0, Active=1, Suspended=2, Blacklisted=3, PendingDeletion=4, Deleted=5
+     *   Pending=0, Normal=1, Frozen=2, Cancelled=4, PendingCancel=5
      * @param dbStatus 链下状态值
      * @return 链上状态值
      */
@@ -789,12 +819,10 @@ public class EnterpriseServiceImpl implements EnterpriseService {
             case Enterprise.STATUS_FROZEN:
                 return 2;  // Suspended
             case Enterprise.STATUS_CANCELLED:
-                return 5;  // Deleted (链下4 → 链上5)
+                return 4;  // Cancelled (链下4 → 链上4)
             case Enterprise.STATUS_PENDING_CANCEL:
-                return 4;  // PendingDeletion (链下5 → 链上4)
+                return 5;  // PendingCancel (链下5 → 链上5)
             default:
-                // STATUS_CANCELLING(3)无链上对应，映射为PendingDeletion(4)
-                // Blacklisted(3)在链下无对应状态
                 return dbStatus;
         }
     }

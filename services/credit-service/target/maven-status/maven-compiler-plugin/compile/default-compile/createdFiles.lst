@@ -31,3 +31,4 @@ com/fisco/app/feign/EnterpriseFeignClientFallback.class
 com/fisco/app/feign/FinanceFeignClientFallback.class
 com/fisco/app/service/CreditService$DifferentiatedServiceConfig.class
 com/fisco/app/controller/HealthController.class
+com/fisco/app/config/JacksonConfig.class

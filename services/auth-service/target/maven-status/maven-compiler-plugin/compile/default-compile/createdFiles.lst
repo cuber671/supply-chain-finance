@@ -17,6 +17,7 @@ com/fisco/app/controller/GlobalExceptionHandler.class
 com/fisco/app/controller/HealthController.class
 com/fisco/app/config/SecurityConfig.class
 com/fisco/app/dto/AuditCancellationRequestDTO.class
+com/fisco/app/config/JacksonConfig.class
 com/fisco/app/feign/EnterpriseFeignClient.class
 com/fisco/app/service/UserServiceImpl.class
 com/fisco/app/dto/UpdatePasswordRequestDTO.class

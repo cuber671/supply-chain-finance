@@ -22,6 +22,7 @@ com/fisco/app/entity/Receivable.class
 com/fisco/app/controller/FinanceController$OffsetWithCollateralRequest.class
 com/fisco/app/controller/HealthController.class
 com/fisco/app/controller/LoanController$DisburseRequest.class
+com/fisco/app/config/JacksonConfig.class
 com/fisco/app/feign/WarehouseFeignClient.class
 com/fisco/app/controller/FinanceController.class
 com/fisco/app/entity/RepaymentRecord.class

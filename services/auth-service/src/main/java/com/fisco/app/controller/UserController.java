@@ -72,19 +72,23 @@ public class UserController {
     @PostMapping("/register")
     public ResponseEntity<Map<String, Object>> register(
             @Parameter(description = "注册请求", required = true) @Valid @RequestBody RegisterRequestDTO request) {
-        // 检查用户名是否已存在
+        // 检查用户名是否已存在（但 FROZEN/CANCELLED 状态用户可重新注册）
         LambdaQueryWrapper<User> usernameCheck = new LambdaQueryWrapper<>();
         usernameCheck.eq(User::getUsername, request.getUsername());
-        if (userMapper.selectCount(usernameCheck) > 0) {
+        User existingUsernameUser = userMapper.selectOne(usernameCheck);
+        if (existingUsernameUser != null &&
+            existingUsernameUser.getStatus() != UserStatusEnum.FROZEN.getValue() &&
+            existingUsernameUser.getStatus() != UserStatusEnum.CANCELLED.getValue()) {
             return buildErrorResponse(400, "用户名已存在");
         }
 
-        // 检查手机号是否已存在（但 FROZEN 状态用户可重新注册）
+        // 检查手机号是否已存在（但 FROZEN/CANCELLED 状态用户可重新注册）
         if (request.getPhone() != null && !request.getPhone().isEmpty()) {
             LambdaQueryWrapper<User> phoneCheck = new LambdaQueryWrapper<>();
             phoneCheck.eq(User::getPhone, request.getPhone());
             User existingPhoneUser = userMapper.selectOne(phoneCheck);
-            if (existingPhoneUser != null && existingPhoneUser.getStatus() != UserStatusEnum.FROZEN.getValue()) {
+            if (existingPhoneUser != null && existingPhoneUser.getStatus() != UserStatusEnum.FROZEN.getValue() &&
+            existingPhoneUser.getStatus() != UserStatusEnum.CANCELLED.getValue()) {
                 return buildErrorResponse(400, "手机号已被注册");
             }
         }
@@ -270,6 +274,11 @@ public class UserController {
 
         if (!hasPermission) {
             return buildErrorResponse(403, "无权操作该用户");
+        }
+
+        // 状态校验：只有正常状态的用户可以变更角色
+        if (user.getStatus() != UserStatusEnum.NORMAL.getValue()) {
+            return buildErrorResponse(400, "只有正常状态的用户可以变更角色");
         }
 
         String newRole = request.getRole();

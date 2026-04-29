@@ -1,3 +1,4 @@
+/home/llm_rca/fisco/supply-chain-finance/services/finance-service/src/main/java/com/fisco/app/config/JacksonConfig.java
 /home/llm_rca/fisco/supply-chain-finance/services/finance-service/src/main/java/com/fisco/app/entity/RepaymentRecord.java
 /home/llm_rca/fisco/supply-chain-finance/services/finance-service/src/main/java/com/fisco/app/dto/LoanApproveRequest.java
 /home/llm_rca/fisco/supply-chain-finance/services/finance-service/src/main/java/com/fisco/app/enums/LoanStatus.java

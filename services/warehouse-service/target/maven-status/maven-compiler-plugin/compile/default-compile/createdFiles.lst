@@ -31,3 +31,4 @@ com/fisco/app/mapper/StockOrderMapper.class
 com/fisco/app/controller/HealthController.class
 com/fisco/app/entity/StockOrder.class
 com/fisco/app/entity/ReceiptEndorsement.class
+com/fisco/app/config/JacksonConfig.class

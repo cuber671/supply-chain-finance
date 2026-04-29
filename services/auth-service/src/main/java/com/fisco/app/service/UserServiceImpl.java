@@ -236,6 +236,10 @@ public class UserServiceImpl implements UserService {
         if (user == null) {
             throw new IllegalArgumentException("用户不存在");
         }
+        // 状态校验：只有正常状态的用户可以修改密码
+        if (user.getStatus() != UserStatusEnum.NORMAL.getValue()) {
+            throw new IllegalArgumentException("只有正常状态的用户可以修改密码");
+        }
         // 验证旧密码
         if (!passwordEncoder.matches(oldPassword, user.getPassword())) {
             throw new IllegalArgumentException("原密码错误");

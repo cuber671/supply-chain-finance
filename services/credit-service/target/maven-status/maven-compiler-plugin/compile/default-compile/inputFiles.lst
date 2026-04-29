@@ -15,5 +15,6 @@
 /home/llm_rca/fisco/supply-chain-finance/services/credit-service/src/main/java/com/fisco/app/entity/EnterpriseCreditProfile.java
 /home/llm_rca/fisco/supply-chain-finance/services/credit-service/src/main/java/com/fisco/app/CreditServiceApplication.java
 /home/llm_rca/fisco/supply-chain-finance/services/credit-service/src/main/java/com/fisco/app/feign/EnterpriseFeignClient.java
+/home/llm_rca/fisco/supply-chain-finance/services/credit-service/src/main/java/com/fisco/app/config/JacksonConfig.java
 /home/llm_rca/fisco/supply-chain-finance/services/credit-service/src/main/java/com/fisco/app/config/MyBatisPlusConfig.java
 /home/llm_rca/fisco/supply-chain-finance/services/credit-service/src/main/java/com/fisco/app/feign/FinanceFeignClientFallback.java
